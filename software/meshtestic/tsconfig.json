@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+      "moduleResolution": "node",
+      "target": "es2022",
+      "module": "esnext",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true
+    },
+    "include": ["test/**/*.ts", "src/discover.ts", "src/node.ts", "src/util.ts"]
+  }
