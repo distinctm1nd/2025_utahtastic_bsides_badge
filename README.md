@@ -1,4 +1,4 @@
 
-# 2025 Utah BSides Badge
+# 2025 Utahtastic BSides Badge
 
-Our awesome badge for BSides Utah 2025.
+
