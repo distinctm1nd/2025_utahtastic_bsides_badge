@@ -65,7 +65,14 @@
 #define ENABLE_AMBIENTLIGHTING               // Turn on Ambient Lighting
 
 
-// Buttons
+// All buttons including 5 way nav use the TCA9535 GPIO Expander 
+//EXCEPT center NAV button is on following pin GPIO 7
+//
+//I2C
+#define I2C_SDA 1
+#define I2C_SCL 2
+
+
 
 #define ENABLE_AMBIENTLIGHTING               // Turn on Ambient Lighting
 // #define BUTTON1_COLOR 0xFF0000               // Background light for Button 1 in HEX RGB Color (RadioMaster Bandit only).
@@ -102,3 +109,10 @@
 */
 //#define BUTTON_PIN 34
 //#define BUTTON_NEED_PULLUP
+
+//Buzzer
+//#define PIN_BUZZER  //Add pin number for buzzer. 39, 40, 41, 42
+
+
+#define UART_TX 43
+#define UART_RX 44
