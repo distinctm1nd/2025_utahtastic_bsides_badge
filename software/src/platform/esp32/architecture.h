@@ -174,7 +174,10 @@
 #define HW_VENDOR meshtastic_HardwareModel_SENSECAP_INDICATOR
 #elif defined(SEEED_XIAO_S3)
 #define HW_VENDOR meshtastic_HardwareModel_SEEED_XIAO_S3
+#elif defined(UTAH_BSIDES)
+#define HW_VENDOR meshtastic_HardwareModel_UTAH_BSIDES
 #endif
+
 
 // -----------------------------------------------------------------------------
 // LoRa SPI
@@ -184,16 +187,16 @@
 // FIXME: these pins should really be defined in each variant.h file to prevent breakages if the defaults change, currently many
 // ESP32 variants don't define these pins in their variant.h file.
 #ifndef LORA_SCK
-#define LORA_SCK 5
+#define LORA_SCK 3
 #endif
 #ifndef LORA_MISO
-#define LORA_MISO 19
+#define LORA_MISO 9
 #endif
 #ifndef LORA_MOSI
-#define LORA_MOSI 27
+#define LORA_MOSI 10
 #endif
 #ifndef LORA_CS
-#define LORA_CS 18
+#define LORA_CS 11
 #endif
 
-#define SERIAL0_RX_GPIO 3 // Always GPIO3 on ESP32 // FIXME: may be different on ESP32-S3, etc.
+#define SERIAL0_RX_GPIO 44 // Always GPIO3 on ESP32 // FIXME: may be different on ESP32-S3, etc.

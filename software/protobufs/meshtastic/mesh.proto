@@ -651,6 +651,13 @@ enum HardwareModel {
   TLORA_C6 = 83;
 
   /*
+  *Utah BSides (BSides Salt Lake City, BSides Red Rocks and 
+  *BSides Cache) 2025 Badge with ESP32-S3-WROOM-1 and DreamLNK
+  *LLCC68 LoRa Module
+  */
+  UTAH_BSIDES = 100;
+
+  /*
    * ------------------------------------------------------------------------------------------------------------------------------------------
    * Reserved ID For developing private Ports. These will show up in live traffic sparsely, so we can use a high number. Keep it within 8 bits.
    * ------------------------------------------------------------------------------------------------------------------------------------------

@@ -24,7 +24,7 @@
             0xbf, 0x74, 0x22, 0x7e, 0x9d, 0x6a, 0xfb, 0x48, 0xd6, 0x4c, 0xb1, 0xa1                                               \
     }
 
-#define USERPREFS_CHANNEL_0_NAME "DEFCONnect"
+#define USERPREFS_CHANNEL_0_NAME "UTAHBSIDESCONnect"
 #define USERPREFS_CHANNEL_0_PRECISION 14
 #define USERPREFS_CHANNEL_0_UPLINK_ENABLED true
 #define USERPREFS_CHANNEL_0_DOWNLINK_ENABLED true
@@ -54,7 +54,7 @@
 #define USERPREFS_CONFIG_OWNER_LONG_NAME "My Long Name"
 #define USERPREFS_CONFIG_OWNER_SHORT_NAME "MLN"
 
-#define USERPREFS_SPLASH_TITLE "DEFCONtastic"
+#define USERPREFS_SPLASH_TITLE "UTAHtastic"
 #define icon_width 34
 #define icon_height 29
 #define USERPREFS_HAS_SPLASH
