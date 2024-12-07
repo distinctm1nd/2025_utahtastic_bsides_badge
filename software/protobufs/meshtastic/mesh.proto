@@ -655,7 +655,7 @@ enum HardwareModel {
   *BSides Cache) 2025 Badge with ESP32-S3-WROOM-1 and DreamLNK
   *LLCC68 LoRa Module
   */
-  UTAH_BSIDES = 100;
+  //UTAH_BSIDES = 100;
 
   /*
    * ------------------------------------------------------------------------------------------------------------------------------------------
