@@ -9,10 +9,8 @@
 
 #define HAS_RADIO 1
 
-<<<<<<< HEAD:software/variants/utah_bsides/variant.h
 #define HAS_GPS 0
-=======
->>>>>>> refs/remotes/origin/main:software/variants/2025_utah_bsides/variant.h
+
 
 //LORA MODULE
 #define USE_LLCC68 
@@ -119,8 +117,4 @@
 
 
 #define UART_TX 43
-<<<<<<< HEAD:software/variants/utah_bsides/variant.h
 #define UART_RX 44
-=======
-#define UART_RX 44
->>>>>>> refs/remotes/origin/main:software/variants/2025_utah_bsides/variant.h
