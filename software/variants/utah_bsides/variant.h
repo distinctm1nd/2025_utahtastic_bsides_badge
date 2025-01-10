@@ -1,8 +1,15 @@
 //////////////////////////////////////////////////////////////////////////////////
 //                                                                              //
-//   2025 Utah BSides Badge    //
+//   Utah BSides Badge    //
 //                                                                              //
 //////////////////////////////////////////////////////////////////////////////////
+
+#define HAS_WIFI 1
+#define HAS_BLUETOOTH 1
+
+#define HAS_RADIO 1
+
+#define HAS_GPS 0
 
 
 //LORA MODULE
@@ -25,7 +32,7 @@
 
 // Display
 
-//#define HAS_SCREEN 1 // Assume no screen present by default to prevent crash...
+#define HAS_SCREEN 1 
 
 // ST7735S TFT LCD
 #define ST7735S 1 // there are different (sub-)versions of ST7735
@@ -37,7 +44,7 @@
 #define ST7735_MISO -1
 #define ST7735_BUSY -1
 #define TFT_BL 47
-#define ST7735_SPI_HOST SPI2_HOST 
+#define ST7735_SPI_HOST SPI3_HOST 
 #define SPI_FREQUENCY 40000000
 #define SPI_READ_FREQUENCY 16000000
 #define TFT_HEIGHT 160
@@ -60,7 +67,14 @@
 #define ENABLE_AMBIENTLIGHTING               // Turn on Ambient Lighting
 
 
-// Buttons
+// All buttons including 5 way nav use the TCA9535 GPIO Expander 
+//EXCEPT center NAV button is on following pin GPIO 7
+//
+//I2C
+#define I2C_SDA 1
+#define I2C_SCL 2
+
+
 
 #define ENABLE_AMBIENTLIGHTING               // Turn on Ambient Lighting
 // #define BUTTON1_COLOR 0xFF0000               // Background light for Button 1 in HEX RGB Color (RadioMaster Bandit only).
@@ -95,5 +109,12 @@
 /*
  Normal Button Pin setup.
 */
-//#define BUTTON_PIN 34
+#define BUTTON_PIN 7
 //#define BUTTON_NEED_PULLUP
+
+//Buzzer
+//#define PIN_BUZZER  //Add pin number for buzzer. 39, 40, 41, 42
+
+
+#define UART_TX 43
+#define UART_RX 44

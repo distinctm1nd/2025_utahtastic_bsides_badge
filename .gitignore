@@ -1,3 +1,8 @@
+# ignore meshtastic temp files
+software/.pio
+__pycache__
+software/.vscode
+
 **/.Trashes
 **/.fseventsd/
 **/rescue-backup/
