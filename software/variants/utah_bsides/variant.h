@@ -106,6 +106,10 @@
 //#define PIN_JOYSTICK 7
 //#define JOYSTICK_ADC_VALS /*UP*/ 3227, /*DOWN*/ 0, /*LEFT*/ 1961, /*RIGHT*/ 2668, /*OK*/ 1290, /*IDLE*/ 4095
 
+
+// keyboard
+#define CANNED_MESSAGE_MODULE_ENABLE 1
+
 /*
  Normal Button Pin setup.
 */
