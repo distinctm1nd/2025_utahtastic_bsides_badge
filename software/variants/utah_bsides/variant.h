@@ -11,6 +11,7 @@
 
 #define HAS_GPS 0
 
+#define CANNED_MESSAGE_MODULE_ENABLE 1
 
 //LORA MODULE
 #define USE_LLCC68 
@@ -108,7 +109,12 @@
 
 
 // keyboard
+/*#define INPUTBROKER_SERIAL_TYPE 1
+#define KB_LOAD 21 // load values from the switch and store in shift register
+#define KB_CLK 22  // clock pin for serial data out
+#define KB_DATA 23 // data pin
 #define CANNED_MESSAGE_MODULE_ENABLE 1
+*/
 
 /*
  Normal Button Pin setup.
