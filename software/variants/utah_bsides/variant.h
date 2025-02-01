@@ -59,14 +59,27 @@
 #define TFT_BACKLIGHT_ON HIGH
 
 
-//#define 
-
+//LEDs
+//Moon LEDs: These can be adjusted with the app
 #define HAS_NEOPIXEL                         // Enable the use of neopixels
 #define NEOPIXEL_COUNT 6                     // How many neopixels are connected
 #define NEOPIXEL_DATA 16                      // gpio pin used to send data to the neopixels
 #define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800) // type of neopixels in use
 #define ENABLE_AMBIENTLIGHTING               // Turn on Ambient Lighting
 
+//Logo, Eye, Button LEDs
+#define BUTTON_LED_PIN 4
+#define BUTTON_LED_COUNT 13
+#define LOGO_EYE_LED_PIN 17
+#define LOGO_EYE_LED_COUNT 6
+
+//LED Functions
+//void initVariantHardware();
+void handleButtonLedFlashing();
+void handleChasingLedPatterns();
+
+extern Adafruit_NeoPixel button_leds;
+extern Adafruit_NeoPixel logo_eye_leds;
 
 // All buttons including 5 way nav use the TCA9535 GPIO Expander 
 //EXCEPT center NAV button is on following pin GPIO 7
