@@ -1,6 +1,8 @@
 #include "../main.h"
 #include "../configuration.h"
 #include <Wire.h>
+#include "variant.h"
+#include <Adafruit_NeoPixel.h>
 
 // I2C Expander (TCA9535)
 #define TCA9535_ADDRESS 0x20
@@ -39,6 +41,97 @@ int konami_code[] = {BUTTON_UP, BUTTON_UP, BUTTON_DOWN, BUTTON_DOWN, BUTTON_LEFT
 void handleKonamiCode() {
     screen->startAlert("Konami code:\nYou win!");
 }
+
+/*-----------------------------------------------------------------------
+Definitions and variables for LEDs
+-----------------------------------------------------------------------*/
+void handleButtonLedFlashing();
+void handleChasingLedPatterns();
+void handleButtonPress();
+
+// Variables for fading button LEDs
+unsigned long lastButtonFadeTime = 0;
+const unsigned long fadeInterval = 150;  
+const int ledsToTurnOn = 13; 
+
+// Variables for rainbow colors and fading logic
+int currentColorIndex = 0;  
+float fadeProgress[14] = {0};  
+float fadeProgressEye[6] = {0}; 
+const float transitionSpeed = 0.01;  
+
+// Variables for chasing eye LEDs
+unsigned long lastChaseTime = 0;
+const unsigned long chaseInterval = 150; 
+int currentLedIndex = 0;  
+
+// Initialize LED objects directly
+Adafruit_NeoPixel button_leds(ledsToTurnOn, BUTTON_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel logo_eye_leds(6, LOGO_EYE_LED_PIN, NEO_GRB + NEO_KHZ800);
+
+const uint32_t rainbowColors[] = {
+    0xFF0000,    // Red
+    0xFF00FF,    // Magenta
+    0xFFD700,    // Yellow
+    0x006400,    // Green
+    0x00FF00,    // Blue
+    0x800080,    // Indigo
+    0xFF1493     // Violet
+};
+
+const uint32_t blueWhiteColors[] = {
+    0x0000FF,    // Blue
+    0xFFFFFF,    // White
+    0x0000FF,    // Blue
+    0xFFFFFF,    // White
+    0x0000FF,    // Blue
+    0xFFFFFF,    // White
+    0x0000FF     // Blue
+};
+
+const uint32_t redMaroonColors[] = {
+    0xFF0000,    // Red
+    0x800000,    // Maroon
+    0xFF0000,    // Red
+    0x800000,    // Maroon
+    0xFF0000,    // Red
+    0x800000,    // Maroon
+    0xFF0000     // Red
+};
+
+const uint32_t pinkWhiteColors[] = {
+    0xFF00FF,    // Pink
+    0xFFFFFF,    // White
+    0xFF00FF,    // Pink
+    0xFFFFFF,    // White
+    0xFF00FF,    // Pinkc
+    0xFFFFFF,    // White
+    0xFF00FF     // Pink
+};
+
+const uint32_t pinkPurpleColors[] = {
+    0xFF00FF,    // Pink
+    0x4B0082,    // Purple
+    0xFF00FF,    // Pink
+    0x4B0082,    // Purple
+    0xFF00FF,    // Pink
+    0x4B0082,    // Purple
+    0xFF00FF     // Pink
+};
+
+const uint32_t greenBlueColors[] = {
+    0x00FF00,    // Green
+    0x0000FF,    // Blue
+    0x00FF00,    // Green
+    0x0000FF,    // Blue
+    0x00FF00,    // Green
+    0x0000FF,    // Blue
+    0x00FF00     // Green
+};
+
+const int colorsCount = 7;
+
+const uint32_t* activeColorArray = rainbowColors;
 
 /*-----------------------------------------------------------------------
 TCA9535 FUNCTIONS
@@ -231,4 +324,139 @@ void lateInitVariant()
     mkb = new MyKeyboard("BSIDES-UTAH");
 
     checkForDebugMode();
+}
+
+/*-----------------------------------------------------------------------
+LED Functions
+-----------------------------------------------------------------------*/
+void initLEDs() {
+    button_leds.begin();
+    logo_eye_leds.begin();
+
+    // Set the initial color pattern for both button LEDs and logo eye LEDs
+    for (int i = 0; i < ledsToTurnOn; i++) {
+        button_leds.setPixelColor(i, activeColorArray[i % colorsCount]);
+    }
+    button_leds.show();
+
+    for (int i = 0; i < 6; i++) {
+        logo_eye_leds.setPixelColor(i, activeColorArray[i % colorsCount]);
+    }
+    logo_eye_leds.show();
+}
+
+void handleButtonLedFlashing() {
+    unsigned long currentMillis = millis();  
+
+    static unsigned long lastTransitionTime = 0;
+
+    if (currentMillis - lastTransitionTime >= fadeInterval) {  
+        lastTransitionTime = currentMillis;
+
+        // Apply a smooth transition to each button LED by updating the color gradually
+        for (int i = 0; i < ledsToTurnOn; i++) {
+            // Get the current color index for the LED
+            int colorIndex = (currentColorIndex + i) % colorsCount;
+            uint32_t targetColor = activeColorArray[colorIndex];
+
+            // Extract RGB components of the new target color
+            uint8_t targetR = (targetColor >> 16) & 0xFF;
+            uint8_t targetG = (targetColor >> 8) & 0xFF;
+            uint8_t targetB = targetColor & 0xFF;
+
+            // Get the current color of the button LED
+            uint32_t currentPixelColor = button_leds.getPixelColor(i);
+            uint8_t currentR = (currentPixelColor >> 16) & 0xFF;
+            uint8_t currentG = (currentPixelColor >> 8) & 0xFF;
+            uint8_t currentB = currentPixelColor & 0xFF;
+
+            // Apply smooth transition by interpolating colors (fading from one to the next)
+            if (fadeProgress[i] < 1.0f) {
+                fadeProgress[i] += transitionSpeed;  // Increase the fade progress
+                fadeProgress[i] = constrain(fadeProgress[i], 0.0f, 1.0f);  // Ensure it doesn't go past 1.0
+            }
+
+            uint8_t newR = currentR + (targetR - currentR) * fadeProgress[i];
+            uint8_t newG = currentG + (targetG - currentG) * fadeProgress[i];
+            uint8_t newB = currentB + (targetB - currentB) * fadeProgress[i];
+
+            button_leds.setPixelColor(i, button_leds.Color(newR, newG, newB));
+        }
+
+        button_leds.show();
+
+        currentColorIndex = (currentColorIndex + 1) % colorsCount;
+    }
+}
+
+// Function to handle smooth flowing color transition for the eye LEDs
+void handleChasingLedPatterns() {
+    unsigned long currentMillis = millis();  
+
+    static unsigned long lastTransitionTime = 0;
+
+    if (currentMillis - lastTransitionTime >= chaseInterval) {  
+        lastTransitionTime = currentMillis;
+
+        for (int i = 0; i < 6; i++) {
+            int colorIndex = (currentLedIndex + i) % colorsCount;
+            uint32_t targetColor = activeColorArray[colorIndex];
+
+            uint8_t targetR = (targetColor >> 16) & 0xFF;
+            uint8_t targetG = (targetColor >> 8) & 0xFF;
+            uint8_t targetB = targetColor & 0xFF;
+
+            uint32_t currentPixelColor = logo_eye_leds.getPixelColor(i);
+            uint8_t currentR = (currentPixelColor >> 16) & 0xFF;
+            uint8_t currentG = (currentPixelColor >> 8) & 0xFF;
+            uint8_t currentB = currentPixelColor & 0xFF;
+
+            if (fadeProgressEye[i] < 1.0f) {
+                fadeProgressEye[i] += transitionSpeed;
+                fadeProgressEye[i] = constrain(fadeProgressEye[i], 0.0f, 1.0f);
+            }
+
+            uint8_t newR = currentR + (targetR - currentR) * fadeProgressEye[i];
+            uint8_t newG = currentG + (targetG - currentG) * fadeProgressEye[i];
+            uint8_t newB = currentB + (targetB - currentB) * fadeProgressEye[i];
+
+            logo_eye_leds.setPixelColor(i, logo_eye_leds.Color(newR, newG, newB));
+        }
+
+        logo_eye_leds.show();
+
+        currentLedIndex = (currentLedIndex + 1) % 6;
+    }
+}
+
+void handleButtonPress() {
+    static bool lastButtonState = LOW;
+    bool buttonState = digitalRead(BUTTON_PIN);
+    static unsigned long lastDebounceTime = 0;
+    unsigned long debounceDelay = 50; 
+
+    if (buttonState == HIGH && lastButtonState == LOW && (millis() - lastDebounceTime) > debounceDelay) {
+        if (activeColorArray == rainbowColors) {
+            activeColorArray = blueWhiteColors;  
+        } else if (activeColorArray == blueWhiteColors) {
+            activeColorArray = redMaroonColors;  
+        } else if (activeColorArray == redMaroonColors) {
+            activeColorArray = pinkWhiteColors;  
+        } else if (activeColorArray == pinkWhiteColors) {
+            activeColorArray = pinkPurpleColors;  
+        } else if (activeColorArray == greenBlueColors) {
+            activeColorArray = greenBlueColors;  
+        }  
+        else {
+            activeColorArray = rainbowColors;  
+        }
+        lastDebounceTime = millis(); 
+    }
+
+    lastButtonState = buttonState;
+}
+
+void initVariant() {
+    pinMode(BUTTON_PIN, INPUT_PULLUP);  
+    initLEDs();  
 }
