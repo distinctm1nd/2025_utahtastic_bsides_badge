@@ -52,12 +52,11 @@ void handleButtonPress();
 // Variables for fading button LEDs
 unsigned long lastButtonFadeTime = 0;
 const unsigned long fadeInterval = 150;  
-const int ledsToTurnOn = 13; 
 
 // Variables for rainbow colors and fading logic
 int currentColorIndex = 0;  
-float fadeProgress[14] = {0};  
-float fadeProgressEye[6] = {0}; 
+float fadeProgress[BUTTON_LED_COUNT] = {0};  
+float fadeProgressEye[LOGO_EYE_LED_COUNT] = {0}; 
 const float transitionSpeed = 0.01;  
 
 // Variables for chasing eye LEDs
@@ -66,8 +65,8 @@ const unsigned long chaseInterval = 150;
 int currentLedIndex = 0;  
 
 // Initialize LED objects directly
-Adafruit_NeoPixel button_leds(ledsToTurnOn, BUTTON_LED_PIN, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel logo_eye_leds(6, LOGO_EYE_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel button_leds(BUTTON_LED_COUNT, BUTTON_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel logo_eye_leds(LOGO_EYE_LED_COUNT, LOGO_EYE_LED_PIN, NEO_GRB + NEO_KHZ800);
 
 const uint32_t rainbowColors[] = {
     0xFF0000,    // Red
@@ -127,6 +126,16 @@ const uint32_t greenBlueColors[] = {
     0x00FF00,    // Green
     0x0000FF,    // Blue
     0x00FF00     // Green
+};
+
+const uint32_t ledsOff[] = {
+    0x000000,    // Black
+    0x000000,    // Black
+    0x000000,    // Black
+    0x000000,    // Black
+    0x000000,    // Black
+    0x000000,    // Black
+    0x000000     // Black
 };
 
 const int colorsCount = 7;
@@ -334,12 +343,12 @@ void initLEDs() {
     logo_eye_leds.begin();
 
     // Set the initial color pattern for both button LEDs and logo eye LEDs
-    for (int i = 0; i < ledsToTurnOn; i++) {
+    for (int i = 0; i < BUTTON_LED_COUNT; i++) {
         button_leds.setPixelColor(i, activeColorArray[i % colorsCount]);
     }
     button_leds.show();
 
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < LOGO_EYE_LED_COUNT; i++) {
         logo_eye_leds.setPixelColor(i, activeColorArray[i % colorsCount]);
     }
     logo_eye_leds.show();
@@ -354,7 +363,7 @@ void handleButtonLedFlashing() {
         lastTransitionTime = currentMillis;
 
         // Apply a smooth transition to each button LED by updating the color gradually
-        for (int i = 0; i < ledsToTurnOn; i++) {
+        for (int i = 0; i < BUTTON_LED_COUNT; i++) {
             // Get the current color index for the LED
             int colorIndex = (currentColorIndex + i) % colorsCount;
             uint32_t targetColor = activeColorArray[colorIndex];
@@ -398,7 +407,7 @@ void handleChasingLedPatterns() {
     if (currentMillis - lastTransitionTime >= chaseInterval) {  
         lastTransitionTime = currentMillis;
 
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < LOGO_EYE_LED_COUNT; i++) {
             int colorIndex = (currentLedIndex + i) % colorsCount;
             uint32_t targetColor = activeColorArray[colorIndex];
 
@@ -425,7 +434,7 @@ void handleChasingLedPatterns() {
 
         logo_eye_leds.show();
 
-        currentLedIndex = (currentLedIndex + 1) % 6;
+        currentLedIndex = (currentLedIndex + 1) % LOGO_EYE_LED_COUNT;
     }
 }
 
@@ -446,7 +455,9 @@ void handleButtonPress() {
             activeColorArray = pinkPurpleColors;  
         } else if (activeColorArray == greenBlueColors) {
             activeColorArray = greenBlueColors;  
-        }  
+        }  else if (activeColorArray == ledsOff) {
+            activeColorArray = ledsOff;
+        }
         else {
             activeColorArray = rainbowColors;  
         }
