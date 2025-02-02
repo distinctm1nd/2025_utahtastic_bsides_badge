@@ -1,5 +1,7 @@
 #include "Observer.h"
 #include "configuration.h"
+#include "variant.h"
+
 
 #ifdef HAS_NCP5623
 #include <graphics/RAKled.h>
@@ -24,7 +26,7 @@ class AmbientLightingThread : public concurrency::OSThread
     explicit AmbientLightingThread(ScanI2C::DeviceType type) : OSThread("AmbientLighting")
     {
         notifyDeepSleepObserver.observe(&notifyDeepSleep); // Let us know when shutdown() is issued.
-
+      
 // Enables Ambient Lighting by default if conditions are meet.
 #if defined(HAS_NCP5623) || defined(RGBLED_RED) || defined(HAS_NEOPIXEL) || defined(UNPHONE)
 #ifdef ENABLE_AMBIENTLIGHTING
@@ -83,7 +85,15 @@ class AmbientLightingThread : public concurrency::OSThread
         if (_type == ScanI2C::NCP5623 && moduleConfig.ambient_lighting.led_state) {
 #endif
             setLighting();
-            return 30000; // 30 seconds to reset from any animations that may have been running from Ext. Notification
+          
+#ifdef PRIVATE_HW
+            // Call functions for flashing LEDs and chasing patterns
+            handleButtonLedFlashing();
+            handleChasingLedPatterns();
+            return 100;  // Update more frequently for private hardware
+#else
+            return 30000; 
+#endif
 #ifdef HAS_NCP5623
         }
 #endif
