@@ -3,6 +3,8 @@
 //   Utah BSides Badge    //
 //                                                                              //
 //////////////////////////////////////////////////////////////////////////////////
+#include <Adafruit_NeoPixel.h>
+
 
 #define HAS_WIFI 1
 #define HAS_BLUETOOTH 1
