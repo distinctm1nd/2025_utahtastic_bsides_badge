@@ -13,54 +13,6 @@
 extern graphics::Screen *screen;
 
 
-#define KEY(x) meshtastic_ModuleConfig_CannedMessageConfig_InputEventChar_##x
-
-enum ButtonBit {
-    BUTTON_BL       = 1<<0,
-    BUTTON_ZERO     = 1<<1,
-    BUTTON_BR       = 1<<2,
-    BUTTON_NINE     = 1<<3,
-    BUTTON_EIGHT    = 1<<4,
-    BUTTON_SEVEN    = 1<<5,
-    BUTTON_SIX      = 1<<6,
-    BUTTON_FIVE     = 1<<7,
-    BUTTON_FOUR     = 1<<8,
-    BUTTON_THREE    = 1<<9,
-    BUTTON_TWO      = 1<<10,
-    BUTTON_ONE      = 1<<11,
-    BUTTON_UP       = 1<<12,
-    BUTTON_RIGHT    = 1<<13,
-    BUTTON_DOWN     = 1<<14,
-    BUTTON_LEFT     = 1<<15
-};
-
-char keys[][6] = {
-    {' ', ' ', ' ', ' ', ' ', ' '},
-    {' ', '0', 0, 0, 0, 0},
-    {' ', ' ', ' ', ' ', ' ', ' '},
-    {'w', 'x', 'y', 'z', '9', 0},
-    {'t', 'u', 'v', '8', 0, 0},
-    {'p', 'q', 'r', 's', '7', 0},
-    {'m', 'n', 'o', '6', 0, 0},
-    {'j', 'k', 'l', '5', 0, 0},
-    {'g', 'h', 'i', '4', 0, 0},
-    {'d', 'e', 'f', '3', 0, 0},
-    {'a', 'b', 'c', '2', 0, 0},
-    {'.', ',', '?', '!', '+', '1'},
-    {KEY(UP), 0, 0, 0, 0, 0},
-    {KEY(RIGHT), 0, 0, 0, 0, 0},
-    {KEY(DOWN), 0, 0, 0, 0, 0},
-    {KEY(LEFT), 0, 0, 0, 0, 0}
-};
-
-#define NUM_ELEMS(a) (sizeof(a)/sizeof a[0])
-int konami_code[] = {BUTTON_UP, BUTTON_UP, BUTTON_DOWN, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_ONE, BUTTON_ONE};
-#define KONAMI_CODE_LEN NUM_ELEMS(konami_code)
-
-void handleKonamiCode() {
-    screen->startAlert("Konami code:\nYou win!");
-}
-
 /*-----------------------------------------------------------------------
 Definitions and variables for LEDs
 -----------------------------------------------------------------------*/
@@ -162,8 +114,56 @@ const int colorsCount = 7;
 const uint32_t* activeColorArray = rainbowColors;
 
 /*-----------------------------------------------------------------------
-TCA9535 FUNCTIONS
+TCA9535 FUNCTIONS --- Keyboard
 -----------------------------------------------------------------------*/
+#define KEY(x) meshtastic_ModuleConfig_CannedMessageConfig_InputEventChar_##x
+
+enum ButtonBit {
+    BUTTON_BL       = 1<<0,
+    BUTTON_ZERO     = 1<<1,
+    BUTTON_BR       = 1<<2,
+    BUTTON_NINE     = 1<<3,
+    BUTTON_EIGHT    = 1<<4,
+    BUTTON_SEVEN    = 1<<5,
+    BUTTON_SIX      = 1<<6,
+    BUTTON_FIVE     = 1<<7,
+    BUTTON_FOUR     = 1<<8,
+    BUTTON_THREE    = 1<<9,
+    BUTTON_TWO      = 1<<10,
+    BUTTON_ONE      = 1<<11,
+    BUTTON_UP       = 1<<12,
+    BUTTON_RIGHT    = 1<<13,
+    BUTTON_DOWN     = 1<<14,
+    BUTTON_LEFT     = 1<<15
+};
+
+char keys[][6] = {
+    {' ', ' ', ' ', ' ', ' ', ' '},
+    {' ', '0', 0, 0, 0, 0},
+    {' ', ' ', ' ', ' ', ' ', ' '},
+    {'w', 'x', 'y', 'z', '9', 0},
+    {'t', 'u', 'v', '8', 0, 0},
+    {'p', 'q', 'r', 's', '7', 0},
+    {'m', 'n', 'o', '6', 0, 0},
+    {'j', 'k', 'l', '5', 0, 0},
+    {'g', 'h', 'i', '4', 0, 0},
+    {'d', 'e', 'f', '3', 0, 0},
+    {'a', 'b', 'c', '2', 0, 0},
+    {'.', ',', '?', '!', '+', '1'},
+    {KEY(UP), 0, 0, 0, 0, 0},
+    {KEY(RIGHT), 0, 0, 0, 0, 0},
+    {KEY(DOWN), 0, 0, 0, 0, 0},
+    {KEY(LEFT), 0, 0, 0, 0, 0}
+};
+
+#define NUM_ELEMS(a) (sizeof(a)/sizeof a[0])
+int konami_code[] = {BUTTON_UP, BUTTON_UP, BUTTON_DOWN, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_ONE, BUTTON_ONE};
+#define KONAMI_CODE_LEN NUM_ELEMS(konami_code)
+
+void handleKonamiCode() {
+    screen->startAlert("Konami code:\nYou win!");
+}
+
 void initializeTCA9535() {
     Wire.beginTransmission(TCA9535_ADDRESS);
     Wire.write(0x06); // Set all pins as inputs
