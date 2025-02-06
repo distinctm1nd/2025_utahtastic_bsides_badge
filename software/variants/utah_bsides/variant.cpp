@@ -34,6 +34,25 @@ enum ButtonBit {
     BUTTON_LEFT     = 1<<15
 };
 
+char keys[][6] = {
+    {' ', ' ', ' ', ' ', ' ', ' '},
+    {' ', '0', 0, 0, 0, 0},
+    {' ', ' ', ' ', ' ', ' ', ' '},
+    {'w', 'x', 'y', 'z', '9', 0},
+    {'t', 'u', 'v', '8', 0, 0},
+    {'p', 'q', 'r', 's', '7', 0},
+    {'m', 'n', 'o', '6', 0, 0},
+    {'j', 'k', 'l', '5', 0, 0},
+    {'g', 'h', 'i', '4', 0, 0},
+    {'d', 'e', 'f', '3', 0, 0},
+    {'a', 'b', 'c', '2', 0, 0},
+    {'.', ',', '?', '!', '+', '1'},
+    {KEY(UP), 0, 0, 0, 0, 0},
+    {KEY(RIGHT), 0, 0, 0, 0, 0},
+    {KEY(DOWN), 0, 0, 0, 0, 0},
+    {KEY(LEFT), 0, 0, 0, 0, 0}
+};
+
 #define NUM_ELEMS(a) (sizeof(a)/sizeof a[0])
 int konami_code[] = {BUTTON_UP, BUTTON_UP, BUTTON_DOWN, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_ONE, BUTTON_ONE};
 #define KONAMI_CODE_LEN NUM_ELEMS(konami_code)
@@ -170,8 +189,6 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
     public:
     MyKeyboard(const char* name) : concurrency::OSThread(name) {
         _originName = name;
-        _prevButtonState = 0;
-        _konamiCodeIndex = 0;
         inputBroker->registerSource(this);
         //Wire.begin(BUTTON_SDA, BUTTON_SCL);
         initializeTCA9535();
@@ -183,6 +200,10 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
     {
         this->_action = KEYBOARD_ACTION_PRESSED;
         setIntervalFromNow(20);
+    }
+
+    uint16_t state() {
+        return _prevButtonState;
     }
 
     protected:
@@ -197,8 +218,11 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
 
     private:
     const char* _originName;
-    uint16_t _prevButtonState;
-    int _konamiCodeIndex;
+    uint16_t _prevButtonState = 0;
+    int _konamiCodeIndex = 0;
+    int _lastKeyPressed = 0;
+    int _quickPress = 0;
+    unsigned long _lastPressTime = 0;
 
     char _event = meshtastic_ModuleConfig_CannedMessageConfig_InputEventChar_NONE;
     volatile MyKeyboardStateType _state = KEYBOARD_EVENT_CLEARED;
@@ -215,10 +239,12 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
     }
 
     void button_pressed() {
+        String buttonStateText = "Button State:\n";
         uint16_t button_state = readButtonState();
+        uint16_t newly_pressed = 0;
         if (!button_state) {
             //LOG_DEBUG("no buttons.");
-            return;
+            goto cleanup;
         }
 
         //LOG_DEBUG("A button was pressed!");
@@ -232,78 +258,47 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
             _konamiCodeIndex = 0;
         }
 
+        newly_pressed = button_state & (button_state ^ _prevButtonState);
+
         // Display button state in the Serial console
-        String buttonStateText = "Button State: ";
-        for (int i = 15; i > 0; i--) {  // Assuming 16 buttons
+        for (int i = 15; i >= 0; i--) {  // Assuming 16 buttons
             buttonStateText += (button_state & (1 << i)) ? "1 " : "0 ";
         }
         Serial.println(buttonStateText);
 
-        if (button_state & BUTTON_UP) {
-            LOG_DEBUG("BUTTON_UP pressed");
-            emit(KEY(UP));
+        for (int i = 0; i < 16; i++) {
+            if (newly_pressed & (1 << i)) {
+                // if a non arrow key was pressed
+                if (i < 12) {
+                    // if the same key is pressed quickly
+                    if (i == _lastKeyPressed && millis() - _lastPressTime < 500) {
+                        // increment the key index used
+                        _quickPress = (_quickPress + 1) % 6;
+                        // but if we've run out of symbols for the key
+                        if (!keys[i][_quickPress]) {
+                            // go back to the beginning
+                            _quickPress = 0;
+                        }
+                        erase();
+                    } else {
+                        _quickPress = 0;
+                    }
+                    emit(ANYKEY, keys[i][_quickPress]);
+                } else {
+                    emit(keys[i][0]);
+                }
+                _lastKeyPressed = i;
+            }
         }
-        if (button_state & BUTTON_DOWN) {
-            LOG_DEBUG("BUTTON_DOWN pressed");
-            emit(KEY(DOWN));
-        }
-        if (button_state & BUTTON_LEFT) {
-            LOG_DEBUG("BUTTON_LEFT pressed");
-            emit(KEY(LEFT));
-        }
-        if (button_state & BUTTON_RIGHT) {
-            LOG_DEBUG("BUTTON_RIGHT pressed");
-            emit(KEY(RIGHT));
-        }
-        if (button_state & BUTTON_BL) {
-            LOG_DEBUG("BUTTON_BL pressed");
-            emit(ANYKEY, INPUT_BROKER_MSG_BRIGHTNESS_DOWN);
-        }
-        if (button_state & BUTTON_BR) {
-            LOG_DEBUG("BUTTON_BR pressed");
-            emit(ANYKEY, INPUT_BROKER_MSG_BLUETOOTH_TOGGLE);
-        }
-        if (button_state & BUTTON_ZERO) {
-            LOG_DEBUG("BUTTON_ZERO pressed");
-            emit(ANYKEY, '0');
-        }
-        if (button_state & BUTTON_ONE) {
-            LOG_DEBUG("BUTTON_ONE pressed");
-            emit(ANYKEY, '1');
-        }
-        if (button_state & BUTTON_TWO) {
-            LOG_DEBUG("BUTTON_TWO pressed");
-            emit(ANYKEY, '2');
-        }
-        if (button_state & BUTTON_THREE) {
-            LOG_DEBUG("BUTTON_THREE pressed");
-            emit(ANYKEY, '3');
-        }
-        if (button_state & BUTTON_FOUR) {
-            LOG_DEBUG("BUTTON_FOUR pressed");
-            emit(ANYKEY, '4');
-        }
-        if (button_state & BUTTON_FIVE) {
-            LOG_DEBUG("BUTTON_FIVE pressed");
-            emit(ANYKEY, '5');
-        }
-        if (button_state & BUTTON_SIX) {
-            LOG_DEBUG("BUTTON_SIX pressed");
-            emit(ANYKEY, '6');
-        }
-        if (button_state & BUTTON_SEVEN) {
-            LOG_DEBUG("BUTTON_SEVEN pressed");
-            emit(ANYKEY, '7');
-        }
-        if (button_state & BUTTON_EIGHT) {
-            LOG_DEBUG("BUTTON_EIGHT pressed");
-            emit(ANYKEY, '8');
-        }
-        if (button_state & BUTTON_NINE) {
-            LOG_DEBUG("BUTTON_NINE pressed");
-            emit(ANYKEY, '9');
-        }
+        
+    cleanup:
+        _lastPressTime = millis();
         _prevButtonState = button_state;
+    }
+
+    void erase()
+    {
+        emit(KEY(BACK), 0x08);
     }
 };
 
@@ -315,6 +310,13 @@ void intPressHandler() {
 
 void drawDebugScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) {
     LOG_DEBUG("drawDebugScreen called");
+    display->setFont(FONT_SMALL);
+    String buttonStateText = "Button State:";
+    uint16_t button_state = mkb->state();
+    for (int i = 15; i >= 0; i--) {  // Assuming 16 buttons
+        buttonStateText += (button_state & (1 << i)) ? "1 " : "0 ";
+    }
+    display->drawString(5, 5, buttonStateText);
 }
 
 void checkForDebugMode() {
