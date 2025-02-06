@@ -143,3 +143,8 @@ extern Adafruit_NeoPixel logo_eye_leds;
 
 #define UART_TX 43
 #define UART_RX 44
+
+
+//Minibadge Clock Signal
+#define MB_CLOCK_H 8
+#define MB_CLOCK_L 18

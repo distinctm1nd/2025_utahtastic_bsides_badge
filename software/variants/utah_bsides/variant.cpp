@@ -467,7 +467,28 @@ void handleButtonPress() {
     lastButtonState = buttonState;
 }
 
+void minibadgeClk(void * pvParameters){ 
+  TickType_t xLastWakeTime;
+  xLastWakeTime = xTaskGetTickCount();
+
+  while (1){ 
+    //Update Minibadge CLK pin
+    if(digitalRead(MB_CLOCK_H)){
+      digitalWrite(MB_CLOCK_H, LOW);
+      digitalWrite(MB_CLOCK_L, HIGH);
+    } else {
+      digitalWrite(MB_CLOCK_H, HIGH);
+      digitalWrite(MB_CLOCK_L, LOW);
+    }
+
+    //Wait for the next 1 second interval
+    xTaskDelayUntil(&xLastWakeTime, 1000);
+  }
+}
+
 void initVariant() {
     pinMode(BUTTON_PIN, INPUT_PULLUP);  
     initLEDs();  
+    TaskHandle_t periodicTaskHandle = NULL;
+    xTaskCreateUniversal(minibadgeClk, "periodic", 8192, NULL, 1, &periodicTaskHandle, ARDUINO_RUNNING_CORE);
 }
