@@ -477,9 +477,12 @@ void minibadgeClk(void * pvParameters){
   TickType_t xLastWakeTime;
   xLastWakeTime = xTaskGetTickCount();
 
+  pinMode(MB_CLOCK_H, OUTPUT);
+  pinMode(MB_CLOCK_L, OUTPUT);
+
   while (1){ 
     //Update Minibadge CLK pin
-    if(digitalRead(MB_CLOCK_H)){
+    if (digitalRead(MB_CLOCK_H)) {
       digitalWrite(MB_CLOCK_H, LOW);
       digitalWrite(MB_CLOCK_L, HIGH);
     } else {
