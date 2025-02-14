@@ -138,9 +138,9 @@ enum ButtonBit {
 };
 
 char keys[][6] = {
-    {' ', ' ', ' ', ' ', ' ', ' '},
+    {'*', 0, 0, 0, 0, 0},
     {' ', '0', 0, 0, 0, 0},
-    {' ', ' ', ' ', ' ', ' ', ' '},
+    {'#', 0, 0, 0, 0, 0},
     {'w', 'x', 'y', 'z', '9', 0},
     {'t', 'u', 'v', '8', 0, 0},
     {'p', 'q', 'r', 's', '7', 0},
@@ -150,7 +150,7 @@ char keys[][6] = {
     {'d', 'e', 'f', '3', 0, 0},
     {'a', 'b', 'c', '2', 0, 0},
     {'.', ',', '?', '!', '+', '1'},
-    {KEY(UP), 0, 0, 0, 0, 0},
+    {KEY(SELECT), 0, 0, 0, 0, 0},
     {KEY(RIGHT), 0, 0, 0, 0, 0},
     {KEY(DOWN), 0, 0, 0, 0, 0},
     {KEY(LEFT), 0, 0, 0, 0, 0}
@@ -285,7 +285,11 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
                     }
                     emit(ANYKEY, keys[i][_quickPress]);
                 } else {
-                    emit(keys[i][0]);
+                    if (i==14) { // down button
+                        erase();
+                    } else {
+                        emit(keys[i][0]);
+                    }
                 }
                 _lastKeyPressed = i;
             }
@@ -311,7 +315,7 @@ void intPressHandler() {
 void drawDebugScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) {
     LOG_DEBUG("drawDebugScreen called");
     display->setFont(FONT_SMALL);
-    String buttonStateText = "Button State:";
+    String buttonStateText = "Button State:\n";
     uint16_t button_state = mkb->state();
     for (int i = 15; i >= 0; i--) {  // Assuming 16 buttons
         buttonStateText += (button_state & (1 << i)) ? "1 " : "0 ";
@@ -473,9 +477,12 @@ void minibadgeClk(void * pvParameters){
   TickType_t xLastWakeTime;
   xLastWakeTime = xTaskGetTickCount();
 
+  pinMode(MB_CLOCK_H, OUTPUT);
+  pinMode(MB_CLOCK_L, OUTPUT);
+
   while (1){ 
     //Update Minibadge CLK pin
-    if(digitalRead(MB_CLOCK_H)){
+    if (digitalRead(MB_CLOCK_H)) {
       digitalWrite(MB_CLOCK_H, LOW);
       digitalWrite(MB_CLOCK_L, HIGH);
     } else {
