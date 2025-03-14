@@ -495,7 +495,17 @@ void minibadgeClk(void * pvParameters){
   }
 }
 
+void initLora(){
+    TickType_t xLastWakeTime;
+    xLastWakeTime = xTaskGetTickCount(); 
+    pinMode(SX126X_RESET, OUTPUT);
+    digitalWrite(SX126X_RESET, LOW);
+    xTaskDelayUntil(&xLastWakeTime, 100);
+    digitalWrite(SX126X_RESET, HIGH);    
+}
+
 void initVariant() {
+    initLora();
     pinMode(BUTTON_PIN, INPUT_PULLUP);  
     initLEDs();  
     TaskHandle_t periodicTaskHandle = NULL;
