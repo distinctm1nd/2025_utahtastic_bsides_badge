@@ -312,15 +312,24 @@ void intPressHandler() {
     mkb->onIntPress();
 }
 
+// ../../.pio/libdeps/utah_bsides/ESP8266 and ESP32 OLED driver for SSD1306 displays/src/OLEDDisplay.h
 void drawDebugScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) {
     LOG_DEBUG("drawDebugScreen called");
-    display->setFont(FONT_SMALL);
-    String buttonStateText = "Button State:\n";
+    //display->setFont(FONT_SMALL);
+    //String buttonStateText = "Button State:\n";
     uint16_t button_state = mkb->state();
-    for (int i = 15; i >= 0; i--) {  // Assuming 16 buttons
-        buttonStateText += (button_state & (1 << i)) ? "1 " : "0 ";
+    //for (int i = 15; i >= 0; i--) {  // Assuming 16 buttons
+        //buttonStateText += (button_state & (1 << i)) ? "1 " : "0 ";
+    //}
+    //display->drawString(5, 5, buttonStateText);
+
+    display->drawRect(0, 0, display->width(), display->height());
+
+    for (int i = 15; i >= 0; i--) {
+        if (button_state & (1 << i)) {
+            display->drawRect(i*10, 0, 10, 10);
+        }
     }
-    display->drawString(5, 5, buttonStateText);
 }
 
 void checkForDebugMode() {
@@ -474,25 +483,25 @@ void handleButtonPress() {
 }
 
 void minibadgeClk(void * pvParameters){ 
-  TickType_t xLastWakeTime;
-  xLastWakeTime = xTaskGetTickCount();
+    TickType_t xLastWakeTime;
+    xLastWakeTime = xTaskGetTickCount();
 
-  pinMode(MB_CLOCK_H, OUTPUT);
-  pinMode(MB_CLOCK_L, OUTPUT);
+    pinMode(MB_CLOCK_H, OUTPUT);
+    pinMode(MB_CLOCK_L, OUTPUT);
 
-  while (1){ 
-    //Update Minibadge CLK pin
-    if (digitalRead(MB_CLOCK_H)) {
-      digitalWrite(MB_CLOCK_H, LOW);
-      digitalWrite(MB_CLOCK_L, HIGH);
-    } else {
-      digitalWrite(MB_CLOCK_H, HIGH);
-      digitalWrite(MB_CLOCK_L, LOW);
+    while (1){ 
+        //Update Minibadge CLK pin
+        if (digitalRead(MB_CLOCK_H)) {
+            digitalWrite(MB_CLOCK_H, LOW);
+            digitalWrite(MB_CLOCK_L, HIGH);
+        } else {
+            digitalWrite(MB_CLOCK_H, HIGH);
+            digitalWrite(MB_CLOCK_L, LOW);
+        }
+
+        //Wait for the next 1 second interval
+        xTaskDelayUntil(&xLastWakeTime, 1000);
     }
-
-    //Wait for the next 1 second interval
-    xTaskDelayUntil(&xLastWakeTime, 1000);
-  }
 }
 
 void initVariant() {
