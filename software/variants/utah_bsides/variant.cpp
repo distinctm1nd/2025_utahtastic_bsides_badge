@@ -116,6 +116,9 @@ const uint32_t* activeColorArray = rainbowColors;
 /*-----------------------------------------------------------------------
 TCA9535 FUNCTIONS --- Keyboard
 -----------------------------------------------------------------------*/
+
+#define USE_KEYBOARD_INTERRUPT false
+
 #define KEY(x) meshtastic_ModuleConfig_CannedMessageConfig_InputEventChar_##x
 
 enum ButtonBit {
@@ -138,22 +141,22 @@ enum ButtonBit {
 };
 
 char keys[][6] = {
-    {'*', 0, 0, 0, 0, 0},
-    {' ', '0', 0, 0, 0, 0},
-    {'#', 0, 0, 0, 0, 0},
-    {'w', 'x', 'y', 'z', '9', 0},
-    {'t', 'u', 'v', '8', 0, 0},
-    {'p', 'q', 'r', 's', '7', 0},
-    {'m', 'n', 'o', '6', 0, 0},
-    {'j', 'k', 'l', '5', 0, 0},
-    {'g', 'h', 'i', '4', 0, 0},
-    {'d', 'e', 'f', '3', 0, 0},
-    {'a', 'b', 'c', '2', 0, 0},
+    {'*',   0,   0,   0,   0,   0},
+    {' ', '0',   0,   0,   0,   0},
+    {'#',   0,   0,   0,   0,   0},
+    {'w', 'x', 'y', 'z', '9',   0},
+    {'t', 'u', 'v', '8',   0,   0},
+    {'p', 'q', 'r', 's', '7',   0},
+    {'m', 'n', 'o', '6',   0,   0},
+    {'j', 'k', 'l', '5',   0,   0},
+    {'g', 'h', 'i', '4',   0,   0},
+    {'d', 'e', 'f', '3',   0,   0},
+    {'a', 'b', 'c', '2',   0,   0},
     {'.', ',', '?', '!', '+', '1'},
-    {KEY(SELECT), 0, 0, 0, 0, 0},
+    {KEY(UP),    0, 0, 0, 0, 0},
     {KEY(RIGHT), 0, 0, 0, 0, 0},
-    {KEY(DOWN), 0, 0, 0, 0, 0},
-    {KEY(LEFT), 0, 0, 0, 0, 0}
+    {KEY(DOWN),  0, 0, 0, 0, 0},
+    {KEY(LEFT),  0, 0, 0, 0, 0}
 };
 
 #define NUM_ELEMS(a) (sizeof(a)/sizeof a[0])
@@ -181,24 +184,26 @@ uint16_t readButtonState() {
 
 void intPressHandler();
 
-enum MyKeyboardStateType { KEYBOARD_EVENT_OCCURRED, KEYBOARD_EVENT_CLEARED };
-enum MyKeyboardActionType { KEYBOARD_ACTION_NONE, KEYBOARD_ACTION_PRESSED };
-
 class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OSThread
 {
     public:
     MyKeyboard(const char* name) : concurrency::OSThread(name) {
         _originName = name;
         inputBroker->registerSource(this);
-        //Wire.begin(BUTTON_SDA, BUTTON_SCL);
         initializeTCA9535();
-        //Wire.end();
-        attachInterrupt(BUTTON_INT, intPressHandler, FALLING);
+
+        if (USE_KEYBOARD_INTERRUPT) {
+            // use the keyboard interrupt to detect changes
+            attachInterrupt(BUTTON_INT, intPressHandler, FALLING);
+        } else {
+            // use polling to detect changes
+            setIntervalFromNow(20);
+        }
     }
 
+    // this is an interrupt handler, so only schedule runOnce to be called.
     void onIntPress()
     {
-        this->_action = KEYBOARD_ACTION_PRESSED;
         setIntervalFromNow(20);
     }
 
@@ -208,12 +213,16 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
 
     protected:
     int32_t runOnce() {
-        if (_action == KEYBOARD_ACTION_PRESSED) {
-            button_pressed();
-            this->_action = KEYBOARD_ACTION_NONE;
-        }
+        // process any button presses
+        button_pressed();
 
-        return INT32_MAX;
+        if (USE_KEYBOARD_INTERRUPT) {
+            // don't call this method again
+            return INT32_MAX;
+        } else {
+            // call this method again soon
+            return 20;
+        }
     }
 
     private:
@@ -225,8 +234,6 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
     unsigned long _lastPressTime = 0;
 
     char _event = meshtastic_ModuleConfig_CannedMessageConfig_InputEventChar_NONE;
-    volatile MyKeyboardStateType _state = KEYBOARD_EVENT_CLEARED;
-    volatile MyKeyboardActionType _action = KEYBOARD_ACTION_NONE;
 
     void emit(char key, char kbchar = 0) {
         InputEvent e;
@@ -243,11 +250,12 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
         uint16_t button_state = readButtonState();
         uint16_t newly_pressed = 0;
         if (!button_state) {
-            //LOG_DEBUG("no buttons.");
+            //Serial.println("no buttons.");
             goto cleanup;
+        } else {
+            Serial.println("A button was pressed!");
         }
 
-        //LOG_DEBUG("A button was pressed!");
         if (button_state == konami_code[_konamiCodeIndex]) {
             _konamiCodeIndex += 1;
             if (_konamiCodeIndex == KONAMI_CODE_LEN) {
@@ -285,10 +293,12 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
                     }
                     emit(ANYKEY, keys[i][_quickPress]);
                 } else {
-                    if (i==14) { // down button
-                        erase();
+                    if (i==14) {            // BUTTON_DOWN
+                        erase();            //   erase the previous letter
+                    } else if (i==12) {     // BUTTON_UP
+                        emit(KEY(SELECT));  //   send the message
                     } else {
-                        emit(keys[i][0]);
+                        emit(keys[i][0]);   // send LEFT or RIGHT
                     }
                 }
                 _lastKeyPressed = i;
@@ -306,8 +316,11 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
     }
 };
 
+// Our keyboard object
 MyKeyboard *mkb = NULL;
 
+// this function just calls the keyboard's interrupt handler,
+// because the interrupt handler doesn't work with class methods.
 void intPressHandler() {
     mkb->onIntPress();
 }
