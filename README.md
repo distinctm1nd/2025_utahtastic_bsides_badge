@@ -62,6 +62,11 @@ Attach the lanyard to the "post" by the raven.
 - Right: move cursor right
 - Press: switch screens
 
+## STL Files for joystick button cap and moon diffuser
+
+[Joystick Button Cap](wayhttps://www.printables.com/model/1166931-joystick-cap-for-b-sides-utah-2025-badge)
+[Moon Diffuser](https://www.printables.com/model/1166783-moon-led-diffuser-for-b-sides-utah-2025-badge)
+
 ## A few notes on usage
 
 If you download the meshtastic app you can connect to your badge via bluetooth and send /receive messages through the app. You can also change many setting through the app. 
