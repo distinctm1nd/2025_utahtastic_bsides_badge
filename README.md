@@ -5,6 +5,18 @@
 
 ![Utah BSides Badge front](hardware/utah_bsides_back.png)
 
+Key Features:
+
+    - ESP32-S3-WROOM Microcontroller
+    - LoRa 
+    - 25 Addressable LEDs
+    - TFT Display
+    - Power Options: Powered via Micro USB or 3 AA batteries (regulated at 3.3V).
+    - Hackable and Programmable: Easily program with just a laptop and a Micro USB cable.
+    - Expansion Ready: 3 minibadge slots for future add-ons.
+    - Custom Meshtastic Firmware: Open-source firmware designed for mesh networking.
+    - Convenient Controls – UART connection point, Reset and Flash buttons, and a power switch for toggling between USB and battery modes.
+    - 4 GPIO pins available for custom dev work​
 
 ## Make sure you have the following item:
 
