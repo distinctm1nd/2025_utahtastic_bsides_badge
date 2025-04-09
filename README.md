@@ -19,7 +19,7 @@
 
 ## Badge Assembly
 
-The badge does not require further assembly to be functional with a usb connector and external battery. Make sure that the switch is at USB if powering with USB. 
+The badge does not require further assembly to be functional by powering through the USB with an external battery. Make sure that the switch is at USB if powering with USB. 
 
 To complete the assembly, first solder the minibadge headers to the badge. Be careful while soldering the header that is near the display. 
 
