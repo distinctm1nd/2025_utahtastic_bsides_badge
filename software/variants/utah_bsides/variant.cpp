@@ -14,6 +14,9 @@
 extern graphics::Screen *screen;
 
 
+// are we showing the welcome screen
+int welcomeScreenActivated = 0;
+
 /*-----------------------------------------------------------------------
 Definitions and variables for LEDs
 -----------------------------------------------------------------------*/
@@ -170,10 +173,6 @@ int konami_code[] = {BUTTON_UP, BUTTON_UP, BUTTON_DOWN, BUTTON_DOWN, BUTTON_LEFT
 // forward declaration for use in the keyboard class
 void drawMenuScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y);
 
-void handleKonamiCode() {
-    screen->startAlert("Konami code:\nYou win!");
-}
-
 void initializeTCA9535() {
     Wire.beginTransmission(TCA9535_ADDRESS);
     Wire.write(0x06); // Set all pins as inputs
@@ -238,7 +237,7 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
     int _konamiCodeIndex = 0;
     int _lastKeyPressed = 0;
     int _menuActivated = 0;
-    int _konamiCodeActivated = 0;
+    int _alertActivated = 0;
     int _quickPress = 0;
     unsigned long _lastPressTime = 0;
 
@@ -263,14 +262,17 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
             goto cleanup;
         } else {
             Serial.println("A button is pressed!");
+            if (_lastPressTime == 0) {
+                _lastPressTime = millis();
+            }
         }
 
         if (!newly_pressed) {
             // we've already detected and handled the button
             // so check for a long press action from BUTTON_BOTLEFT
             unsigned long currentTime = millis();
-            // if it's been 3 seconds
-            if (button_state == BUTTON_BOTLEFT && _lastPressTime + 3000 < currentTime) {
+            // if it's been 2 seconds
+            if (button_state == BUTTON_BOTLEFT && _lastPressTime + 2000 < currentTime) {
                 if (!_menuActivated) {
                     _menuActivated = 1;
                     Serial.println("Menu Activated!");
@@ -283,8 +285,8 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
             goto cleanup;
         }
 
-        if (_konamiCodeActivated) {
-            _konamiCodeActivated = 0;
+        if (_alertActivated) {
+            _alertActivated = 0;
             screen->endAlert();
             return; // don't process the button
         }
@@ -294,8 +296,8 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
             if (_konamiCodeIndex == KONAMI_CODE_LEN) {
                 _konamiCodeIndex = 0;
                 Serial.println("KONAMI CODE ACTIVATED!");
-                handleKonamiCode();
-                _konamiCodeActivated = 1;
+                screen->startAlert("Konami code:\nYou win!\n\nPress key to continue");
+                _alertActivated = 1;
             }
         } else {
             _konamiCodeIndex = 0;
@@ -304,12 +306,29 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
         if (_menuActivated) {
             if (newly_pressed == BUTTON_ONE) {
                 handleColorArrayChange();
-            }
-            else if (newly_pressed == BUTTON_TWO) {
+            } else if (newly_pressed == BUTTON_TWO) {
+                Preferences prefs;
+                prefs.begin("utah", false);
+                int welcome = prefs.getInt("welcome") ^ 1;
+                prefs.putInt("welcome", welcome);
+                prefs.end();
+                if (welcome) {
+                    screen->startAlert("Welcome tips\nENABLED\n\n\nPress key to continue");
+                } else {
+                    screen->startAlert("Welcome tips\nDISABLED\n\n\nPress key to continue");
+                }
+                _alertActivated = 1;
+            } else if (newly_pressed == BUTTON_THREE) {
                 screen->endAlert();
                 _menuActivated = 0;
             }
             // don't emit any keys while in our menu
+            goto cleanup;
+        }
+
+        if (welcomeScreenActivated) {
+            screen->endAlert();
+            welcomeScreenActivated = 0;
             goto cleanup;
         }
 
@@ -368,7 +387,8 @@ void intPressHandler() {
 // ../../.pio/libdeps/utah_bsides/ESP8266 and ESP32 OLED driver for SSD1306 displays/src/OLEDDisplay.h
 void drawMenuScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) {
     display->drawString(5, 5, "Press 1 to change light pattern");
-    display->drawString(5, 15, "Press 2 to exit");
+    display->drawString(5, 15, "Press 2 to toggle startup tips");
+    display->drawString(5, 25, "Press 3 to exit");
 }
 
 // ../../.pio/libdeps/utah_bsides/ESP8266 and ESP32 OLED driver for SSD1306 displays/src/OLEDDisplay.h
@@ -399,14 +419,6 @@ void checkForDebugMode() {
     if (button_state & BUTTON_ONE) {
         screen->startAlert(drawDebugScreen);
     }
-}
-
-void lateInitVariant()
-{
-    LOG_DEBUG("here we are!");
-    mkb = new MyKeyboard("BSIDES-UTAH");
-
-    checkForDebugMode();
 }
 
 /*-----------------------------------------------------------------------
@@ -544,8 +556,7 @@ void handleChasingLedPatterns() {
     }
 }
 
-void handleColorArrayChange() {
-    activeColorArrayIndex = (activeColorArrayIndex + 1) % COLORARRAYCOUNT;
+void handleColorArrayChange() { activeColorArrayIndex = (activeColorArrayIndex + 1) % COLORARRAYCOUNT;
     updateLEDs(); //update the colors
     updateColorIndexPreference(); //persist
 }
@@ -572,9 +583,48 @@ void minibadgeClk(void * pvParameters){
     }
 }
 
+// ../../.pio/libdeps/utah_bsides/ESP8266 and ESP32 OLED driver for SSD1306 displays/src/OLEDDisplay.h
+void drawWelcomeScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) {
+    display->drawString(1, 0,   "Welcome to BSides! Press a key.");
+    display->drawString(1, 15,  "Tips for using this badge:");
+    display->drawString(1, 30,  "- The joystick is tilted like the");
+    display->drawString(1, 40,  "  screen (UP is UP LEFT)");
+    display->drawString(1, 55,  "- Press a key to start a message");
+    display->drawString(1, 70,  "- Press UP to send the message");
+    display->drawString(1, 85,  "- Press DOWN for backspace");
+    display->drawString(1, 100, "- Press and hold the asterisk key");
+    display->drawString(1, 110, "  for the settings menu");
+}
+
+void showWelcomeScreen() {
+    int welcome = 1;
+    Preferences prefs;
+    prefs.begin("utah", false);
+    if (!prefs.isKey("welcome")) {
+        prefs.putInt("welcome", 1);
+    } else {
+        welcome = prefs.getInt("welcome");
+    }
+    prefs.end();
+
+    if (welcome) {
+        screen->startAlert(drawWelcomeScreen);
+        welcomeScreenActivated = 1;
+    }
+}
+
+
+
 void initVariant() {
     pinMode(BUTTON_PIN, INPUT_PULLUP);  
     initLEDs();  
     TaskHandle_t periodicTaskHandle = NULL;
     xTaskCreateUniversal(minibadgeClk, "periodic", 8192, NULL, 1, &periodicTaskHandle, ARDUINO_RUNNING_CORE);
+}
+
+// these things need to run later in the startup
+void lateInitVariant() {
+    mkb = new MyKeyboard("BSIDES-UTAH");
+    checkForDebugMode();
+    showWelcomeScreen();
 }
