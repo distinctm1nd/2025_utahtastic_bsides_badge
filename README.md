@@ -66,6 +66,8 @@ Attach the lanyard to the "post" by the raven.
 
 If you download the meshtastic app you can connect to your badge via bluetooth and send /receive messages through the app. You can also change many setting through the app. 
 
+Make sure that you are on the Short Fast channel for the conference. 
+
 To change the moon LED color, in the app, go to:
 - Radio Configuration -> Ambient Lighting
 
