@@ -64,7 +64,7 @@ Attach the lanyard to the "post" by the raven.
 
 ## STL Files for joystick button cap and moon diffuser
 
-[Joystick Button Cap](wayhttps://www.printables.com/model/1166931-joystick-cap-for-b-sides-utah-2025-badge)
+[Joystick Button Cap](https://www.printables.com/model/1166931-joystick-cap-for-b-sides-utah-2025-badge)
 
 [Moon Diffuser](https://www.printables.com/model/1166783-moon-led-diffuser-for-b-sides-utah-2025-badge)
 
