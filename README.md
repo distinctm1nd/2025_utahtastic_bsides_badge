@@ -31,6 +31,11 @@ Attach the lanyard to the "post" by the raven.
 
 ## Minibadge Assembly
 
+![Utah BSides Badge front](hardware/sl_minibadge_front.png)
+
+![Utah BSides Badge front](hardware/sl_minibadge_back.png)
+
+
 Solder the 68 ohm (1206) resistors to R1 and R2. These can be oriented any direction. 
 Solder the LEDs (yellow) to D1, D2, D3 and D4. Orientation on these matters. The green mark is on the cathode side of the LED so it needs to be oriented toward the cathode side on the PCB. The cathode side on the PCB is marked by a box around it. 
 
