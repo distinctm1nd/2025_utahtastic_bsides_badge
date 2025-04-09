@@ -3,6 +3,7 @@
 #include <Wire.h>
 #include "variant.h"
 #include <Adafruit_NeoPixel.h>
+#include <Preferences.h>
 
 // I2C Expander (TCA9535)
 #define TCA9535_ADDRESS 0x20
@@ -18,7 +19,7 @@ Definitions and variables for LEDs
 -----------------------------------------------------------------------*/
 void handleButtonLedFlashing();
 void handleChasingLedPatterns();
-void handleButtonPress();
+void handleColorArrayChange();
 
 // Variables for fading button LEDs
 unsigned long lastButtonFadeTime = 0;
@@ -39,7 +40,9 @@ int currentLedIndex = 0;
 Adafruit_NeoPixel button_leds(BUTTON_LED_COUNT, BUTTON_LED_PIN, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel logo_eye_leds(LOGO_EYE_LED_COUNT, LOGO_EYE_LED_PIN, NEO_GRB + NEO_KHZ800);
 
-const uint32_t rainbowColors[] = {
+const int COLORSCOUNT = 7;
+
+const uint32_t rainbowColors[COLORSCOUNT] = {
     0xFF0000,    // Red
     0xFF00FF,    // Magenta
     0xFFD700,    // Yellow
@@ -49,7 +52,7 @@ const uint32_t rainbowColors[] = {
     0xFF1493     // Violet
 };
 
-const uint32_t blueWhiteColors[] = {
+const uint32_t blueWhiteColors[COLORSCOUNT] = {
     0x0000FF,    // Blue
     0xFFFFFF,    // White
     0x0000FF,    // Blue
@@ -59,7 +62,7 @@ const uint32_t blueWhiteColors[] = {
     0x0000FF     // Blue
 };
 
-const uint32_t redMaroonColors[] = {
+const uint32_t redMaroonColors[COLORSCOUNT] = {
     0xFF0000,    // Red
     0x800000,    // Maroon
     0xFF0000,    // Red
@@ -69,7 +72,7 @@ const uint32_t redMaroonColors[] = {
     0xFF0000     // Red
 };
 
-const uint32_t pinkWhiteColors[] = {
+const uint32_t pinkWhiteColors[COLORSCOUNT] = {
     0xFF00FF,    // Pink
     0xFFFFFF,    // White
     0xFF00FF,    // Pink
@@ -79,7 +82,7 @@ const uint32_t pinkWhiteColors[] = {
     0xFF00FF     // Pink
 };
 
-const uint32_t pinkPurpleColors[] = {
+const uint32_t pinkPurpleColors[COLORSCOUNT] = {
     0xFF00FF,    // Pink
     0x4B0082,    // Purple
     0xFF00FF,    // Pink
@@ -89,7 +92,7 @@ const uint32_t pinkPurpleColors[] = {
     0xFF00FF     // Pink
 };
 
-const uint32_t greenBlueColors[] = {
+const uint32_t greenBlueColors[COLORSCOUNT] = {
     0x00FF00,    // Green
     0x0000FF,    // Blue
     0x00FF00,    // Green
@@ -99,7 +102,7 @@ const uint32_t greenBlueColors[] = {
     0x00FF00     // Green
 };
 
-const uint32_t ledsOff[] = {
+const uint32_t ledsOff[COLORSCOUNT] = {
     0x000000,    // Black
     0x000000,    // Black
     0x000000,    // Black
@@ -109,9 +112,10 @@ const uint32_t ledsOff[] = {
     0x000000     // Black
 };
 
-const int colorsCount = 7;
+const int COLORARRAYCOUNT = 7;
+const uint32_t* colorArrays[COLORARRAYCOUNT] = {rainbowColors, blueWhiteColors, redMaroonColors, pinkWhiteColors, pinkPurpleColors, greenBlueColors, ledsOff};
 
-const uint32_t* activeColorArray = rainbowColors;
+uint32_t activeColorArrayIndex = 0;
 
 /*-----------------------------------------------------------------------
 TCA9535 FUNCTIONS --- Keyboard
@@ -122,9 +126,9 @@ TCA9535 FUNCTIONS --- Keyboard
 #define KEY(x) meshtastic_ModuleConfig_CannedMessageConfig_InputEventChar_##x
 
 enum ButtonBit {
-    BUTTON_BL       = 1<<0,
+    BUTTON_BOTLEFT  = 1<<0,
     BUTTON_ZERO     = 1<<1,
-    BUTTON_BR       = 1<<2,
+    BUTTON_BOTRIGHT = 1<<2,
     BUTTON_NINE     = 1<<3,
     BUTTON_EIGHT    = 1<<4,
     BUTTON_SEVEN    = 1<<5,
@@ -162,6 +166,9 @@ char keys[][6] = {
 #define NUM_ELEMS(a) (sizeof(a)/sizeof a[0])
 int konami_code[] = {BUTTON_UP, BUTTON_UP, BUTTON_DOWN, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_TWO, BUTTON_TWO};
 #define KONAMI_CODE_LEN NUM_ELEMS(konami_code)
+
+// forward declaration for use in the keyboard class
+void drawMenuScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y);
 
 void handleKonamiCode() {
     screen->startAlert("Konami code:\nYou win!");
@@ -230,6 +237,8 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
     uint16_t _prevButtonState = 0;
     int _konamiCodeIndex = 0;
     int _lastKeyPressed = 0;
+    int _menuActivated = 0;
+    int _konamiCodeActivated = 0;
     int _quickPress = 0;
     unsigned long _lastPressTime = 0;
 
@@ -248,36 +257,61 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
     void button_pressed() {
         String buttonStateText = "Button State:\n";
         uint16_t button_state = readButtonState();
-        uint16_t newly_pressed = 0;
-        //char konamitest[2] = {'0' + _konamiCodeIndex, 0};
-
-        newly_pressed = button_state & (button_state ^ _prevButtonState);
-        if (!button_state || !newly_pressed) {
+        uint16_t newly_pressed = button_state & (button_state ^ _prevButtonState);
+        if (!button_state) {
             //Serial.println("no buttons.");
             goto cleanup;
         } else {
-            Serial.println("A button was pressed!");
+            Serial.println("A button is pressed!");
         }
 
-        //Serial.println(konamitest);
+        if (!newly_pressed) {
+            // we've already detected and handled the button
+            // so check for a long press action from BUTTON_BOTLEFT
+            unsigned long currentTime = millis();
+            // if it's been 3 seconds
+            if (button_state == BUTTON_BOTLEFT && _lastPressTime + 3000 < currentTime) {
+                if (!_menuActivated) {
+                    _menuActivated = 1;
+                    Serial.println("Menu Activated!");
+                    erase();  // remove the emitted BOTLEFT character from the initial press
+                    screen->startAlert(drawMenuScreen);
+                }
+            }
 
-        //buttonStateText += (button_state & (1 << i)) ? "1 " : "0 ";
+            // no new button pressed, exit the function
+            goto cleanup;
+        }
+
+        if (_konamiCodeActivated) {
+            _konamiCodeActivated = 0;
+            screen->endAlert();
+            return; // don't process the button
+        }
+
         if (newly_pressed == konami_code[_konamiCodeIndex]) {
             _konamiCodeIndex += 1;
             if (_konamiCodeIndex == KONAMI_CODE_LEN) {
                 _konamiCodeIndex = 0;
                 Serial.println("KONAMI CODE ACTIVATED!");
                 handleKonamiCode();
+                _konamiCodeActivated = 1;
             }
         } else {
             _konamiCodeIndex = 0;
         }
 
-        // Display button state in the Serial console
-        for (int i = 15; i >= 0; i--) {  // Assuming 16 buttons
-            buttonStateText += (button_state & (1 << i)) ? "1 " : "0 ";
+        if (_menuActivated) {
+            if (newly_pressed == BUTTON_ONE) {
+                handleColorArrayChange();
+            }
+            else if (newly_pressed == BUTTON_TWO) {
+                screen->endAlert();
+                _menuActivated = 0;
+            }
+            // don't emit any keys while in our menu
+            goto cleanup;
         }
-        Serial.println(buttonStateText);
 
         for (int i = 0; i < 16; i++) {
             if (newly_pressed & (1 << i)) {
@@ -332,6 +366,12 @@ void intPressHandler() {
 }
 
 // ../../.pio/libdeps/utah_bsides/ESP8266 and ESP32 OLED driver for SSD1306 displays/src/OLEDDisplay.h
+void drawMenuScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) {
+    display->drawString(5, 5, "Press 1 to change light pattern");
+    display->drawString(5, 15, "Press 2 to exit");
+}
+
+// ../../.pio/libdeps/utah_bsides/ESP8266 and ESP32 OLED driver for SSD1306 displays/src/OLEDDisplay.h
 void drawDebugScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y) {
     LOG_DEBUG("drawDebugScreen called");
     //display->setFont(FONT_SMALL);
@@ -372,20 +412,52 @@ void lateInitVariant()
 /*-----------------------------------------------------------------------
 LED Functions
 -----------------------------------------------------------------------*/
-void initLEDs() {
-    button_leds.begin();
-    logo_eye_leds.begin();
 
+void updateColorIndexPreference() {
+    Preferences prefs;
+
+    // save the new preference
+    prefs.begin("utah", false);
+    prefs.putInt("colorIndex", activeColorArrayIndex);
+    prefs.end();
+}
+
+void updateLEDs() {
     // Set the initial color pattern for both button LEDs and logo eye LEDs
     for (int i = 0; i < BUTTON_LED_COUNT; i++) {
-        button_leds.setPixelColor(i, activeColorArray[i % colorsCount]);
+        button_leds.setPixelColor(i, colorArrays[activeColorArrayIndex][i % COLORSCOUNT]);
     }
     button_leds.show();
 
     for (int i = 0; i < LOGO_EYE_LED_COUNT; i++) {
-        logo_eye_leds.setPixelColor(i, activeColorArray[i % colorsCount]);
+        logo_eye_leds.setPixelColor(i, colorArrays[activeColorArrayIndex][i % COLORSCOUNT]);
     }
     logo_eye_leds.show();
+}
+
+void initLEDs() {
+    bool update_prefs = false;
+    Preferences prefs;
+    prefs.begin("utah", false);
+    if (prefs.isKey("colorIndex")) {
+        activeColorArrayIndex = prefs.getInt("colorIndex");
+        if (activeColorArrayIndex >= COLORARRAYCOUNT) {
+            activeColorArrayIndex = 0;
+            update_prefs = true;
+        }
+    } else {
+        update_prefs = true;
+    }
+    prefs.end();
+
+    if (update_prefs) {
+        updateColorIndexPreference();
+    }
+
+    button_leds.begin();
+    logo_eye_leds.begin();
+
+    updateLEDs();
 }
 
 void handleButtonLedFlashing() {
@@ -399,8 +471,8 @@ void handleButtonLedFlashing() {
         // Apply a smooth transition to each button LED by updating the color gradually
         for (int i = 0; i < BUTTON_LED_COUNT; i++) {
             // Get the current color index for the LED
-            int colorIndex = (currentColorIndex + i) % colorsCount;
-            uint32_t targetColor = activeColorArray[colorIndex];
+            int colorIndex = (currentColorIndex + i) % COLORSCOUNT;
+            uint32_t targetColor = colorArrays[activeColorArrayIndex][colorIndex];
 
             // Extract RGB components of the new target color
             uint8_t targetR = (targetColor >> 16) & 0xFF;
@@ -428,7 +500,7 @@ void handleButtonLedFlashing() {
 
         button_leds.show();
 
-        currentColorIndex = (currentColorIndex + 1) % colorsCount;
+        currentColorIndex = (currentColorIndex + 1) % COLORSCOUNT;
     }
 }
 
@@ -442,8 +514,8 @@ void handleChasingLedPatterns() {
         lastTransitionTime = currentMillis;
 
         for (int i = 0; i < LOGO_EYE_LED_COUNT; i++) {
-            int colorIndex = (currentLedIndex + i) % colorsCount;
-            uint32_t targetColor = activeColorArray[colorIndex];
+            int colorIndex = (currentLedIndex + i) % COLORSCOUNT;
+            uint32_t targetColor = colorArrays[activeColorArrayIndex][colorIndex];
 
             uint8_t targetR = (targetColor >> 16) & 0xFF;
             uint8_t targetG = (targetColor >> 8) & 0xFF;
@@ -472,33 +544,10 @@ void handleChasingLedPatterns() {
     }
 }
 
-void handleButtonPress() {
-    static bool lastButtonState = LOW;
-    bool buttonState = digitalRead(BUTTON_PIN);
-    static unsigned long lastDebounceTime = 0;
-    unsigned long debounceDelay = 50; 
-
-    if (buttonState == HIGH && lastButtonState == LOW && (millis() - lastDebounceTime) > debounceDelay) {
-        if (activeColorArray == rainbowColors) {
-            activeColorArray = blueWhiteColors;  
-        } else if (activeColorArray == blueWhiteColors) {
-            activeColorArray = redMaroonColors;  
-        } else if (activeColorArray == redMaroonColors) {
-            activeColorArray = pinkWhiteColors;  
-        } else if (activeColorArray == pinkWhiteColors) {
-            activeColorArray = pinkPurpleColors;  
-        } else if (activeColorArray == greenBlueColors) {
-            activeColorArray = greenBlueColors;  
-        }  else if (activeColorArray == ledsOff) {
-            activeColorArray = ledsOff;
-        }
-        else {
-            activeColorArray = rainbowColors;  
-        }
-        lastDebounceTime = millis(); 
-    }
-
-    lastButtonState = buttonState;
+void handleColorArrayChange() {
+    activeColorArrayIndex = (activeColorArrayIndex + 1) % COLORARRAYCOUNT;
+    updateLEDs(); //update the colors
+    updateColorIndexPreference(); //persist
 }
 
 void minibadgeClk(void * pvParameters){ 
