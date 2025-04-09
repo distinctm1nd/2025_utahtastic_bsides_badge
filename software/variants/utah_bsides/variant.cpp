@@ -160,7 +160,7 @@ char keys[][6] = {
 };
 
 #define NUM_ELEMS(a) (sizeof(a)/sizeof a[0])
-int konami_code[] = {BUTTON_UP, BUTTON_UP, BUTTON_DOWN, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_ONE, BUTTON_ONE};
+int konami_code[] = {BUTTON_UP, BUTTON_UP, BUTTON_DOWN, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_TWO, BUTTON_TWO};
 #define KONAMI_CODE_LEN NUM_ELEMS(konami_code)
 
 void handleKonamiCode() {
@@ -249,24 +249,29 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
         String buttonStateText = "Button State:\n";
         uint16_t button_state = readButtonState();
         uint16_t newly_pressed = 0;
-        if (!button_state) {
+        //char konamitest[2] = {'0' + _konamiCodeIndex, 0};
+
+        newly_pressed = button_state & (button_state ^ _prevButtonState);
+        if (!button_state || !newly_pressed) {
             //Serial.println("no buttons.");
             goto cleanup;
         } else {
             Serial.println("A button was pressed!");
         }
 
-        if (button_state == konami_code[_konamiCodeIndex]) {
+        //Serial.println(konamitest);
+
+        //buttonStateText += (button_state & (1 << i)) ? "1 " : "0 ";
+        if (newly_pressed == konami_code[_konamiCodeIndex]) {
             _konamiCodeIndex += 1;
             if (_konamiCodeIndex == KONAMI_CODE_LEN) {
                 _konamiCodeIndex = 0;
+                Serial.println("KONAMI CODE ACTIVATED!");
                 handleKonamiCode();
             }
         } else {
             _konamiCodeIndex = 0;
         }
-
-        newly_pressed = button_state & (button_state ^ _prevButtonState);
 
         // Display button state in the Serial console
         for (int i = 15; i >= 0; i--) {  // Assuming 16 buttons
@@ -305,8 +310,9 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
             }
         }
         
-    cleanup:
         _lastPressTime = millis();
+
+    cleanup:
         _prevButtonState = button_state;
     }
 
