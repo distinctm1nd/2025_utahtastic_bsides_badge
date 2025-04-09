@@ -4,6 +4,7 @@
 #include "variant.h"
 #include <Adafruit_NeoPixel.h>
 #include <Preferences.h>
+#include "NodeDB.h"
 
 // I2C Expander (TCA9535)
 #define TCA9535_ADDRESS 0x20
@@ -287,8 +288,9 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
 
         if (_alertActivated) {
             _alertActivated = 0;
+            _menuActivated = 0;
             screen->endAlert();
-            return; // don't process the button
+            goto cleanup; // don't process the button
         }
 
         if (newly_pressed == konami_code[_konamiCodeIndex]) {
@@ -304,23 +306,34 @@ class MyKeyboard : public Observable<const InputEvent *>, public concurrency::OS
         }
 
         if (_menuActivated) {
-            if (newly_pressed == BUTTON_ONE) {
+            switch (newly_pressed) {
+            case BUTTON_ONE:  // change led cycle
                 handleColorArrayChange();
-            } else if (newly_pressed == BUTTON_TWO) {
-                Preferences prefs;
-                prefs.begin("utah", false);
-                int welcome = prefs.getInt("welcome") ^ 1;
-                prefs.putInt("welcome", welcome);
-                prefs.end();
-                if (welcome) {
-                    screen->startAlert("Welcome tips\nENABLED\n\n\nPress key to continue");
-                } else {
-                    screen->startAlert("Welcome tips\nDISABLED\n\n\nPress key to continue");
+                break;
+            case BUTTON_TWO:  // toggle startup tips
+                {
+                    Preferences prefs;
+                    prefs.begin("utah", false);
+                    int welcome = prefs.getInt("welcome") ^ 1;
+                    prefs.putInt("welcome", welcome);
+                    prefs.end();
+                    if (welcome) {
+                        screen->startAlert("Welcome tips\nENABLED\n\n\nPress key to continue");
+                    } else {
+                        screen->startAlert("Welcome tips\nDISABLED\n\n\nPress key to continue");
+                    }
+                    _alertActivated = 1;
                 }
-                _alertActivated = 1;
-            } else if (newly_pressed == BUTTON_THREE) {
+                break;
+            case BUTTON_THREE:  // exit
                 screen->endAlert();
                 _menuActivated = 0;
+                break;
+            case BUTTON_ZERO:  // factory reset
+                nodeDB->factoryReset(true);
+                screen->startAlert("Rebooting...");
+                rebootAtMsec = (DEFAULT_REBOOT_SECONDS < 0) ? 0 : (millis() + DEFAULT_REBOOT_SECONDS * 1000);
+                break;
             }
             // don't emit any keys while in our menu
             goto cleanup;
@@ -389,6 +402,7 @@ void drawMenuScreen(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, 
     display->drawString(5, 5, "Press 1 to change light pattern");
     display->drawString(5, 15, "Press 2 to toggle startup tips");
     display->drawString(5, 25, "Press 3 to exit");
+    display->drawString(5, 55, "Press 0 to factory reset");
 }
 
 // ../../.pio/libdeps/utah_bsides/ESP8266 and ESP32 OLED driver for SSD1306 displays/src/OLEDDisplay.h
