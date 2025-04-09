@@ -72,9 +72,9 @@ Attach the lanyard to the "post" by the raven.
 
 If you download the meshtastic app you can connect to your badge via bluetooth and send /receive messages through the app. You can also change many setting through the app. 
 
-Make sure that you are on the Short Fast channel for the conference. 
+Make sure that you are on the Medium Fast channel for the conference. 
 
-To change the moon LED color, in the app, go to:
+To change the moon LED color or brightness, in the app, go to:
 - Radio Configuration -> Ambient Lighting
 
 Once in the ambient lighting config you can change the brightness of the moon LEDs by changing "Current" to a different number. 255 is max brightness and anything less than that is dimmer. You can change the color codes for Red, Green and Blue to generate different colors. 
