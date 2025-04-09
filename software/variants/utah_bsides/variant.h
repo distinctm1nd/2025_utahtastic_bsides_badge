@@ -16,7 +16,8 @@
 #define CANNED_MESSAGE_MODULE_ENABLE 1
 
 //LORA MODULE
-#define USE_LLCC68 
+#define USE_LLCC68
+#define USE_SX1262
 
 //LORA SPI
 #define LORA_SCK 3              
