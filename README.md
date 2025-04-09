@@ -43,5 +43,11 @@ Solder the headers to the four corners.
 
 If you download the meshtastic app you can connect to your badge via bluetooth and send /receive messages through the app. You can also change many setting through the app. 
 
+To change the moon LED color, in the app, go to:
+- Radio Configuration
+- Ambient Lighting
+
+Once in the ambient lighting config you can change the brightness of the moon LEDs by "Current" to a different number. 255 is max brightness and anything less than that is dimmer. You can change the color codes for Red, Green and Blue to generate different colors. 
+
 If you can't send or receive messages make sure that the LoRa channel is not on long fast. For the conference we'll be using short fast. 
 
