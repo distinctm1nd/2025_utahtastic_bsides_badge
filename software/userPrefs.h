@@ -16,7 +16,7 @@
 
 //#define USERPREFS_CONFIG_GPS_MODE meshtastic_Config_PositionConfig_GpsMode_ENABLED
 
-#define USERPREFS_CHANNELS_TO_WRITE 3
+#define USERPREFS_CHANNELS_TO_WRITE 1
 
 #define USERPREFS_CHANNEL_0_PSK \
     {                                                                                                                            \
@@ -29,27 +29,27 @@
 #define USERPREFS_CHANNEL_0_UPLINK_ENABLED true
 #define USERPREFS_CHANNEL_0_DOWNLINK_ENABLED true
 
-#define USERPREFS_CHANNEL_1_PSK \
-    {                                                                                                                            \
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  \
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                               \
-    }
+//#define USERPREFS_CHANNEL_1_PSK \
+//    {                                                                                                                            \
+//       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  \
+//            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                               \
+//    }
 
-#define USERPREFS_CHANNEL_1_NAME "REPLACEME"
-#define USERPREFS_CHANNEL_1_PRECISION 14
-#define USERPREFS_CHANNEL_1_UPLINK_ENABLED true
-#define USERPREFS_CHANNEL_1_DOWNLINK_ENABLED true
+//#define USERPREFS_CHANNEL_1_NAME "REPLACEME"
+//#define USERPREFS_CHANNEL_1_PRECISION 14
+//#define USERPREFS_CHANNEL_1_UPLINK_ENABLED true
+//#define USERPREFS_CHANNEL_1_DOWNLINK_ENABLED true
 
-#define USERPREFS_CHANNEL_2_PSK \
-    {                                                                                                                            \
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  \
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                              \
-    }
+//#define USERPREFS_CHANNEL_2_PSK \
+//    {                                                                                                                            \
+//        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  \
+//            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                              \
+//    }
 
-#define USERPREFS_CHANNEL_2_NAME "REPLACEME"
-#define USERPREFS_CHANNEL_2_PRECISION 14
-#define USERPREFS_CHANNEL_2_UPLINK_ENABLED true
-#define USERPREFS_CHANNEL_2_DOWNLINK_ENABLED true
+//#define USERPREFS_CHANNEL_2_NAME "REPLACEME"
+//#define USERPREFS_CHANNEL_2_PRECISION 14
+//#define USERPREFS_CHANNEL_2_UPLINK_ENABLED true
+//#define USERPREFS_CHANNEL_2_DOWNLINK_ENABLED true
 
 #define USERPREFS_CONFIG_OWNER_LONG_NAME "Utah BSides"
 #define USERPREFS_CONFIG_OWNER_SHORT_NAME "UB"
