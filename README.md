@@ -3,6 +3,8 @@
 
 ![Utah BSides Badge front](hardware/utah_bsides_front.png)
 
+![Utah BSides Badge front](hardware/utah_bsides_back.png)
+
 
 ## Make sure you have the following item:
 
