@@ -79,6 +79,6 @@ To change the moon LED color or brightness, in the app, go to:
 
 Once in the ambient lighting config you can change the brightness of the moon LEDs by changing "Current" to a different number. 255 is max brightness and anything less than that is dimmer. You can change the color codes for Red, Green and Blue to generate different colors. 
 
-If you can't send or receive messages make sure that the LoRa channel is not on long fast. For the conference we'll be using short fast. 
+If you can't send or receive messages make sure that the LoRa channel is not on long fast. For the conference we'll be using medium fast. 
 
 If the badge doesn't start up when turned on then push the reset button. 
