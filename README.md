@@ -33,10 +33,15 @@ Solder the headers to the four corners.
 ## Keyboard Functionality
 
 5-Way Switch
-Up - send message
-Down - erase/backspace
-Left - move cursor left
-Right - move cursor right
-Press - switch screens
+- Up: send message
+- Down: erase/backspace
+- Left: move cursor left
+- Right: move cursor right
+- Press: switch screens
 
+## A few notes on usage
+
+If you download the meshtastic app you can connect to your badge via bluetooth and send /receive messages through the app. You can also change many setting through the app. 
+
+If you can't send or receive messages make sure that the LoRa channel is not on long fast. For the conference we'll be using short fast. 
 
