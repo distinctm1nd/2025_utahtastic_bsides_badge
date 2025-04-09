@@ -18,7 +18,7 @@ Key Features:
     - Convenient Controls – UART connection point, Reset and Flash buttons, and a power switch for toggling between USB and battery modes.
     - 4 GPIO pins available for custom dev work​
 
-## Make sure you have the following item:
+## Make sure you have the following items:
 
 - Badge
 - 6 Minibadge headers
