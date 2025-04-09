@@ -9,8 +9,8 @@
 
 // #define USERPREFS_EVENT_MODE 1
 
-// #define USERPREFS_CONFIG_LORA_REGION meshtastic_Config_LoRaConfig_RegionCode_US
-// #define USERPREFS_LORACONFIG_MODEM_PRESET meshtastic_Config_LoRaConfig_ModemPreset_SHORT_FAST
+#define USERPREFS_CONFIG_LORA_REGION meshtastic_Config_LoRaConfig_RegionCode_US
+#define USERPREFS_LORACONFIG_MODEM_PRESET meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_FAST
 // #define USERPREFS_LORACONFIG_CHANNEL_NUM 31
 // #define USERPREFS_CONFIG_LORA_IGNORE_MQTT true
 
