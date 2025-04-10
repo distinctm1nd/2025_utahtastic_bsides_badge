@@ -70,6 +70,8 @@ Attach the lanyard to the "post" by the raven.
 
 ## A few notes on usage
 
+Don't transmit without the antenna attached as you could damage the badge. 
+
 If you download the meshtastic app you can connect to your badge via bluetooth and send /receive messages through the app. You can also change many setting through the app. 
 
 Make sure that you are on the Medium Fast channel for the conference. 
