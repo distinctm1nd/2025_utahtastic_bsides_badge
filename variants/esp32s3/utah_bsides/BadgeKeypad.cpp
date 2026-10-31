@@ -5,6 +5,9 @@
 #include "BadgeKeypadLogic.h"
 #include "BadgeLeds.h"
 #include "BadgeMenu.h"
+#include "BadgeApp.h"
+#include "BadgeApps.h"
+#include "BadgeStats.h"
 
 #include "concurrency/OSThread.h"
 #include "graphics/Screen.h"
@@ -93,9 +96,14 @@ class MeshtasticHooks : public KeypadHooks
     void konami() override
     {
         ledsCelebrate();
-        if (screen)
+        if (!appActive() && screen)
             screen->showSimpleBanner("Konami code!\nYou win.", 4000);
+        statsAchieve(ACH_KONAMI);
     }
+    bool appOpen() override { return appActive() != nullptr; }
+    void appKey(int k, KeyAction a) override { badge::appKey(k, a); }
+    void openCompose(int firstKey) override { badge::openCompose(firstKey); }
+    void quickSend(int digit) override { menuQuickSend(digit); }
 
   private:
     Observable<const InputEvent *> *source;
@@ -118,11 +126,17 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
     int32_t runOnce() override
     {
         uint16_t keys;
+        uint32_t now = millis();
         if (readKeys(keys))
-            logic.update(keys, millis());
-        menuPoll(); // opens badge sub-menus queued by menu callbacks
+            logic.update(keys, now);
+        appTick(now); // the open badge app, if any
+        menuPoll();   // opens badge sub-menus queued by menu callbacks
+        tttPoll();    // tic-tac-toe invitations
         return 10;
     }
+
+  public:
+    void emitNow(KpEvent ev, uint8_t ch) { hooks.emit(ev, ch); }
 
   private:
     MeshtasticHooks hooks;
@@ -135,6 +149,24 @@ void keypadStart()
 {
     if (!keypad)
         keypad = new BadgeKeypad();
+}
+
+void keypadPokeAwake()
+{
+    if (keypad && inputBroker)
+        keypad->emitNow(KP_NONE, 0); // counts as input, so the screen stays on
+}
+
+void keypadInjectText(const char *text, bool send)
+{
+    if (!keypad || !text)
+        return;
+    // type it into Meshtastic's text box (opens it), then Enter
+    for (const char *c = text; *c; c++)
+        if (*c >= 32 && *c <= 126)
+            keypad->emitNow(KP_ANYKEY, (uint8_t)*c);
+    if (send)
+        keypad->emitNow(KP_SELECT, 0);
 }
 
 uint16_t keypadState()

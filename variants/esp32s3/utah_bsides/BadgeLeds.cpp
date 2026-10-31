@@ -5,15 +5,18 @@
 
 #include "BadgeLeds.h"
 #include "BadgeScenes.h"
+#include "BadgeApp.h"
 
 #include "NodeDB.h"
 #include "concurrency/OSThread.h"
+#include "graphics/Screen.h"
 #include <Adafruit_NeoPixel.h>
 #include <Preferences.h>
 #include <math.h>
 
 // Meshtastic's Ambient Lighting thread (owns the moon LEDs by default); defined in main.cpp
 extern concurrency::OSThread *ambientLightingThread;
+extern graphics::Screen *screen;
 
 namespace badge
 {
@@ -45,6 +48,13 @@ static int8_t pending[4];
 static uint8_t npending = 0;
 static float celebrateLeft = 0;
 static Rgb frame[NUM_LEDS];
+static int offMode = 1;      // LEDs while the screen is asleep: 0 keep, 1 dim, 2 off
+static bool nightMode = false; // caps brightness at "Dim"
+static float alertLeft = 0, alertLen = 0;
+static bool alertDm = false;
+static float pulseLeft = 0;
+static float flourishLeft = 0;
+static bool syncedScene = false; // scene came from a light show (not saved)
 static uint8_t gammaTable[256];
 
 static const char *NVS_NS = "utah";
@@ -77,6 +87,8 @@ static void saveSettings()
     p.putUChar("bright", (uint8_t)curBright);
     p.putBool("moon", moonFollows);
     p.putBool("keyfx", keyFlash);
+    p.putUChar("ledoff", (uint8_t)offMode);
+    p.putBool("night", nightMode);
     p.end();
 }
 
@@ -95,7 +107,11 @@ static void loadSettings()
     curBright = p.getUChar("bright", 2);
     moonFollows = p.getBool("moon", false);
     keyFlash = p.getBool("keyfx", true);
+    offMode = p.getUChar("ledoff", 1);
+    nightMode = p.getBool("night", false);
     p.end();
+    if (offMode > 2)
+        offMode = 1;
     if (curSpeed >= NSPEED)
         curSpeed = 2;
     if (curBright >= NBRIGHT)
@@ -147,9 +163,27 @@ class BadgeLedThread : public concurrency::OSThread
         npending = 0;
         sceneReset = false;
 
+        const meshtastic_ModuleConfig_AmbientLightingConfig &al = moduleConfig.ambient_lighting;
+        sceneSetAppColour(al.red / 255.0f, al.green / 255.0f, al.blue / 255.0f);
         sceneAt(curScene).fn(c);
-        if (keyFlash)
+
+        // a badge app (game, fox hunt) can take over the keypad LEDs
+        App *app = appActive();
+        bool appLeds = app && app->keypadLeds(frame, now);
+        if (keyFlash && !appLeds)
             overlayKeyFlash(c, flash);
+        if (alertLeft > 0) {
+            overlayAlert(c, alertDm, alertLen - alertLeft);
+            alertLeft -= dt;
+        }
+        if (pulseLeft > 0) {
+            overlayPulse(c, pulseLeft / 0.35f, moonFollows);
+            pulseLeft -= dt;
+        }
+        if (flourishLeft > 0) {
+            overlayCelebrate(c, flourishLeft * 2);
+            flourishLeft -= dt;
+        }
         if (celebrateLeft > 0) {
             overlayCelebrate(c, celebrateLeft);
             celebrateLeft -= dt;
@@ -157,7 +191,9 @@ class BadgeLedThread : public concurrency::OSThread
         for (int i = 0; i < KEYPAD_LEDS; i++)
             flash[i] = flash[i] > 0 ? flash[i] - dt * 3.0f : 0;
 
-        float level = BRIGHT_LEVEL[curBright];
+        float level = BRIGHT_LEVEL[nightMode ? 0 : curBright];
+        if (screen && !screen->isScreenOn() && offMode)
+            level = offMode == 2 ? 0 : level * 0.3f; // save the AA batteries while nobody looks
         for (int i = 0; i < KEYPAD_LEDS; i++)
             keypadStrip.setPixelColor(i, toPixel(frame[i], level));
         for (int i = 0; i < LOGO_LEDS; i++)
@@ -211,8 +247,63 @@ void ledsSetScene(int i, bool save)
     curScene = i;
     sceneTime = 0;
     sceneReset = true;
+    syncedScene = false;
     if (save)
         saveSettings();
+}
+void ledsSetSceneSynced(int i, int speed, uint32_t timeMs)
+{
+    if (i < 0 || i >= sceneCount())
+        return;
+    if (i != curScene)
+        sceneReset = true;
+    curScene = i;
+    if (speed >= 0 && speed < NSPEED)
+        curSpeed = speed;
+    sceneTime = timeMs / 1000.0f;
+    syncedScene = true; // not saved: after a reboot the badge goes back to its own scene
+}
+uint32_t ledsSceneTimeMs()
+{
+    return (uint32_t)(sceneTime * 1000.0f);
+}
+const Rgb *ledsFrame()
+{
+    return frame;
+}
+void ledsMessageAlert(bool dm)
+{
+    alertDm = dm;
+    alertLen = alertLeft = dm ? 1.8f : 0.8f;
+}
+void ledsMeshPulse()
+{
+    if (pulseLeft <= 0)
+        pulseLeft = 0.35f;
+}
+void ledsFlourish()
+{
+    flourishLeft = 1.5f;
+}
+int ledsOffMode()
+{
+    return offMode;
+}
+void ledsSetOffMode(int m)
+{
+    if (m >= 0 && m <= 2) {
+        offMode = m;
+        saveSettings();
+    }
+}
+bool ledsNightMode()
+{
+    return nightMode;
+}
+void ledsSetNightMode(bool on)
+{
+    nightMode = on;
+    saveSettings();
 }
 void ledsNextScene()
 {

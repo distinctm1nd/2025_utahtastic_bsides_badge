@@ -6,12 +6,19 @@
 //   BadgeKeypad*.{h,cpp}  TCA9535 keypad: debounce, multi-tap letters, holds
 //   BadgeScenes.{h,cpp}   LED scenes (pure maths)
 //   BadgeLeds.{h,cpp}     LED thread, settings in NVS
-//   BadgeMenu.{h,cpp}     hold-* badge menu and welcome screen
+//   BadgeMenu.{h,cpp}     hold-* badge menu, quick-send, welcome screen
+//   BadgeApp.{h,cpp}      full-screen badge apps; App*.cpp are the apps themselves
+//   BadgeMesh.{h,cpp}     mesh features (alerts, badges met, light shows, fox hunt, !commands)
+//   BadgeStats/BadgeHunt  achievements, high scores, scavenger hunt
+//   BadgeMinibadge        minibadges on the I2C pins of the minibadge slots
 #include "configuration.h"
 
 #include "BadgeKeypad.h"
 #include "BadgeLeds.h"
 #include "BadgeMenu.h"
+#include "BadgeMesh.h"
+#include "BadgeMinibadge.h"
+#include "BadgeStats.h"
 
 #include <Arduino.h>
 
@@ -38,7 +45,11 @@ void earlyInitVariant()
 
 void lateInitVariant()
 {
+    badge::statsLoad();
     badge::ledsStart();
     badge::keypadStart();
+    badge::meshStart();
+    badge::minibadgeStart();
+    badge::menuInit();
     badge::welcomeShowIfEnabled();
 }

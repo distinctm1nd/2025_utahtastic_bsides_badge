@@ -14,30 +14,84 @@ No Meshtastic source file is patched, so a new Meshtastic release merges in clea
 
 ## Using the badge
 
-| Key | Typing a message | In a menu |
-|---|---|---|
-| 1–9, 0 | tap for letters (like an old phone), **hold for the digit** | — |
-| `#` | send (Enter) | choose |
-| `*` | delete a letter; back out of an empty message | close |
-| joystick | move the cursor | move up/down |
-| joystick press | next screen; hold = Meshtastic menu | next item; hold = choose |
-| hold `*` | **badge menu** | |
-| hold `#` | next LED scene | |
+| Key | On Meshtastic's screens | In a badge app / editor | In Meshtastic menus |
+|---|---|---|---|
+| 1–9, 0 | **tap**: new message (badge editor) · **hold**: quick-send canned message N | letters (tap again for the next), hold = digit | — |
+| `#` | Enter · **hold**: next LED scene | send / save / start · hold in editor: abc/Abc/ABC | choose |
+| `*` | back · **hold**: badge menu | delete / back · hold: quit | close |
+| joystick | move | move / play | move |
+| joystick press | Meshtastic: next screen, hold = its menu | (not used) | next / choose |
 
-Typing: tap a key once for its first letter, tap again within a second for the next one
-(`2` `2` `2` = `c`). Pause, or press another key, to start a new letter. `0` is space, `1`
-is punctuation (`. , ? ! ' - @ :`).
+Replies from Meshtastic's own message screen use the plain multi-tap typing straight into its
+text box. New messages go through the badge editor, which shows the letters of the key you
+are tapping in a strip at the bottom, the case mode, and how many characters are left.
 
-Badge menu (hold `*`): LED scene, speed and brightness, whether the moon LEDs follow the
-scene or keep the colour set in the app (Ambient Lighting), key flash, welcome tips, key
-help, factory reset. Settings are kept across reboots and firmware updates, and a badge
-updated from the 2025 firmware keeps the light pattern its owner had picked.
+### Badge menu (hold `*`)
 
-The Konami code still works (joystick up up down down left right left right, then `2` `2`).
+- **Name tag & pictures**: "HELLO my name is" with your Meshtastic name (set in the phone
+  app), short name and a tagline; then the pictures from `images/`. Joystick flips pages,
+  `#` starts a slideshow, hold `#` edits the tagline.
+- **New message**: the badge editor (sends to everyone on the primary channel).
+- **Lights**: scene, speed, brightness, moon, key flash, light shows. The LEDs change as you
+  scroll and a map of the badge on the right shows which are lit.
+- **Games**: Simon and Whack-a-mole (on the lit keys), Snake, Blocks, Tic-tac-toe against
+  the badge or against another badge (keys 1–9 are the board; X red, O blue).
+- **Fox hunt**: pick a node; the screen and a bar graph on the keys show its signal as you
+  walk ("Warmer" / "Colder"). Any Meshtastic node can be the fox.
+- **Badges & achievements**: badges you've met, 16 achievements, scavenger-hunt flags,
+  high scores.
+- **Minibadges**: minibadges that talk I2C (button presses and text messages).
+- **Settings**: screen colour, LEDs while the screen sleeps (on / dim / off, default dim to
+  save the AA batteries), night mode (red screen, dim LEDs), whether the name tag keeps the
+  screen on, tagline, remote `!commands`, welcome tips, factory reset.
+
+### Mesh features
+
+- **Alerts**: the keys pulse three times in cyan for a direct message, once in green for a
+  channel message; the logo "eyes" blink on any mesh traffic.
+- **Badges met**: badges are nodes reporting hardware model PRIVATE_HW (like this one). Meeting
+  a new one gives a light burst and counts towards achievements.
+- **Light shows**: Lights → *Share now* sends your scene and its timing to every badge in
+  range, and they all play it in step. *Lead show* re-sends it every minute. Turn
+  *Join shows* off to ignore other people's shows. Joined shows are not saved.
+- **Remote commands**: a direct message to the badge starting with `!` changes its lights and
+  gets a reply: `!lights next`, `!lights list`, `!lights candlelight`, `!bright high`,
+  `!speed slow`, `!help`. Turn it off in Settings.
+- **Phone colour**: the APP COLOUR and APP SHIMMER scenes use the colour set in the
+  Meshtastic app under Module settings → Ambient Lighting.
+- **Scavenger hunt**: see below.
+
+The badge's own traffic is small: light shows and pings are a few bytes on the private app
+port (256), sent only when you ask (or once a minute while leading a show / every 20 s
+during a fox hunt).
+
+### Pictures and memes
+
+Put `.png .jpg .gif .bmp .webp` files in `images/` and build. `tools/make_images.py` runs
+before every build, scales each picture to fit the 160×128 screen and dithers it to one
+colour (Meshtastic's screen driver draws a single colour on black; pick the colour in
+Settings). Animated GIFs play (up to 24 frames). Files are shown in name order, so number
+them (`01_…`, `02_…`). Pictures with light backgrounds usually look better inverted: put
+`_inv` in the name. About 2.5 KB per frame; the script stops at 512 KB.
+
+### Scavenger hunt
+
+Edit the flag table in `BadgeHunt.cpp` (name, 8-character token, clue to the next spot).
+Build one beacon badge (or any Meshtastic-capable board using this variant) per flag with
+`-D BADGE_HUNT_BEACON=<flag number>` added to `build_flags`; it broadcasts its flag every
+3 minutes. Badges that hear it collect the flag and show the clue. Finding all of them
+unlocks an achievement.
+
+### Minibadges
+
+The three minibadge slots carry I2C on GPIO5 (SDA) and GPIO6 (SCL). The badge polls
+minibadges that follow the I2C part of the minibadge standard every 2 s: a button press gives
+a light burst, a text message pops up on screen, and minibadges that accept writes get the
+LED brightness and your latest game score. The minibadge CLK is left exactly as it was: 1 Hz.
 
 ### LED scenes
 
-35 scenes for the 13 key LEDs and the 6 logo LEDs (and the moon, if you let it follow):
+37 scenes for the 13 key LEDs and the 6 logo LEDs (and the moon, if you let it follow):
 
 - **2025 patterns**: Rainbow, Blue + White, Red + Maroon, Pink + White, Pink + Purple, Green + Blue
 - **Animated**: Rainbow Wave, Breathe, Snake, Scanner, Digital Rain, Fire, Plasma, Starry
@@ -46,6 +100,7 @@ The Konami code still works (joystick up up down down left right left right, the
 - **Halloween**: Candlelight, Jack-O-Lantern, Lurking Eyes, Ghosts, Blood Moon, Cauldron,
   Graveyard Mist, Embers, Will-O-Wisp, Candy Corn, Possessed, Dead Man's Hand, Nevermore,
   Shadow Walker
+- **From the phone**: App Colour, App Shimmer
 - Off
 
 To add one, write a function in `BadgeScenes.cpp` and add it to `SCENES[]` at the bottom.
@@ -57,6 +112,14 @@ cd variants/esp32s3/utah_bsides/tools
 g++ -std=c++17 -O2 -I.. scene_preview.cpp ../BadgeScenes.cpp -o scene_preview
 ./scene_preview > scenes.json && python3 scene_preview.py scenes.json   # needs Pillow
 ```
+
+`tools/keypad_test.cpp` tests the keypad and editor behaviour the same way.
+
+### Power
+
+The badge runs on 3 AA cells, and the battery isn't wired to the ESP32, so the firmware
+can't show a battery level. The LEDs are the biggest drain you control: by default they dim
+to 30% when the screen sleeps; Settings can turn them off instead, and night mode caps them.
 
 ## What changed from the 2025 firmware
 
@@ -131,6 +194,9 @@ pio run -e utah_bsides                 # build
 pio run -e utah_bsides -t upload       # flash over USB
 pio device monitor -b 115200           # serial log
 ```
+
+If the build stops with the firmware "too big" for the partition, check the marking on the
+ESP32-S3 module: an N8 or N16 module can use `board_build.partitions = default_8MB.csv`.
 
 Flash with the web flasher instead: use `firmware-utah_bsides-*.factory.bin` for a first
 install (erases the badge) and `firmware-utah_bsides-*.bin` to update.

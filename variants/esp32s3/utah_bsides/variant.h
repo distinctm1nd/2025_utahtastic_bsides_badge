@@ -61,7 +61,7 @@
 #define TFT_OFFSET_Y -1
 #define TFT_INVERT false
 #define SCREEN_ROTATE
-#define SCREEN_TRANSITION_FRAMERATE 5 // fps
+#define SCREEN_TRANSITION_FRAMERATE 12 // fps; also the redraw rate of badge games
 #define DISPLAY_FORCE_SMALL_FONTS
 
 // ---- I2C: TCA9535 keypad expander (0x20) shares the main bus ------------------------

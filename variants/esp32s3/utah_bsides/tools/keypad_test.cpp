@@ -1,8 +1,10 @@
 // PC test for BadgeKeypadLogic.h: fake key bounce, multi-tap, holds and menus.
 //   g++ -std=c++17 -I.. keypad_test.cpp -o keypad_test && ./keypad_test
 #include "../BadgeKeypadLogic.h"
+#include "../BadgeTextEntry.h"
 #include <cstdio>
 #include <string>
+#include <cstring>
 
 using namespace badge;
 
@@ -48,6 +50,18 @@ struct FakeBadge : KeypadHooks {
     void nextLedScene() override { scenes++; }
     void keyDown(int) override {}
     void konami() override { konamis++; }
+    // badge apps / home screen
+    bool app = false;
+    std::string appLog;
+    int composeKey = -1, quick = -1;
+    bool appOpen() override { return app; }
+    void appKey(int k, KeyAction a) override
+    {
+        static const char *A = "PRHT";
+        appLog += std::to_string(k) + A[a] + " ";
+    }
+    void openCompose(int k) override { composeKey = k; }
+    void quickSend(int d) override { quick = d; }
 };
 
 static uint32_t now = 1000;
@@ -92,6 +106,7 @@ int main()
 {
     {
         FakeBadge b; KeypadLogic k(b);
+        b.freetext = true; // replying in Meshtastic's own text box
         press(k, 10); // one bouncy press of 2abc
         expect(b.draft == "a", "bouncy single press types one letter");
         press(k, 10); press(k, 10);
@@ -126,6 +141,7 @@ int main()
     {
         FakeBadge b; KeypadLogic k(b);
         b.screenIsOff = true;
+        b.freetext = true;
         press(k, 10);
         expect(b.draft.empty(), "first press only wakes the screen");
         press(k, 10);
@@ -144,6 +160,46 @@ int main()
         FakeBadge b; KeypadLogic k(b);
         raw = 1u << 14; run(k, 1000); raw = 0; run(k, 100);
         expect(b.downs >= 4, "holding joystick DOWN auto-repeats");
+    }
+    {
+        FakeBadge b; KeypadLogic k(b);
+        press(k, 10);
+        expect(b.composeKey == 10 && b.draft.empty(), "tap 2 on a Meshtastic screen opens the badge editor");
+        press(k, 9, 900);
+        expect(b.quick == 3 && b.composeKey == 10, "hold 3 on a Meshtastic screen -> quick send 3");
+    }
+    {
+        FakeBadge b; KeypadLogic k(b);
+        b.app = true;
+        press(k, 7, 60, false);
+        press(k, 2, 900, false);
+        raw = 1u << 12; run(k, 700); raw = 0; run(k, 60);
+        expect(b.appLog.rfind("7P 7R 2P 2H 2R 12P 12T", 0) == 0 && b.draft.empty(), "app gets press/hold/repeat/release, Meshtastic gets nothing");
+        KeypadLogic k2(b, 1);
+        b.appLog.clear();
+        press(k2, 12, 60, false);
+        expect(b.appLog == "13P 13R ", "joystick rotation applies to app keys");
+    }
+    {
+        TextEntry t; t.reset();
+        uint32_t ms = 0;
+        auto tap = [&](int k) { t.key(k, KA_PRESS, ms); ms += 150; t.key(k, KA_RELEASE, ms); ms += 150; };
+        auto wait = [&]() { ms += 1100; t.tick(ms); };
+        tap(AK_4); tap(AK_4); wait(); tap(AK_4); tap(AK_4); tap(AK_4); // h i
+        expect(strcmp(t.text(), "Hi") == 0, "editor: sentence case, multi-tap");
+        tap(AK_1); tap(AK_0); wait(); tap(AK_2);
+        expect(strcmp(t.text(), "Hi. A") == 0, "editor: capital after a full stop");
+        tap(AK_STAR);
+        expect(strcmp(t.text(), "Hi. ") == 0, "editor: * deletes");
+        t.key(AK_9, KA_PRESS, ms); t.key(AK_9, KA_HOLD, ms + 800); t.key(AK_9, KA_RELEASE, ms + 900); ms += 1000;
+        expect(strcmp(t.text(), "Hi. 9") == 0, "editor: hold a key for its digit");
+        t.key(AK_LEFT, KA_PRESS, ms); t.key(AK_LEFT, KA_RELEASE, ms);
+        wait(); tap(AK_8);
+        expect(strcmp(t.text(), "Hi. T9") == 0, "editor: cursor moves, insert in the middle");
+        t.key(AK_HASH, KA_PRESS, ms);
+        expect(t.key(AK_HASH, KA_RELEASE, ms + 100) == TextEntry::TE_DONE, "editor: # finishes");
+        t.key(AK_STAR, KA_PRESS, ms);
+        expect(t.key(AK_STAR, KA_HOLD, ms + 800) == TextEntry::TE_CANCEL, "editor: hold * cancels");
     }
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails ? 1 : 0;

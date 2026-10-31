@@ -613,6 +613,31 @@ static void scShadowWalker(SceneCtx &c)
     }
 }
 
+// ------------------------------------------------------------------------------------
+// App colour: follows the Ambient Lighting colour set in the Meshtastic phone app
+// ------------------------------------------------------------------------------------
+static float appCol[3] = {1.0f, 0.4f, 0.0f};
+void sceneSetAppColour(float r, float g, float b)
+{
+    if (r + g + b > 0.01f) { // all-zero means "not set": keep the default
+        appCol[0] = r;
+        appCol[1] = g;
+        appCol[2] = b;
+    }
+}
+static void scAppColour(SceneCtx &c)
+{
+    float b = 0.55f + 0.45f * sinf(c.t * TAU / 6);
+    fill(c, appCol[0] * b, appCol[1] * b, appCol[2] * b);
+}
+static void scAppShimmer(SceneCtx &c)
+{
+    for (int i = 0; i < NUM_LEDS; i++) {
+        float n = 0.35f + 0.65f * noise1(c.t * 1.7f + i * 2.9f);
+        set(c.out[i], appCol[0] * n, appCol[1] * n, appCol[2] * n);
+    }
+}
+
 static void scOff(SceneCtx &c)
 {
     fill(c, 0, 0, 0);
@@ -631,6 +656,35 @@ void overlayKeyFlash(SceneCtx &c, const float level[KEYPAD_LEDS])
             c.out[i][j] = mixf(c.out[i][j], 1.0f, k);
     }
 }
+void overlayAlert(SceneCtx &c, bool dm, float in)
+{
+    // direct message: three cyan pulses rolling down the keys; channel message: one soft green
+    int pulses = dm ? 3 : 1;
+    float period = 0.6f;
+    if (in >= pulses * period)
+        return;
+    float p = fmodf(in, period) / period;
+    for (int i = 0; i < KEYPAD_LEDS; i++) {
+        float row = LEDS[i].gy; // 0 top .. 1 bottom
+        float k = clamp01(1 - fabsf(p * 1.6f - 0.3f - row) * 3);
+        if (dm)
+            for (int j = 0; j < 3; j++)
+                c.out[i][j] = mixf(c.out[i][j], j == 0 ? 0.0f : 1.0f, k);
+        else
+            for (int j = 0; j < 3; j++)
+                c.out[i][j] = mixf(c.out[i][j], j == 1 ? 0.8f : 0.1f, k * 0.7f);
+    }
+}
+void overlayPulse(SceneCtx &c, float level, bool moon)
+{
+    float k = clamp01(level);
+    for (int i = FIRST_LOGO; i < NUM_LEDS; i++) {
+        if (LEDS[i].group == GROUP_EYES || (moon && LEDS[i].group == GROUP_MOON))
+            for (int j = 0; j < 3; j++)
+                c.out[i][j] = mixf(c.out[i][j], 1.0f, k * 0.8f);
+    }
+}
+
 void overlayCelebrate(SceneCtx &c, float left)
 {
     float fade = clamp01(left);
@@ -685,6 +739,9 @@ static const Scene SCENES[] = {
     {"DEAD MAN'S HAND", scDeadMansHand},
     {"NEVERMORE", scNevermore},
     {"SHADOW WALKER", scShadowWalker},
+    // colour from the phone app (Meshtastic: Module settings > Ambient Lighting)
+    {"APP COLOUR", scAppColour},
+    {"APP SHIMMER", scAppShimmer},
     {"OFF", scOff},
 };
 

@@ -1,6 +1,7 @@
 // Drives the badge LEDs with the scenes in BadgeScenes.cpp and keeps the chosen scene,
 // speed and brightness in flash (NVS namespace "utah").
 #pragma once
+#include "BadgeScenes.h"
 #include <stdint.h>
 
 namespace badge
@@ -30,6 +31,22 @@ bool ledsKeyFlash();         // keys flash white when pressed
 void ledsSetKeyFlash(bool on);
 
 void ledsKeyPressed(int keyBit); // TCA9535 bit of a key that went down
-void ledsCelebrate();            // Konami code reward
+void ledsCelebrate();            // Konami code reward (6 s rainbow strobe)
+void ledsFlourish();             // short rainbow burst: new badge, achievement, hunt flag
+void ledsMessageAlert(bool dm);  // keys pulse: 3x for a direct message, once for a channel
+void ledsMeshPulse();            // the eyes (and moon, if it follows) blink on mesh traffic
+
+// light shows: jump to a scene at a given scene time (not saved)
+void ledsSetSceneSynced(int scene, int speed, uint32_t timeMs);
+uint32_t ledsSceneTimeMs();
+
+// the colours being shown (NUM_LEDS, before brightness), for the on-screen preview
+const Rgb *ledsFrame();
+
+// power: LEDs while the screen is asleep (0 keep, 1 dim, 2 off) and night mode (dim cap)
+int ledsOffMode();
+void ledsSetOffMode(int mode);
+bool ledsNightMode();
+void ledsSetNightMode(bool on);
 
 } // namespace badge

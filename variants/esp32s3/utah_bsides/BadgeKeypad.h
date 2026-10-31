@@ -27,5 +27,8 @@ enum KeyBit : uint8_t {
 
 void keypadStart(); // from lateInitVariant()
 uint16_t keypadState(); // debounced, 1 = pressed
+void keypadPokeAwake(); // count as user input so the screen doesn't time out
+// type text into Meshtastic's message box as if from the keypad, then (optionally) send
+void keypadInjectText(const char *text, bool send);
 
 } // namespace badge

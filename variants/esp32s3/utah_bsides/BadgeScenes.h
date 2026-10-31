@@ -60,8 +60,13 @@ int sceneFind(const char *name); // -1 if unknown
 // matching scene so an updated badge keeps the pattern its owner picked.
 int sceneFromLegacyIndex(int colorIndex);
 
+// Colour picked in the Meshtastic app (Ambient Lighting), used by the "APP COLOUR" scenes
+void sceneSetAppColour(float r, float g, float b);
+
 // Short overlays drawn on top of any scene
 void overlayKeyFlash(SceneCtx &c, const float flashLevel[KEYPAD_LEDS]);
 void overlayCelebrate(SceneCtx &c, float secondsLeft);
+void overlayAlert(SceneCtx &c, bool directMessage, float secondsIn); // message arrived
+void overlayPulse(SceneCtx &c, float level, bool includeMoon);      // mesh traffic blink
 
 } // namespace badge
