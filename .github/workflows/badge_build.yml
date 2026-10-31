@@ -1,0 +1,63 @@
+name: Build Utah BSides badge firmware
+
+# Builds only the badge (env utah_bsides). Runs on every push to the badge branch, on pull
+# requests into it, and by hand from the Actions tab. Push a tag named badge-v* to also
+# publish a GitHub release with the .bin files attached.
+on:
+  push:
+    branches: [utah-bsides-badge]
+    tags: ["badge-v*"]
+  pull_request:
+    branches: [utah-bsides-badge]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio/libdeps
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini', 'variants/esp32/*.ini', 'variants/esp32s3/*.ini', 'variants/esp32s3/utah_bsides/platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install -U platformio
+
+      - name: Build
+        run: |
+          pio run -e utah_bsides
+          pio run -e utah_bsides -t buildfs || true
+
+      - name: Collect firmware
+        run: |
+          mkdir -p out
+          cp .pio/build/utah_bsides/firmware-*.bin out/
+          cp .pio/build/utah_bsides/littlefs-*.bin out/ 2>/dev/null || true
+          cp bin/device-install.* bin/device-update.* out/ 2>/dev/null || true
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: utah-bsides-firmware
+          path: out/
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/badge-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
