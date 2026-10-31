@@ -15,11 +15,10 @@
 #include "modules/CannedMessageModule.h"
 #include <Wire.h>
 
-// The joystick is mounted turned with the screen. If its directions feel wrong, change
-// this to 1, 2 or 3 (quarter turns clockwise).
-#ifndef BADGE_JOYSTICK_ROTATION
-#define BADGE_JOYSTICK_ROTATION 0
-#endif
+#include <Preferences.h>
+
+// The joystick is mounted at an angle; its correction is set on the badge (badge menu >
+// Settings > Joystick) and kept in NVS ("utah": "joy", "joylean").
 
 extern graphics::Screen *screen;
 
@@ -112,8 +111,13 @@ class MeshtasticHooks : public KeypadHooks
 class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::OSThread
 {
   public:
-    BadgeKeypad() : concurrency::OSThread("BadgeKeypad"), hooks(this), logic(hooks, BADGE_JOYSTICK_ROTATION)
+    BadgeKeypad() : concurrency::OSThread("BadgeKeypad"), hooks(this), logic(hooks)
     {
+        Preferences p;
+        if (p.begin("utah", true)) {
+            logic.setJoystick(p.getInt("joy", 0), p.getBool("joylean", false));
+            p.end();
+        }
         if (inputBroker)
             inputBroker->registerSource(this);
         // all 16 pins inputs, normal polarity (both are the power-on defaults; set anyway)
@@ -137,6 +141,7 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
 
   public:
     void emitNow(KpEvent ev, uint8_t ch) { hooks.emit(ev, ch); }
+    void setJoystick(int steps, bool lean) { logic.setJoystick(steps, lean); }
 
   private:
     MeshtasticHooks hooks;
@@ -167,6 +172,32 @@ void keypadInjectText(const char *text, bool send)
             keypad->emitNow(KP_ANYKEY, (uint8_t)*c);
     if (send)
         keypad->emitNow(KP_SELECT, 0);
+}
+
+void keypadSetJoystick(int steps, bool lean, bool save)
+{
+    if (keypad)
+        keypad->setJoystick(steps, lean);
+    if (save) {
+        Preferences p;
+        if (p.begin("utah", false)) {
+            p.putInt("joy", steps);
+            p.putBool("joylean", lean);
+            p.end();
+        }
+    }
+}
+
+void keypadGetJoystick(int &steps, bool &lean)
+{
+    steps = 0;
+    lean = false;
+    Preferences p;
+    if (p.begin("utah", true)) {
+        steps = p.getInt("joy", 0);
+        lean = p.getBool("joylean", false);
+        p.end();
+    }
 }
 
 uint16_t keypadState()

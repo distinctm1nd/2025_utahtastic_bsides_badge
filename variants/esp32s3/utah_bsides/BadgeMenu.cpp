@@ -56,6 +56,8 @@ enum Step {
     S_BADGES,
     S_MINIBADGES,
     S_TAGLINE,
+    S_NAME,
+    S_JOYSTICK,
 };
 static volatile Step queued = S_NONE;
 static uint32_t pickedNode = 0;
@@ -178,7 +180,7 @@ static void showGames()
     banner("Games", items, 7, 1, [](int sel) -> void { queue(go[sel]); });
 }
 
-enum SetItem { SI_BACK, SI_COLOUR, SI_LEDOFF, SI_NIGHT, SI_TAGAWAKE, SI_TAGLINE, SI_REMOTE, SI_WELCOME, SI_RESET, SI_COUNT };
+enum SetItem { SI_BACK, SI_JOYSTICK, SI_NAME, SI_TAGLINE, SI_TAGAWAKE, SI_COLOUR, SI_LEDOFF, SI_NIGHT, SI_REMOTE, SI_WELCOME, SI_RESET, SI_COUNT };
 static char lbl[SI_COUNT][40];
 static const char *setItems[SI_COUNT];
 
@@ -186,11 +188,13 @@ static void showSettings(int selected = 1)
 {
     static const char *OFFMODE[] = {"stay on", "dim", "off"};
     snprintf(lbl[SI_BACK], 40, "Back");
+    snprintf(lbl[SI_JOYSTICK], 40, "Joystick setup");
+    snprintf(lbl[SI_NAME], 40, "Name tag: your name");
     snprintf(lbl[SI_COLOUR], 40, "Screen: %s", COLOUR_NAMES[colourSetting() % NCOLOURS]);
     snprintf(lbl[SI_LEDOFF], 40, "LEDs, screen asleep: %s", OFFMODE[ledsOffMode() % 3]);
     snprintf(lbl[SI_NIGHT], 40, "Night mode: %s", ledsNightMode() ? "on" : "off");
     snprintf(lbl[SI_TAGAWAKE], 40, "Name tag stays on: %s", tagAwake() ? "yes" : "no");
-    snprintf(lbl[SI_TAGLINE], 40, "Edit tagline");
+    snprintf(lbl[SI_TAGLINE], 40, "Name tag: tagline");
     snprintf(lbl[SI_REMOTE], 40, "!commands by DM: %s", meshRemoteCommands() ? "on" : "off");
     snprintf(lbl[SI_WELCOME], 40, "Welcome tips: %s", welcomeEnabled() ? "on" : "off");
     snprintf(lbl[SI_RESET], 40, "Factory reset");
@@ -211,6 +215,8 @@ static void showSettings(int selected = 1)
             queue(S_SETTINGS);
             break;
         case SI_TAGLINE: queue(S_TAGLINE); break;
+        case SI_NAME: queue(S_NAME); break;
+        case SI_JOYSTICK: queue(S_JOYSTICK); break;
         case SI_REMOTE:
             meshSetRemoteCommands(!meshRemoteCommands());
             queue(S_SETTINGS);
@@ -242,7 +248,7 @@ static void showColours()
 
 static void showLedOff()
 {
-    static const char *items[] = {"Back", "Stay on", "Dim (saves batteries)", "Off"};
+    static const char *items[] = {"Back", "Stay on", "Dim to 30%", "Off"};
     banner("LEDs while screen sleeps", items, 4, ledsOffMode() + 1, [](int sel) -> void {
         if (sel > 0)
             ledsSetOffMode(sel - 1);
@@ -351,6 +357,8 @@ void menuPoll()
     case S_BADGES: openBadgesApp(); break;
     case S_MINIBADGES: openMinibadgesApp(); break;
     case S_TAGLINE: openTaglineEditor(); break;
+    case S_NAME: openNameEditor(); break;
+    case S_JOYSTICK: openJoystickSetup(); break;
     default: break;
     }
 }

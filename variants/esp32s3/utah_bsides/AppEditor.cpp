@@ -1,5 +1,5 @@
 // The badge's text editor: new messages (handed to Meshtastic to send) and the name tag's
-// tagline. Shows the letters of the key you're tapping in a strip at the bottom, the case
+// name tag's name and tagline. Shows the letters of the key you're tapping in a strip at the bottom, the case
 // mode (abc / Abc / ABC) and a character count.
 #include "configuration.h"
 
@@ -9,6 +9,7 @@
 #include "BadgeStats.h"
 #include "BadgeTextEntry.h"
 
+#include "NodeDB.h"
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
 #include <Arduino.h>
@@ -23,18 +24,21 @@ namespace badge
 class EditorApp : public App
 {
   public:
-    enum Purpose { MESSAGE, TAGLINE };
+    enum Purpose { MESSAGE, TAGLINE, NAME };
 
     void setup(Purpose p, int firstKey)
     {
         purpose = p;
         if (p == MESSAGE)
             te.reset("", 200, TextEntry::CASE_SENTENCE);
+        else if (p == NAME)
+            te.reset(nametagName(), 30, TextEntry::CASE_SENTENCE);
         else
             te.reset(taglineGet(), 60, TextEntry::CASE_SENTENCE);
         first = firstKey;
     }
-    const char *name() const override { return purpose == MESSAGE ? "New message" : "Tagline"; }
+    const char *name() const override { return purpose == MESSAGE ? "New message" : purpose == NAME ? "Name" : "Tagline"; }
+    int limit() const { return purpose == MESSAGE ? 200 : purpose == NAME ? 30 : 60; }
     void begin() override
     {
         if (first >= 0) { // the key that opened the editor is the first letter
@@ -64,7 +68,7 @@ class EditorApp : public App
         blink = true;
         if (r == TextEntry::TE_CANCEL) {
             appClose();
-            if (purpose == TAGLINE)
+            if (purpose != MESSAGE)
                 openNameTag();
         } else if (r == TextEntry::TE_DONE) {
             finish();
@@ -73,8 +77,8 @@ class EditorApp : public App
     void draw(OLEDDisplay *d, int16_t x, int16_t y) override
     {
         char right[16];
-        snprintf(right, sizeof(right), "%s %d", te.modeName(), (purpose == MESSAGE ? 200 : 60) - te.length());
-        drawTitle(d, x, y, purpose == MESSAGE ? "Message (all)" : "Tagline", right);
+        snprintf(right, sizeof(right), "%s %d", te.modeName(), limit() - te.length());
+        drawTitle(d, x, y, purpose == MESSAGE ? "Message (all)" : purpose == NAME ? "Your name" : "Tagline", right);
         int lh = fontHeight(FONT_SMALL);
         int top = y + lh + 3;
         int bottom = y + d->height() - lh - 2; // strip/footer row below this
@@ -113,8 +117,11 @@ class EditorApp : public App
 
     void finish()
     {
-        if (purpose == TAGLINE) {
-            taglineSet(te.text());
+        if (purpose != MESSAGE) {
+            if (purpose == NAME)
+                nametagSetName(te.text());
+            else
+                taglineSet(te.text());
             appClose();
             openNameTag(); // back to the name tag to see it
             return;
@@ -184,6 +191,12 @@ void openCompose(int firstKey)
     appOpen(&editor);
 }
 
+void openNameEditor()
+{
+    editor.setup(EditorApp::NAME, -1);
+    appOpen(&editor);
+}
+
 void openTaglineEditor()
 {
     editor.setup(EditorApp::TAGLINE, -1);
@@ -198,7 +211,7 @@ const char *taglineGet()
 {
     if (!taglineLoaded) {
         taglineLoaded = true;
-        strncpy(tagline, "Hack the mesh!", sizeof(tagline));
+        tagline[0] = 0; // optional, empty unless the owner adds one
         Preferences p;
         if (p.begin("utah", true)) {
             if (p.isKey("tagline"))
@@ -221,4 +234,39 @@ void taglineSet(const char *text)
     }
 }
 
+} // namespace badge
+
+namespace badge
+{
+// ---- name shown on the name tag (empty = the Meshtastic long name) ------------------------
+static char tagName[32];
+static bool tagNameLoaded = false;
+
+const char *nametagName()
+{
+    if (!tagNameLoaded) {
+        tagNameLoaded = true;
+        tagName[0] = 0;
+        Preferences p;
+        if (p.begin("utah", true)) {
+            if (p.isKey("tagname"))
+                strncpy(tagName, p.getString("tagname", "").c_str(), sizeof(tagName) - 1);
+            p.end();
+        }
+    }
+    // not typed in yet: follow the Meshtastic name (it may change in the phone app)
+    return tagName[0] ? tagName : owner.long_name;
+}
+
+void nametagSetName(const char *text)
+{
+    strncpy(tagName, text ? text : "", sizeof(tagName) - 1);
+    tagName[sizeof(tagName) - 1] = 0;
+    tagNameLoaded = true;
+    Preferences p;
+    if (p.begin("utah", false)) {
+        p.putString("tagname", tagName);
+        p.end();
+    }
+}
 } // namespace badge

@@ -40,7 +40,7 @@ enum KpEvent : int {
 };
 
 // Keys as badge apps see them. Digits/'*'/'#' keep their TCA9535 bit numbers; the joystick
-// is reported by direction after BADGE_JOYSTICK_ROTATION is applied.
+// is reported by direction after the angle correction (Settings > Joystick) is applied.
 enum AppKey : int {
     AK_STAR = 0,
     AK_0 = 1,
@@ -94,11 +94,42 @@ class KeypadLogic
     static const uint32_t HOLD_MS = 700;      // hold: * = badge menu, # = next LED scene, digit = the digit
     static const uint32_t REPEAT_DELAY_MS = 450;
     static const uint32_t REPEAT_MS = 130;
+    static const uint32_t CHORD_MS = 35; // wait this long for a second joystick switch (angled pushes)
 
-    // joystick bits 12..15 in the order UP, RIGHT, DOWN, LEFT before rotation
-    explicit KeypadLogic(KeypadHooks &h, int joystickQuarterTurns = 0) : hooks(h), joyRot(joystickQuarterTurns & 3) {}
+    // Joystick correction (it is mounted at an angle):
+    //   steps  turn the directions clockwise by steps x 45 degrees (0..7)
+    //   lean   a push that closes only one switch lands on a diagonal after an odd number of
+    //          steps; lean picks which neighbour it becomes
+    // A push that closes two neighbouring switches at once is the direction between them.
+    explicit KeypadLogic(KeypadHooks &h, int joySteps = 0, bool joyLean = false) : hooks(h)
+    {
+        setJoystick(joySteps, joyLean);
+    }
+    void setJoystick(int steps, bool lean)
+    {
+        joySteps = ((steps % 8) + 8) % 8;
+        joyLean = lean;
+    }
 
     uint16_t state() const { return stable; }
+
+    // joystick switches (bits 12..15 = UP, RIGHT, DOWN, LEFT as wired) -> direction 0 up,
+    // 1 right, 2 down, 3 left after correction; -1 if no direction (nothing, or opposite switches)
+    static int resolveJoystick(uint8_t mask, int steps, bool lean)
+    {
+        int vx = ((mask & 2) ? 1 : 0) - ((mask & 8) ? 1 : 0);
+        int vy = ((mask & 1) ? 1 : 0) - ((mask & 4) ? 1 : 0);
+        if (!vx && !vy)
+            return -1;
+        // angle in 45 degree units, counter-clockwise from right: 0 right, 2 up, 4 left, 6 down
+        static const int8_t oct[3][3] = {{5, 6, 7}, {4, -1, 0}, {3, 2, 1}}; // [vy+1][vx+1]
+        int a = oct[vy + 1][vx + 1];
+        int p = ((a - steps) % 8 + 8) % 8;
+        if (p & 1)
+            p = lean ? (p + 1) % 8 : (p + 7) % 8;
+        static const int8_t toDir[8] = {1, -1, 0, -1, 3, -1, 2, -1};
+        return toDir[p];
+    }
 
     void update(uint16_t raw, uint32_t now)
     {
@@ -117,26 +148,21 @@ class KeypadLogic
             if (now - since[b] >= DEBOUNCE_MS) {
                 since[b] = 0;
                 stable ^= m;
+                if (isJoystick(b))
+                    continue; // handled together below
                 if (r)
                     onPress(b, now);
                 else
                     onRelease(b, now);
             }
         }
-        // holds and auto-repeat
-        for (int b = 0; b < 16; b++) {
+        joyUpdate(now);
+        // holds
+        for (int b = 0; b < 12; b++) {
             if (!(stable & (1u << b)) || (swallow & (1u << b)))
                 continue;
             uint32_t held = now - downAt[b];
-            if (isJoystick(b)) {
-                if (held >= REPEAT_DELAY_MS && now - lastRepeat[b] >= REPEAT_MS) {
-                    lastRepeat[b] = now;
-                    if (appMode & (1u << b))
-                        hooks.appKey(appKeyOf(b), KA_REPEAT);
-                    else
-                        hooks.emit(joyEvent(b), 0);
-                }
-            } else if (!holdDone[b] && held >= HOLD_MS) {
+            if (!holdDone[b] && held >= HOLD_MS) {
                 holdDone[b] = true;
                 if (appMode & (1u << b))
                     hooks.appKey(b, KA_HOLD);
@@ -174,7 +200,11 @@ class KeypadLogic
 
   private:
     KeypadHooks &hooks;
-    int joyRot;
+    int joySteps = 0;
+    bool joyLean = false;
+    int joyDir = -1;          // direction being held, -1 none
+    uint8_t joyTarget = 0;    // where it went: 0 Meshtastic, 1 badge app, 2 used up
+    uint32_t joyCand = 0, joyDownAt = 0, joyRepeatAt = 0;
     uint16_t stable = 0;
     uint16_t swallow = 0;  // keys whose press was used up (woke the screen, closed the welcome)
     uint16_t appMode = 0;  // keys whose press went to a badge app (their release/hold go there too)
@@ -195,24 +225,19 @@ class KeypadLogic
     static bool isJoystick(int b) { return b >= 12; }
     static bool isDigit(int b) { return lettersFor(b) != nullptr; }
 
-    int dirIndex(int b) const { return (b - 12 + joyRot) & 3; } // 0 up, 1 right, 2 down, 3 left
-    KpEvent joyEvent(int b) const
+    static KpEvent dirEvent(int d)
     {
         static const KpEvent dirs[4] = {KP_UP, KP_RIGHT, KP_DOWN, KP_LEFT};
-        return dirs[dirIndex(b)];
+        return dirs[d & 3];
     }
-    int appKeyOf(int b) const { return isJoystick(b) ? AK_UP + dirIndex(b) : b; }
 
-    void konamiStep(int b)
+    // code: a key bit 0..11, or 100 + joystick direction
+    void konamiStep(int code)
     {
         // up up down down left right left right B A ("2abc" is both B and A)
-        static const KpEvent seq[] = {KP_UP, KP_UP, KP_DOWN, KP_DOWN, KP_LEFT, KP_RIGHT, KP_LEFT, KP_RIGHT};
+        static const int seq[] = {100, 100, 102, 102, 103, 101, 103, 101};
         const int n = sizeof(seq) / sizeof(seq[0]);
-        bool match;
-        if (konamiPos < n)
-            match = isJoystick(b) && joyEvent(b) == seq[konamiPos];
-        else
-            match = (b == 10); // the "2abc" key, twice
+        bool match = konamiPos < n ? code == seq[konamiPos] : code == 10; // the "2abc" key, twice
         if (match) {
             if (++konamiPos == n + 2) {
                 konamiPos = 0;
@@ -220,8 +245,70 @@ class KeypadLogic
             }
         } else {
             // restart, letting this key begin a new attempt ("up up up down ..." still counts)
-            bool up = isJoystick(b) && joyEvent(b) == KP_UP;
-            konamiPos = up ? (konamiPos == 2 ? 2 : 1) : 0;
+            konamiPos = code == 100 ? (konamiPos == 2 ? 2 : 1) : 0;
+        }
+    }
+
+    // the joystick: its switches are read together so an angled push (two switches) is one
+    // direction
+    void joyUpdate(uint32_t now)
+    {
+        uint8_t m = (uint8_t)((stable >> 12) & 0xF);
+        if (joyDir < 0) {
+            if (!m) {
+                joyCand = 0;
+                return;
+            }
+            if (!joyCand) {
+                joyCand = now ? now : 1;
+                return;
+            }
+            if (now - joyCand < CHORD_MS)
+                return;
+            int d = resolveJoystick(m, joySteps, joyLean);
+            if (d < 0)
+                return;
+            joyDir = d;
+            joyCand = 0;
+            joyDownAt = joyRepeatAt = now;
+            joyPress(d);
+            return;
+        }
+        if (!m) {
+            if (joyTarget == 1)
+                hooks.appKey(AK_UP + joyDir, KA_RELEASE);
+            joyDir = -1;
+            return;
+        }
+        if (joyTarget != 2 && now - joyDownAt >= REPEAT_DELAY_MS && now - joyRepeatAt >= REPEAT_MS) {
+            joyRepeatAt = now;
+            if (joyTarget == 1)
+                hooks.appKey(AK_UP + joyDir, KA_REPEAT);
+            else
+                hooks.emit(dirEvent(joyDir), 0);
+        }
+    }
+
+    void joyPress(int d)
+    {
+        if (hooks.screenOff()) {
+            joyTarget = 2;
+            hooks.emit(KP_NONE, 0);
+            return;
+        }
+        if (hooks.welcomeShowing()) {
+            joyTarget = 2;
+            hooks.welcomeDismiss();
+            return;
+        }
+        konamiStep(100 + d);
+        tapBit = -1;
+        if (hooks.appOpen()) {
+            joyTarget = 1;
+            hooks.appKey(AK_UP + d, KA_PRESS);
+        } else {
+            joyTarget = 0;
+            hooks.emit(dirEvent(d), 0);
         }
     }
 
@@ -251,12 +338,7 @@ class KeypadLogic
         if (hooks.appOpen()) {
             appMode |= m;
             tapBit = -1;
-            hooks.appKey(appKeyOf(b), KA_PRESS);
-            return;
-        }
-        if (isJoystick(b)) {
-            tapBit = -1;
-            hooks.emit(joyEvent(b), 0);
+            hooks.appKey(b, KA_PRESS);
             return;
         }
         if (b == KEY_STAR_BIT || b == KEY_HASH_BIT)
@@ -319,7 +401,7 @@ class KeypadLogic
         uint16_t m = (uint16_t)(1u << b);
         if (appMode & m) {
             appMode &= (uint16_t)~m;
-            hooks.appKey(appKeyOf(b), KA_RELEASE);
+            hooks.appKey(b, KA_RELEASE);
             return;
         }
         bool used = (swallow & m) || holdDone[b];

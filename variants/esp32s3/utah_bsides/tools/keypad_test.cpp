@@ -153,7 +153,7 @@ int main()
     {
         FakeBadge b; KeypadLogic k(b);
         int seq[] = {12, 12, 12, 14, 14, 15, 13, 15, 13, 10, 10};
-        for (int s : seq) press(k, s, 60, false), run(k, 1100);
+        for (int s : seq) press(k, s, 100, false), run(k, 1100);
         expect(b.konamis == 1, "Konami code (with an extra UP at the start)");
     }
     {
@@ -175,10 +175,22 @@ int main()
         press(k, 2, 900, false);
         raw = 1u << 12; run(k, 700); raw = 0; run(k, 60);
         expect(b.appLog.rfind("7P 7R 2P 2H 2R 12P 12T", 0) == 0 && b.draft.empty(), "app gets press/hold/repeat/release, Meshtastic gets nothing");
-        KeypadLogic k2(b, 1);
+        KeypadLogic k2(b, 2);
         b.appLog.clear();
-        press(k2, 12, 60, false);
-        expect(b.appLog == "13P 13R ", "joystick rotation applies to app keys");
+        press(k2, 12, 100, false);
+        expect(b.appLog == "13P 13R ", "joystick turned 90 degrees: UP switch reads as RIGHT");
+        // angled joystick: two switches at once = the direction between them
+        KeypadLogic k3(b, 7);
+        b.appLog.clear();
+        raw = (1u << 12) | (1u << 13); run(k3, 120); raw = 0; run(k3, 60);
+        expect(b.appLog == "12P 12R ", "angled: UP+RIGHT switches together read as UP");
+        b.appLog.clear();
+        raw = (1u << 13); run(k3, 15); raw |= (1u << 14); run(k3, 120); raw = 0; run(k3, 60);
+        expect(b.appLog == "13P 13R ", "angled: switches closing 15 ms apart still count as one push");
+        KeypadLogic k4(b, 7, false), k5(b, 7, true);
+        b.appLog.clear();
+        press(k4, 12, 100, false); press(k5, 12, 100, false);
+        expect(b.appLog == "12P 12R 15P 15R ", "angled: a single switch leans one way or the other");
     }
     {
         TextEntry t; t.reset();

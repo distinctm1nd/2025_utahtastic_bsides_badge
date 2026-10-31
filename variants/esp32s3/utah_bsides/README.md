@@ -28,9 +28,9 @@ are tapping in a strip at the bottom, the case mode, and how many characters are
 
 ### Badge menu (hold `*`)
 
-- **Name tag & pictures**: "HELLO my name is" with your Meshtastic name (set in the phone
-  app), short name and a tagline; then the pictures from `images/`. Joystick flips pages,
-  `#` starts a slideshow, hold `#` edits the tagline.
+- **Name tag & pictures**: your name in big letters (type it on the badge; until you do it
+  shows your Meshtastic name), with an optional tagline under it; then the pictures from
+  `images/`. Joystick flips pages, `#` starts a slideshow, hold `#` edits the name.
 - **New message**: the badge editor (sends to everyone on the primary channel).
 - **Lights**: scene, speed, brightness, moon, key flash, light shows. The LEDs change as you
   scroll and a map of the badge on the right shows which are lit.
@@ -41,9 +41,26 @@ are tapping in a strip at the bottom, the case mode, and how many characters are
 - **Badges & achievements**: badges you've met, 16 achievements, scavenger-hunt flags,
   high scores.
 - **Minibadges**: minibadges that talk I2C (button presses and text messages).
-- **Settings**: screen colour, LEDs while the screen sleeps (on / dim / off, default dim to
-  save the AA batteries), night mode (red screen, dim LEDs), whether the name tag keeps the
-  screen on, tagline, remote `!commands`, welcome tips, factory reset.
+- **Settings**: joystick setup, name tag name and tagline, whether the name tag keeps the
+  screen on, screen colour, LEDs while the screen sleeps (stay on / dim to 30% / off; stays
+  on unless you change it), night mode (red screen, dim LEDs), remote `!commands`, welcome
+  tips, factory reset.
+
+### Joystick setup
+
+The joystick is mounted at an angle, so pushing straight up can close its UP switch, its
+RIGHT switch, or both. Settings → *Joystick setup* fixes that on the badge:
+
+1. Push the stick straight up and let go, then straight right and let go. The badge works
+   out the correction from which switches each push closed.
+2. Push around: an arrow shows what each push now means, and the four switches light up as
+   they close. If something is off, keys 1–8 try the eight 45° angles and 0 flips the
+   "lean" (which way a push that closes only one switch goes). 9 starts over.
+3. `#` saves, `*` cancels.
+
+Pushes that close two switches at once count as the direction between them, so angled
+pushes work even though the stick only has four switches. (The badge waits 35 ms after the
+first switch closes to see whether a second one follows.)
 
 ### Mesh features
 
@@ -118,8 +135,8 @@ g++ -std=c++17 -O2 -I.. scene_preview.cpp ../BadgeScenes.cpp -o scene_preview
 ### Power
 
 The badge runs on 3 AA cells, and the battery isn't wired to the ESP32, so the firmware
-can't show a battery level. The LEDs are the biggest drain you control: by default they dim
-to 30% when the screen sleeps; Settings can turn them off instead, and night mode caps them.
+can't show a battery level. The LEDs are the biggest drain you control: Settings can dim
+them to 30% or turn them off while the screen sleeps, and night mode caps them.
 
 ## What changed from the 2025 firmware
 

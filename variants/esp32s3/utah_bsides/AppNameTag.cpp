@@ -1,11 +1,11 @@
 // Name tag and pictures.
 //
-// Page 1 is a "HELLO my name is" tag with your Meshtastic name (set it in the phone app),
-// your short name and a tagline. The pages after it are the pictures from images/ (built
-// into the firmware by tools/make_images.py; animated GIFs play).
+// Page 1 is your name in big letters (type it on the badge; it starts as your Meshtastic
+// name) with an optional tagline under it. The pages after it are the pictures from images/
+// (built into the firmware by tools/make_images.py; animated GIFs play).
 //
 //   joystick         previous / next page      #       slideshow on/off (8 s per page)
-//   hold #           edit the tagline          *       done
+//   hold #           edit your name            *       done
 #include "configuration.h"
 
 #include "BadgeApp.h"
@@ -75,7 +75,7 @@ class NameTagApp : public App
         } else if (k == AK_HASH && a == KA_RELEASE) {
             if (editing) {
                 editing = false;
-                openTaglineEditor();
+                openNameEditor();
             } else {
                 slideshow = !slideshow;
                 pageAt = millis();
@@ -115,45 +115,44 @@ class NameTagApp : public App
         d->drawXbm(x + (d->width() - im.w) / 2, y + (d->height() - im.h) / 2, im.w, im.h, im.bits + frameBytes * frame);
     }
 
+    // your name, as big as it fits, in the middle of the screen; the tagline (if any) below
     void drawTag(OLEDDisplay *d, int16_t x, int16_t y)
     {
         int W = d->width(), H = d->height();
-        // red-sticker style band at the top
-        int band = fontHeight(FONT_MEDIUM) + fontHeight(FONT_SMALL) + 2;
-        d->fillRect(x, y, W, band);
-        d->setColor(BLACK);
-        drawCentered(d, x, y, "HELLO", FONT_MEDIUM);
-        drawCentered(d, x, y + fontHeight(FONT_MEDIUM) - 1, "my name is", FONT_SMALL);
-        d->setColor(WHITE);
-        d->drawRect(x, y, W, H);
+        const char *nm = nametagName();
+        if (!nm[0])
+            nm = "Hold # to add your name";
+        const char *tag = taglineGet();
+        int tagH = tag[0] ? fontHeight(FONT_SMALL) * 2 + 2 : 0;
 
-        const char *longName = owner.long_name[0] ? owner.long_name : "Badge Owner";
         const uint8_t *fonts[] = {FONT_LARGE, FONT_MEDIUM, FONT_SMALL};
-        const uint8_t *f = FONT_SMALL;
+        const uint8_t *f = nullptr;
         for (const uint8_t *cand : fonts) {
             d->setFont(cand);
-            if (d->getStringWidth(longName, (uint16_t)strlen(longName)) <= W - 6) {
+            if (d->getStringWidth(nm, (uint16_t)strlen(nm)) <= W - 6) {
                 f = cand;
                 break;
             }
         }
-        int nameY = y + band + 4;
-        drawCentered(d, x, nameY, longName, f);
-
-        char line[48];
-        snprintf(line, sizeof(line), "[%s]", owner.short_name[0] ? owner.short_name : "??");
-        int sy = nameY + fontHeight(f) + 1;
-        drawCentered(d, x, sy, line, FONT_SMALL);
-        drawWrappedCentered(d, x, sy + fontHeight(FONT_SMALL) + 1, W - 6, H - 2, taglineGet());
+        if (f) {
+            int ny = y + (H - tagH - fontHeight(f)) / 2;
+            drawCentered(d, x, ny, nm, f);
+        } else { // too long for one line: two lines in the medium font
+            int lh = fontHeight(FONT_MEDIUM);
+            int ny = y + (H - tagH - 2 * lh) / 2;
+            drawWrappedCentered(d, x, ny, W - 6, ny + 2 * lh, nm, FONT_MEDIUM);
+        }
+        if (tag[0])
+            drawWrappedCentered(d, x, y + H - tagH, W - 6, y + H, tag, FONT_SMALL);
         if (slideshow)
-            d->fillCircle(x + W - 5, y + H - 5, 2);
+            d->fillCircle(x + W - 4, y + H - 4, 2);
     }
 
     // up to two centred lines, breaking at spaces
-    void drawWrappedCentered(OLEDDisplay *d, int16_t x, int y, int w, int bottom, const char *t)
+    void drawWrappedCentered(OLEDDisplay *d, int16_t x, int y, int w, int bottom, const char *t, const uint8_t *font)
     {
-        d->setFont(FONT_SMALL);
-        int lh = fontHeight(FONT_SMALL);
+        d->setFont(font);
+        int lh = fontHeight(font);
         char buf[64];
         strncpy(buf, t, sizeof(buf) - 1);
         buf[sizeof(buf) - 1] = 0;
@@ -168,7 +167,7 @@ class NameTagApp : public App
             }
             char keep = s[cut];
             s[cut] = 0;
-            drawCentered(d, x, y, s, FONT_SMALL);
+            drawCentered(d, x, y, s, font);
             s[cut] = keep;
             s += cut;
             while (*s == ' ')

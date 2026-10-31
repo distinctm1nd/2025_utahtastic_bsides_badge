@@ -48,7 +48,7 @@ static int8_t pending[4];
 static uint8_t npending = 0;
 static float celebrateLeft = 0;
 static Rgb frame[NUM_LEDS];
-static int offMode = 1;      // LEDs while the screen is asleep: 0 keep, 1 dim, 2 off
+static int offMode = 0;      // LEDs while the screen is asleep: 0 stay on (default), 1 dim, 2 off
 static bool nightMode = false; // caps brightness at "Dim"
 static float alertLeft = 0, alertLen = 0;
 static bool alertDm = false;
@@ -107,11 +107,11 @@ static void loadSettings()
     curBright = p.getUChar("bright", 2);
     moonFollows = p.getBool("moon", false);
     keyFlash = p.getBool("keyfx", true);
-    offMode = p.getUChar("ledoff", 1);
+    offMode = p.getUChar("ledoff", 0);
     nightMode = p.getBool("night", false);
     p.end();
     if (offMode > 2)
-        offMode = 1;
+        offMode = 0;
     if (curSpeed >= NSPEED)
         curSpeed = 2;
     if (curBright >= NBRIGHT)
