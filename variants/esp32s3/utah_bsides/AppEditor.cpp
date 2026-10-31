@@ -24,21 +24,21 @@ namespace badge
 class EditorApp : public App
 {
   public:
-    enum Purpose { MESSAGE, TAGLINE, NAME };
+    enum Purpose { ED_MESSAGE, ED_TAGLINE, ED_NAME };
 
     void setup(Purpose p, int firstKey)
     {
         purpose = p;
-        if (p == MESSAGE)
+        if (p == ED_MESSAGE)
             te.reset("", 200, TextEntry::CASE_SENTENCE);
-        else if (p == NAME)
+        else if (p == ED_NAME)
             te.reset(nametagName(), 30, TextEntry::CASE_SENTENCE);
         else
             te.reset(taglineGet(), 60, TextEntry::CASE_SENTENCE);
         first = firstKey;
     }
-    const char *name() const override { return purpose == MESSAGE ? "New message" : purpose == NAME ? "Name" : "Tagline"; }
-    int limit() const { return purpose == MESSAGE ? 200 : purpose == NAME ? 30 : 60; }
+    const char *name() const override { return purpose == ED_MESSAGE ? "New message" : purpose == ED_NAME ? "Name" : "Tagline"; }
+    int limit() const { return purpose == ED_MESSAGE ? 200 : purpose == ED_NAME ? 30 : 60; }
     void begin() override
     {
         if (first >= 0) { // the key that opened the editor is the first letter
@@ -68,7 +68,7 @@ class EditorApp : public App
         blink = true;
         if (r == TextEntry::TE_CANCEL) {
             appClose();
-            if (purpose != MESSAGE)
+            if (purpose != ED_MESSAGE)
                 openNameTag();
         } else if (r == TextEntry::TE_DONE) {
             finish();
@@ -78,7 +78,7 @@ class EditorApp : public App
     {
         char right[16];
         snprintf(right, sizeof(right), "%s %d", te.modeName(), limit() - te.length());
-        drawTitle(d, x, y, purpose == MESSAGE ? "Message (all)" : purpose == NAME ? "Your name" : "Tagline", right);
+        drawTitle(d, x, y, purpose == ED_MESSAGE ? "Message (all)" : purpose == ED_NAME ? "Your name" : "Tagline", right);
         int lh = fontHeight(FONT_SMALL);
         int top = y + lh + 3;
         int bottom = y + d->height() - lh - 2; // strip/footer row below this
@@ -104,21 +104,21 @@ class EditorApp : public App
             }
             d->setTextAlignment(TEXT_ALIGN_LEFT);
         } else {
-            drawFooter(d, x, y, purpose == MESSAGE ? "#send *del hold*quit" : "#save *del hold*quit");
+            drawFooter(d, x, y, purpose == ED_MESSAGE ? "#send *del hold*quit" : "#save *del hold*quit");
         }
     }
 
   private:
     TextEntry te;
-    Purpose purpose = MESSAGE;
+    Purpose purpose = ED_MESSAGE;
     int first = -1;
     uint32_t blinkAt = 0;
     bool blink = true;
 
     void finish()
     {
-        if (purpose != MESSAGE) {
-            if (purpose == NAME)
+        if (purpose != ED_MESSAGE) {
+            if (purpose == ED_NAME)
                 nametagSetName(te.text());
             else
                 taglineSet(te.text());
@@ -187,19 +187,19 @@ static EditorApp editor;
 
 void openCompose(int firstKey)
 {
-    editor.setup(EditorApp::MESSAGE, firstKey);
+    editor.setup(EditorApp::ED_MESSAGE, firstKey);
     appOpen(&editor);
 }
 
 void openNameEditor()
 {
-    editor.setup(EditorApp::NAME, -1);
+    editor.setup(EditorApp::ED_NAME, -1);
     appOpen(&editor);
 }
 
 void openTaglineEditor()
 {
-    editor.setup(EditorApp::TAGLINE, -1);
+    editor.setup(EditorApp::ED_TAGLINE, -1);
     appOpen(&editor);
 }
 

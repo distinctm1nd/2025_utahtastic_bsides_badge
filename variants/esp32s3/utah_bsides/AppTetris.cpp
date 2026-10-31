@@ -23,7 +23,7 @@ class TetrisApp : public App
   public:
     const char *name() const override { return "Blocks"; }
     uint32_t frameMs() const override { return 1000; }
-    void begin() override { state = READY; }
+    void begin() override { state = TB_READY; }
     void key(int k, KeyAction a) override
     {
         if (k == AK_STAR && a == KA_RELEASE) {
@@ -32,7 +32,7 @@ class TetrisApp : public App
         }
         if (a != KA_PRESS && a != KA_REPEAT)
             return;
-        if (state != PLAYING) {
+        if (state != TB_PLAYING) {
             if (k == AK_HASH && a == KA_PRESS)
                 start();
             return;
@@ -62,7 +62,7 @@ class TetrisApp : public App
     }
     void tick(uint32_t now) override
     {
-        if (state != PLAYING || now - lastFall < fallMs())
+        if (state != TB_PLAYING || now - lastFall < fallMs())
             return;
         lastFall = now;
         if (!tryMove(px, py + 1, rot))
@@ -77,7 +77,7 @@ class TetrisApp : public App
             for (int c = 0; c < BW; c++)
                 if (board[r][c])
                     d->fillRect(left + c * CELL, top + r * CELL, CELL - 1, CELL - 1);
-        if (state == PLAYING)
+        if (state == TB_PLAYING)
             for (int i = 0; i < 4; i++) {
                 int c, r;
                 cell(piece, rot, i, c, r);
@@ -98,15 +98,15 @@ class TetrisApp : public App
             cell(next, 0, i, c, r);
             d->fillRect(sx + 4 + c * CELL, top + 64 + r * CELL, CELL - 1, CELL - 1);
         }
-        if (state != PLAYING) {
-            d->drawString(sx, top + 88, state == READY ? "# start" : "Game over");
-            if (state == OVER)
+        if (state != TB_PLAYING) {
+            d->drawString(sx, top + 88, state == TB_READY ? "# start" : "Game over");
+            if (state == TB_OVER)
                 d->drawString(sx, top + 102, "# again");
         }
     }
 
   private:
-    enum State { READY, PLAYING, OVER } state = READY;
+    enum State { TB_READY, TB_PLAYING, TB_OVER } state = TB_READY;
     uint8_t board[BH][BW];
     int piece = 0, next = 0, rot = 0, px = 0, py = 0, lines = 0;
     uint32_t lastFall = 0;
@@ -173,7 +173,7 @@ class TetrisApp : public App
         px = 3;
         py = -1;
         if (!fits(px, py, rot)) {
-            state = OVER;
+            state = TB_OVER;
             if (statsReportScore(GAME_TETRIS, (uint16_t)lines))
                 ledsFlourish();
         }
@@ -183,7 +183,7 @@ class TetrisApp : public App
         memset(board, 0, sizeof(board));
         lines = 0;
         next = random(7);
-        state = PLAYING;
+        state = TB_PLAYING;
         spawn();
         lastFall = millis();
     }

@@ -25,7 +25,7 @@ namespace badge
 
 class JoystickApp : public App
 {
-    enum State { CAL_UP, CAL_RIGHT, TEST };
+    enum State { JS_CAL_UP, JS_CAL_RIGHT, JS_TEST };
 
   public:
     const char *name() const override { return "Joystick"; }
@@ -36,7 +36,7 @@ class JoystickApp : public App
         oldSteps = steps;
         oldLean = lean;
         keypadSetJoystick(0, false, false); // read the switches as wired while calibrating
-        state = CAL_UP;
+        state = JS_CAL_UP;
         pushMask = 0;
     }
     void end() override
@@ -53,7 +53,7 @@ class JoystickApp : public App
             appClose();
             return;
         }
-        if (k == AK_HASH && state == TEST) {
+        if (k == AK_HASH && state == JS_TEST) {
             keypadSetJoystick(steps, lean, true);
             saved = true;
             appClose();
@@ -62,14 +62,14 @@ class JoystickApp : public App
             return;
         }
         int dg = appKeyDigit(k);
-        if (state != TEST || dg < 0)
+        if (state != JS_TEST || dg < 0)
             return;
         if (dg >= 1 && dg <= 8)
             steps = dg - 1;
         else if (dg == 0)
             lean = !lean;
         else if (dg == 9) {
-            state = CAL_UP;
+            state = JS_CAL_UP;
             keypadSetJoystick(0, false, false);
         }
     }
@@ -80,7 +80,7 @@ class JoystickApp : public App
             pushMask |= m; // every switch the push touched
             lastRaw = m;
             heldSince = heldSince ? heldSince : now;
-            if (state == TEST) {
+            if (state == JS_TEST) {
                 int d = KeypadLogic::resolveJoystick(m, steps, lean);
                 if (d >= 0)
                     shown = d;
@@ -95,20 +95,20 @@ class JoystickApp : public App
         heldSince = 0;
         if (!longEnough)
             return;
-        if (state == CAL_UP) {
+        if (state == JS_CAL_UP) {
             upMask = mask;
-            state = CAL_RIGHT;
-        } else if (state == CAL_RIGHT) {
+            state = JS_CAL_RIGHT;
+        } else if (state == JS_CAL_RIGHT) {
             rightMask = mask;
             solve();
-            state = TEST;
+            state = JS_TEST;
             shown = -1;
         }
         appRedraw();
     }
     void draw(OLEDDisplay *d, int16_t x, int16_t y) override
     {
-        drawTitle(d, x, y, "Joystick setup", state == TEST ? "#save" : "*cancel");
+        drawTitle(d, x, y, "Joystick setup", state == JS_TEST ? "#save" : "*cancel");
         int lh = fontHeight(FONT_SMALL);
         int top = y + lh + 4;
         // the four switches as wired, lit while closed
@@ -119,11 +119,11 @@ class JoystickApp : public App
         drawSwitch(d, cx, cy + 18, m & 4, "D");
         drawSwitch(d, cx - 18, cy, m & 8, "L");
         int tx = x + 64;
-        if (state != TEST) {
+        if (state != JS_TEST) {
             d->drawString(tx, top, "Push the stick");
-            d->drawString(tx, top + lh, state == CAL_UP ? "straight UP" : "straight RIGHT");
+            d->drawString(tx, top + lh, state == JS_CAL_UP ? "straight UP" : "straight RIGHT");
             d->drawString(tx, top + 2 * lh, "then let go.");
-            d->drawString(tx, top + 4 * lh, state == CAL_UP ? "(step 1 of 2)" : "(step 2 of 2)");
+            d->drawString(tx, top + 4 * lh, state == JS_CAL_UP ? "(step 1 of 2)" : "(step 2 of 2)");
             return;
         }
         static const char *DIRS[] = {"UP", "RIGHT", "DOWN", "LEFT"};
@@ -138,7 +138,7 @@ class JoystickApp : public App
     }
 
   private:
-    State state = CAL_UP;
+    State state = JS_CAL_UP;
     int steps = 0, oldSteps = 0, shown = -1;
     bool lean = false, oldLean = false, saved = false;
     uint8_t pushMask = 0, lastRaw = 0, upMask = 0, rightMask = 0;

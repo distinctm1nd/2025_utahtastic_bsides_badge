@@ -62,24 +62,24 @@ static int minimax(int8_t b[9], int me, int turn, int depth)
 class TttApp : public App
 {
   public:
-    enum Mode { CPU, MESH };
-    enum State { WAITING, PLAYING, DONE };
+    enum Mode { TT_CPU, TT_MESH };
+    enum State { TT_WAITING, TT_PLAYING, TT_DONE };
 
     void setupCpu()
     {
-        mode = CPU;
+        mode = TT_CPU;
         reset();
-        state = PLAYING;
+        state = TT_PLAYING;
         myMark = 1;
     }
     void setupMesh(uint32_t opp, bool weInvited, uint16_t gid)
     {
-        mode = MESH;
+        mode = TT_MESH;
         reset();
         opponent = opp;
         gameId = gid;
         myMark = weInvited ? 1 : 2;
-        state = weInvited ? WAITING : PLAYING;
+        state = weInvited ? TT_WAITING : TT_PLAYING;
         waitSince = millis();
         meshNodeName(opp, oppName, sizeof(oppName));
     }
@@ -89,7 +89,7 @@ class TttApp : public App
 
     void end() override
     {
-        if (mode == MESH && state != DONE && opponent)
+        if (mode == TT_MESH && state != TT_DONE && opponent)
             send('Q', 0);
     }
 
@@ -101,24 +101,24 @@ class TttApp : public App
         }
         if (a != KA_PRESS)
             return;
-        if (k == AK_HASH && state == DONE && mode == CPU) {
+        if (k == AK_HASH && state == TT_DONE && mode == TT_CPU) {
             setupCpu();
             return;
         }
         int dg = appKeyDigit(k);
-        if (dg < 1 || state != PLAYING || turn != myMark)
+        if (dg < 1 || state != TT_PLAYING || turn != myMark)
             return;
         int c = dg - 1;
         if (board[c])
             return;
         play(c, myMark);
-        if (mode == MESH)
+        if (mode == TT_MESH)
             send('M', (uint8_t)c);
     }
 
     void tick(uint32_t now) override
     {
-        if (mode == CPU && state == PLAYING && turn != myMark && now - movedAt > 500) {
+        if (mode == TT_CPU && state == TT_PLAYING && turn != myMark && now - movedAt > 500) {
             int8_t b[9];
             memcpy(b, board, 9);
             int best = -100, pick = -1;
@@ -136,8 +136,8 @@ class TttApp : public App
             if (pick >= 0)
                 play(pick, turn);
         }
-        if (mode == MESH && state == WAITING && now - waitSince > 120000) {
-            state = DONE;
+        if (mode == TT_MESH && state == TT_WAITING && now - waitSince > 120000) {
+            state = TT_DONE;
             snprintf(result, sizeof(result), "No answer from %s", oppName);
             appRedraw();
         }
@@ -146,17 +146,17 @@ class TttApp : public App
     // a packet for this game arrived
     void onPacket(uint32_t from, char type, uint16_t gid, uint8_t cell)
     {
-        if (mode != MESH || from != opponent || gid != gameId)
+        if (mode != TT_MESH || from != opponent || gid != gameId)
             return;
-        if (type == 'A' && state == WAITING) {
-            state = PLAYING;
-        } else if (type == 'D' && state == WAITING) {
-            state = DONE;
+        if (type == 'A' && state == TT_WAITING) {
+            state = TT_PLAYING;
+        } else if (type == 'D' && state == TT_WAITING) {
+            state = TT_DONE;
             snprintf(result, sizeof(result), "%s said no", oppName);
-        } else if (type == 'Q' && state != DONE) {
-            state = DONE;
+        } else if (type == 'Q' && state != TT_DONE) {
+            state = TT_DONE;
             snprintf(result, sizeof(result), "%s left the game", oppName);
-        } else if (type == 'M' && state == PLAYING && turn != myMark && cell < 9 && !board[cell]) {
+        } else if (type == 'M' && state == TT_PLAYING && turn != myMark && cell < 9 && !board[cell]) {
             play(cell, 3 - myMark);
         }
         appRedraw();
@@ -167,10 +167,10 @@ class TttApp : public App
         static const int8_t ledOfCell[9] = {2, 1, 0, 3, 4, 5, 8, 7, 6}; // keys 1..9 -> keypad LED
         for (int i = 0; i < KEYPAD_LEDS; i++)
             k[i][0] = k[i][1] = k[i][2] = 0.01f;
-        bool myTurn = state == PLAYING && turn == myMark;
+        bool myTurn = state == TT_PLAYING && turn == myMark;
         for (int c = 0; c < 9; c++) {
             Rgb &o = k[ledOfCell[c]];
-            bool winCell = state == DONE && isWinCell(c) && (now / 300) % 2;
+            bool winCell = state == TT_DONE && isWinCell(c) && (now / 300) % 2;
             if (board[c] == 1)
                 o[0] = winCell ? 0.2f : 1.0f, o[1] = 0.0f, o[2] = 0.0f;
             else if (board[c] == 2)
@@ -184,7 +184,7 @@ class TttApp : public App
     void draw(OLEDDisplay *d, int16_t x, int16_t y) override
     {
         char title[48];
-        if (mode == CPU)
+        if (mode == TT_CPU)
             snprintf(title, sizeof(title), "You (X) vs badge");
         else
             snprintf(title, sizeof(title), "vs %s", oppName);
@@ -215,19 +215,19 @@ class TttApp : public App
         }
         int sx = gx + cs * 3 + 8;
         const char *msg;
-        if (state == WAITING)
+        if (state == TT_WAITING)
             msg = "Waiting...";
-        else if (state == DONE)
+        else if (state == TT_DONE)
             msg = result;
         else
-            msg = turn == myMark ? "Your turn" : (mode == CPU ? "Thinking" : "Their turn");
+            msg = turn == myMark ? "Your turn" : (mode == TT_CPU ? "Thinking" : "Their turn");
         drawLines(d, sx, top + 4, d->width() - sx - 2, msg);
-        d->drawString(sx, y + d->height() - fontHeight(FONT_SMALL), state == DONE && mode == CPU ? "#again *quit" : "*quit");
+        d->drawString(sx, y + d->height() - fontHeight(FONT_SMALL), state == TT_DONE && mode == TT_CPU ? "#again *quit" : "*quit");
     }
 
   private:
-    Mode mode = CPU;
-    State state = PLAYING;
+    Mode mode = TT_CPU;
+    State state = TT_PLAYING;
     int8_t board[9];
     int turn = 1, myMark = 1;
     uint32_t opponent = 0, movedAt = 0, waitSince = 0;
@@ -255,18 +255,18 @@ class TttApp : public App
         int w = winner(board);
         if (!w)
             return;
-        state = DONE;
+        state = TT_DONE;
         if (w == 3) {
             snprintf(result, sizeof(result), "Draw");
         } else if (w == myMark) {
             snprintf(result, sizeof(result), "You win!");
             ledsFlourish();
-            if (mode == MESH) {
+            if (mode == TT_MESH) {
                 statsReportScore(GAME_TTT_WINS, (uint16_t)(statsHigh(GAME_TTT_WINS) + 1));
                 statsAchieve(ACH_TTT);
             }
         } else {
-            snprintf(result, sizeof(result), mode == CPU ? "Badge wins" : "They win");
+            snprintf(result, sizeof(result), mode == TT_CPU ? "Badge wins" : "They win");
         }
     }
     bool isWinCell(int c) const

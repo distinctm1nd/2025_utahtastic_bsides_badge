@@ -47,12 +47,12 @@ static void bigLine(OLEDDisplay *d, int16_t x, int y, const char *s)
 // =============================================================================================
 class SimonApp : public App
 {
-    enum State { IDLE, SHOW, INPUT, OVER };
+    enum State { SM_IDLE, SM_SHOW, SM_INPUT, SM_OVER };
 
   public:
     const char *name() const override { return "Simon"; }
     uint32_t frameMs() const override { return 100; }
-    void begin() override { state = IDLE; }
+    void begin() override { state = SM_IDLE; }
     void key(int k, KeyAction a) override
     {
         if (k == AK_STAR && a == KA_RELEASE) {
@@ -61,13 +61,13 @@ class SimonApp : public App
         }
         if (a != KA_PRESS)
             return;
-        if (k == AK_HASH && (state == IDLE || state == OVER)) {
+        if (k == AK_HASH && (state == SM_IDLE || state == SM_OVER)) {
             len = 0;
             addStep();
             return;
         }
         int dg = appKeyDigit(k);
-        if (state != INPUT || dg < 1)
+        if (state != SM_INPUT || dg < 1)
             return;
         lit = dg;
         litUntil = millis() + 250;
@@ -84,10 +84,10 @@ class SimonApp : public App
     }
     void tick(uint32_t now) override
     {
-        if (state == SHOW && now >= nextAt) {
+        if (state == SM_SHOW && now >= nextAt) {
             int step = showIdx / 2;
             if (step >= len) {
-                state = INPUT;
+                state = SM_INPUT;
                 pos = 0;
                 lit = 0;
                 appRedraw();
@@ -100,13 +100,13 @@ class SimonApp : public App
             }
             showIdx++;
         }
-        if (state == INPUT && lit && now > litUntil)
+        if (state == SM_INPUT && lit && now > litUntil)
             lit = 0;
     }
     bool keypadLeds(Rgb *k, uint32_t now) override
     {
         clearKeys(k);
-        if (state == OVER) {
+        if (state == SM_OVER) {
             float b = (now / 250) % 2 ? 0.6f : 0.1f;
             for (int dg = 1; dg <= 9; dg++)
                 k[ledForDigit(dg)][0] = b;
@@ -134,22 +134,22 @@ class SimonApp : public App
         char b[32];
         int my = y + 30;
         switch (state) {
-        case IDLE:
+        case SM_IDLE:
             bigLine(d, x, my, "Simon says");
             drawFooter(d, x, y, "# start   * quit");
             break;
-        case SHOW:
+        case SM_SHOW:
             snprintf(b, sizeof(b), "Level %d", len);
             bigLine(d, x, my, b);
             drawCentered(d, x, my + 30, "Watch the keys...", FONT_SMALL);
             break;
-        case INPUT:
+        case SM_INPUT:
             snprintf(b, sizeof(b), "Level %d", len);
             bigLine(d, x, my, b);
             snprintf(b, sizeof(b), "Your turn: %d / %d", pos, len);
             drawCentered(d, x, my + 30, b, FONT_SMALL);
             break;
-        case OVER:
+        case SM_OVER:
             bigLine(d, x, my, "Game over");
             snprintf(b, sizeof(b), "You reached level %d%s", len - 1, newBest ? " - best!" : "");
             drawCentered(d, x, my + 30, b, FONT_SMALL);
@@ -159,7 +159,7 @@ class SimonApp : public App
     }
 
   private:
-    State state = IDLE;
+    State state = SM_IDLE;
     uint8_t seq[64];
     int len = 0, pos = 0, showIdx = 0, lit = 0;
     uint32_t nextAt = 0, litUntil = 0;
@@ -169,14 +169,14 @@ class SimonApp : public App
     void addStep()
     {
         seq[len++] = (uint8_t)(1 + random(9));
-        state = SHOW;
+        state = SM_SHOW;
         showIdx = 0;
         lit = 0;
         nextAt = millis() + 700;
     }
     void gameOver()
     {
-        state = OVER;
+        state = SM_OVER;
         lit = 0;
         newBest = statsReportScore(GAME_SIMON, (uint16_t)(len - 1));
         if (newBest)
@@ -308,7 +308,7 @@ class SnakeApp : public App
     uint32_t frameMs() const override { return 1000; }
     void begin() override
     {
-        state = READY;
+        state = SN_READY;
         reset();
     }
     void key(int k, KeyAction a) override
@@ -320,13 +320,13 @@ class SnakeApp : public App
         if (a != KA_PRESS)
             return;
         if (k == AK_HASH) {
-            if (state == PLAYING)
-                state = PAUSED;
-            else if (state == PAUSED)
-                state = PLAYING;
+            if (state == SN_PLAYING)
+                state = SN_PAUSED;
+            else if (state == SN_PAUSED)
+                state = SN_PLAYING;
             else {
                 reset();
-                state = PLAYING;
+                state = SN_PLAYING;
             }
             return;
         }
@@ -342,14 +342,14 @@ class SnakeApp : public App
     }
     void tick(uint32_t now) override
     {
-        if (state != PLAYING || now - lastStep < stepMs())
+        if (state != SN_PLAYING || now - lastStep < stepMs())
             return;
         lastStep = now;
         dx = ndx;
         dy = ndy;
         int hx = bx[0] + dx, hy = by[0] + dy;
         if (hx < 0 || hy < 0 || hx >= cols || hy >= rows || hitsBody(hx, hy)) {
-            state = OVER;
+            state = SN_OVER;
             newBest = statsReportScore(GAME_SNAKE, (uint16_t)score);
             if (newBest)
                 ledsFlourish();
@@ -384,8 +384,8 @@ class SnakeApp : public App
         for (int i = 0; i < len; i++)
             d->fillRect(x + bx[i] * CELL + 1, top + by[i] * CELL + 1, CELL - 1, CELL - 1);
         d->drawCircle(x + fx * CELL + CELL / 2, top + fy * CELL + CELL / 2, 2);
-        if (state != PLAYING) {
-            const char *msg = state == READY ? "# to start" : state == PAUSED ? "Paused" : "Game over - #";
+        if (state != SN_PLAYING) {
+            const char *msg = state == SN_READY ? "# to start" : state == SN_PAUSED ? "Paused" : "Game over - #";
             d->setColor(BLACK);
             d->fillRect(x + 20, top + 30, d->width() - 40, 20);
             d->setColor(WHITE);
@@ -395,7 +395,7 @@ class SnakeApp : public App
     }
 
   private:
-    enum State { READY, PLAYING, PAUSED, OVER } state = READY;
+    enum State { SN_READY, SN_PLAYING, SN_PAUSED, SN_OVER } state = SN_READY;
     int8_t bx[MAXLEN], by[MAXLEN];
     int len = 3, dx = 1, dy = 0, ndx = 1, ndy = 0, fx = 0, fy = 0, score = 0;
     int cols = 32, rows = 22;
