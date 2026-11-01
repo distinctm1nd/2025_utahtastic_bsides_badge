@@ -10,7 +10,10 @@
 //    waking up, a menu open), deleting or leaving the wrong thing. Now it only replaces a
 //    letter it knows is in the draft.
 //  * UP sent the message and DOWN was backspace, which fought with the 2.7 menus. Now the
-//    joystick only moves, # is Enter/Send and * is Backspace/Back.
+//    joystick only moves, the joystick centre press (and #) is Select/Send, * is Back.
+//
+// One rule on every screen: joystick up/left = previous, down/right = next, centre = select
+// (hold centre = badge menu), * = back.
 //  * The Konami code never restarted on UP after a wrong key. Fixed.
 //
 // Three modes:
@@ -59,6 +62,9 @@ enum AppKey : int {
     AK_DOWN = 14,
     AK_LEFT = 15,
 };
+// The joystick centre press (GPIO7) is fed in as bit 16. Badge apps receive it as AK_HASH,
+// so "select" behaves the same in every app.
+static const int CENTER_BIT = 16;
 enum KeyAction : int { KA_PRESS, KA_RELEASE, KA_HOLD, KA_REPEAT };
 
 // digit 0..9 for a digit key, -1 otherwise
@@ -111,7 +117,7 @@ class KeypadLogic
         joyLean = lean;
     }
 
-    uint16_t state() const { return stable; }
+    uint32_t state() const { return stable; }
 
     // joystick switches (bits 12..15 = UP, RIGHT, DOWN, LEFT as wired) -> direction 0 up,
     // 1 right, 2 down, 3 left after correction; -1 if no direction (nothing, or opposite switches)
@@ -131,11 +137,12 @@ class KeypadLogic
         return toDir[p];
     }
 
-    void update(uint16_t raw, uint32_t now)
+    // raw: TCA9535 bits 0..15 plus the centre press in bit 16, 1 = pressed
+    void update(uint32_t raw, uint32_t now)
     {
         // debounce each key separately
-        for (int b = 0; b < 16; b++) {
-            uint16_t m = (uint16_t)(1u << b);
+        for (int b = 0; b < NKEYS; b++) {
+            uint32_t m = 1u << b;
             bool r = raw & m, s = stable & m;
             if (r == s) {
                 since[b] = 0;
@@ -158,14 +165,16 @@ class KeypadLogic
         }
         joyUpdate(now);
         // holds
-        for (int b = 0; b < 12; b++) {
+        for (int b = 0; b < NKEYS; b++) {
+            if (isJoystick(b))
+                continue;
             if (!(stable & (1u << b)) || (swallow & (1u << b)))
                 continue;
             uint32_t held = now - downAt[b];
             if (!holdDone[b] && held >= HOLD_MS) {
                 holdDone[b] = true;
                 if (appMode & (1u << b))
-                    hooks.appKey(b, KA_HOLD);
+                    hooks.appKey(appKeyOf(b), KA_HOLD);
                 else
                     onHold(b);
             }
@@ -205,14 +214,15 @@ class KeypadLogic
     int joyDir = -1;          // direction being held, -1 none
     uint8_t joyTarget = 0;    // where it went: 0 Meshtastic, 1 badge app, 2 used up
     uint32_t joyCand = 0, joyDownAt = 0, joyRepeatAt = 0;
-    uint16_t stable = 0;
-    uint16_t swallow = 0;  // keys whose press was used up (woke the screen, closed the welcome)
-    uint16_t appMode = 0;  // keys whose press went to a badge app (their release/hold go there too)
-    uint16_t homeTap = 0;  // digit pressed on a Meshtastic screen: decide on release (compose) or hold
-    uint32_t since[16] = {};
-    uint32_t downAt[16] = {};
-    uint32_t lastRepeat[16] = {};
-    bool holdDone[16] = {};
+    static const int NKEYS = 17;
+    uint32_t stable = 0;
+    uint32_t swallow = 0;  // keys whose press was used up (woke the screen, closed the welcome)
+    uint32_t appMode = 0;  // keys whose press went to a badge app (their release/hold go there too)
+    uint32_t homeTap = 0;  // digit pressed on a Meshtastic screen: decide on release (compose) or hold
+    uint32_t since[NKEYS] = {};
+    uint32_t downAt[NKEYS] = {};
+    uint32_t lastRepeat[NKEYS] = {};
+    bool holdDone[NKEYS] = {};
 
     int tapBit = -1; // key of the letter last typed into Meshtastic's text box
     int tapIdx = 0;  // which letter of that key
@@ -222,7 +232,8 @@ class KeypadLogic
     static const int KEY_STAR_BIT = 0;
     static const int KEY_HASH_BIT = 2;
 
-    static bool isJoystick(int b) { return b >= 12; }
+    static bool isJoystick(int b) { return b >= 12 && b <= 15; }
+    static int appKeyOf(int b) { return b == CENTER_BIT ? AK_HASH : b; }
     static bool isDigit(int b) { return lettersFor(b) != nullptr; }
 
     static KpEvent dirEvent(int d)
@@ -314,14 +325,15 @@ class KeypadLogic
 
     void onPress(int b, uint32_t now)
     {
-        uint16_t m = (uint16_t)(1u << b);
+        uint32_t m = 1u << b;
         downAt[b] = now;
         lastRepeat[b] = now;
         holdDone[b] = false;
-        swallow &= (uint16_t)~m;
-        appMode &= (uint16_t)~m;
-        homeTap &= (uint16_t)~m;
-        hooks.keyDown(b);
+        swallow &= ~m;
+        appMode &= ~m;
+        homeTap &= ~m;
+        if (b != CENTER_BIT)
+            hooks.keyDown(b);
 
         if (hooks.screenOff()) {
             swallow |= m;
@@ -333,15 +345,16 @@ class KeypadLogic
             hooks.welcomeDismiss();
             return;
         }
-        konamiStep(b);
+        if (b != CENTER_BIT)
+            konamiStep(b);
 
         if (hooks.appOpen()) {
             appMode |= m;
             tapBit = -1;
-            hooks.appKey(b, KA_PRESS);
+            hooks.appKey(appKeyOf(b), KA_PRESS);
             return;
         }
-        if (b == KEY_STAR_BIT || b == KEY_HASH_BIT)
+        if (b == KEY_STAR_BIT || b == KEY_HASH_BIT || b == CENTER_BIT)
             return; // act on release (short) or hold
 
         if (hooks.bannerShowing()) {
@@ -369,8 +382,8 @@ class KeypadLogic
 
     void onHold(int b)
     {
-        uint16_t m = (uint16_t)(1u << b);
-        if (b == KEY_STAR_BIT) {
+        uint32_t m = 1u << b;
+        if (b == KEY_STAR_BIT || b == CENTER_BIT) {
             tapBit = -1;
             if (!hooks.bannerShowing())
                 hooks.openBadgeMenu();
@@ -383,7 +396,7 @@ class KeypadLogic
             return;
         }
         if (homeTap & m) {
-            homeTap &= (uint16_t)~m;
+            homeTap &= ~m;
             hooks.quickSend(digitFor(b) - '0');
             return;
         }
@@ -398,16 +411,16 @@ class KeypadLogic
     void onRelease(int b, uint32_t now)
     {
         (void)now;
-        uint16_t m = (uint16_t)(1u << b);
+        uint32_t m = 1u << b;
         if (appMode & m) {
-            appMode &= (uint16_t)~m;
-            hooks.appKey(b, KA_RELEASE);
+            appMode &= ~m;
+            hooks.appKey(appKeyOf(b), KA_RELEASE);
             return;
         }
         bool used = (swallow & m) || holdDone[b];
-        swallow &= (uint16_t)~m;
+        swallow &= ~m;
         if (homeTap & m) {
-            homeTap &= (uint16_t)~m;
+            homeTap &= ~m;
             if (!used)
                 hooks.openCompose(b);
             return;
@@ -418,9 +431,9 @@ class KeypadLogic
             tapBit = -1;
             // in a Meshtastic menu * closes it; otherwise backspace (or back when nothing typed)
             hooks.emit(hooks.bannerShowing() ? KP_CANCEL : KP_BACK, 0x08);
-        } else if (b == KEY_HASH_BIT) {
+        } else if (b == KEY_HASH_BIT || b == CENTER_BIT) {
             tapBit = -1;
-            hooks.emit(KP_SELECT, 0); // Enter: send the draft / choose in a menu
+            hooks.emit(KP_SELECT, 0); // select: choose in a menu / send the draft
         }
     }
 };

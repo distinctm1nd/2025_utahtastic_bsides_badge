@@ -70,9 +70,10 @@
 #define BADGE_KEYPAD_ADDR 0x20
 #define BADGE_KEYPAD_INT 15 // TCA9535 /INT, 10k pull-up (open drain, active low)
 
-// Joystick centre press is a plain GPIO; Meshtastic's normal user-button handling
-// (click = next screen / next item, hold = select / open menu) runs on it.
-#define BUTTON_PIN 7
+// Joystick centre press: a plain GPIO (100k pull-up R26). The badge keypad driver reads it
+// so it can be "select" everywhere (BUTTON_PIN is deliberately not defined, so Meshtastic's
+// single-button handling doesn't also act on it).
+#define BADGE_CENTER_PIN 7
 
 // ---- LEDs -------------------------------------------------------------------------
 // Moon (6 x WS2812 on GPIO16): Meshtastic "Ambient Lighting", colour set from the app.

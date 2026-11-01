@@ -14,13 +14,21 @@ No Meshtastic source file is patched, so a new Meshtastic release merges in clea
 
 ## Using the badge
 
-| Key | On Meshtastic's screens | In a badge app / editor | In Meshtastic menus |
-|---|---|---|---|
-| 1–9, 0 | **tap**: new message (badge editor) · **hold**: quick-send canned message N | letters (tap again for the next), hold = digit | — |
-| `#` | Enter · **hold**: next LED scene | send / save / start · hold in editor: abc/Abc/ABC | choose |
-| `*` | back · **hold**: badge menu | delete / back · hold: quit | close |
-| joystick | move | move / play | move |
-| joystick press | Meshtastic: next screen, hold = its menu | (not used) | next / choose |
+One rule on every screen:
+
+| Control | Does |
+|---|---|
+| joystick up / left | previous (item, row, page) |
+| joystick down / right | next |
+| **joystick centre press** | **select / OK** (in apps it does what `#` does) |
+| hold joystick centre (or hold `*`) | badge menu |
+| `*` | back / delete a letter |
+| tap a digit (on Meshtastic's screens) | new message in the badge editor |
+| hold a digit (on Meshtastic's screens) | quick-send canned message N |
+| hold `#` | next LED scene |
+
+In the editor, digits type letters (tap again for the next letter, hold for the digit) and
+`#` or the centre press sends. In games, the joystick plays and the centre/`#` starts.
 
 Replies from Meshtastic's own message screen use the plain multi-tap typing straight into its
 text box. New messages go through the badge editor, which shows the letters of the key you
@@ -32,8 +40,9 @@ are tapping in a strip at the bottom, the case mode, and how many characters are
   shows your Meshtastic name), with an optional tagline under it; then the pictures from
   `images/`. Joystick flips pages, `#` starts a slideshow, hold `#` edits the name.
 - **New message**: the badge editor (sends to everyone on the primary channel).
-- **Lights**: scene, speed, brightness, moon, key flash, light shows. The LEDs change as you
-  scroll and a map of the badge on the right shows which are lit.
+- **Lights**: select *Scene* to open the scene list; the LEDs change as you scroll, select
+  keeps it and `*` goes back to the one you had. Also speed, brightness, moon, key flash and
+  light shows (select a row to change it). A map of the badge shows which LEDs are lit.
 - **Games**: Simon and Whack-a-mole (on the lit keys), Snake, Blocks, Tic-tac-toe against
   the badge or against another badge (keys 1–9 are the board; X red, O blue).
 - **Fox hunt**: pick a node; the screen and a bar graph on the keys show its signal as you
@@ -108,19 +117,29 @@ LED brightness and your latest game score. The minibadge CLK is left exactly as 
 
 ### LED scenes
 
-37 scenes for the 13 key LEDs and the 6 logo LEDs (and the moon, if you let it follow):
+Each scene is a colour palette plus its own effect for each part of the badge, so the
+logo, eyes, moon and keypad all move differently while the colours belong together. Key
+presses always flash the key in the scene's highlight colour.
 
-- **2025 patterns**: Rainbow, Blue + White, Red + Maroon, Pink + White, Pink + Purple, Green + Blue
-- **Animated**: Rainbow Wave, Breathe, Snake, Scanner, Digital Rain, Fire, Plasma, Starry
-  Night, Aurora, Heartbeat, Type Ripple (each key press sends a ripple across the keys)
-- **Utah**: Red Rocks Sunset, Desert Heat, Canyon Storm
-- **Halloween**: Candlelight, Jack-O-Lantern, Lurking Eyes, Ghosts, Blood Moon, Cauldron,
-  Graveyard Mist, Embers, Will-O-Wisp, Candy Corn, Possessed, Dead Man's Hand, Nevermore,
-  Shadow Walker
-- **From the phone**: App Colour, App Shimmer
-- Off
+| Part | Effects |
+|---|---|
+| Keypad | wave, rain, sparkle, fire, snake, ripple, scanner, breathing rows, plasma, checkerboard, spiral, equaliser |
+| Logo (the B sign) | colour flow, marquee chase, flickering neon, breathe, fireflies, heartbeat, colour steps |
+| Eyes | glow and blink, look around, candle flicker, demon flare, wink, colour cycle, ping-pong |
+| Moon | phases, glow, circling halo, eclipse, star twinkle, aurora shimmer, clouds drifting past |
 
-To add one, write a function in `BadgeScenes.cpp` and add it to `SCENES[]` at the bottom.
+32 scenes: Rainbow, Blue + White, Red + Maroon, Pink + White, Pink + Purple, Green + Blue
+(the 2025 colours), Red Rocks Sunset, Desert Night, BSides Gold, Synthwave, Neon City,
+Ocean, Ice Cave, Fire, Lava, Toxic, Aurora, Firefly Forest, Candy, Vaporwave, The Matrix,
+Halloween, Jack-O-Lantern, Blood Moon, Ghosts, Cauldron, Graveyard, Possessed, Candy Corn,
+Type Ripple, App Colour and App Shimmer (colour from the phone app), and Off.
+
+The moon is part of the scenes by default; Lights → Moon switches it to the Ambient
+Lighting colour set in the Meshtastic app instead.
+
+To add a scene, add a line to `SCENES[]` at the bottom of `BadgeScenes.cpp`: a name, a
+palette and one effect for each part. New palettes are four colours (base, accent,
+highlight, dark) in `PALETTES[]`.
 `tools/scene_preview.cpp` renders every scene to a GIF on your PC so you can see it before
 flashing:
 

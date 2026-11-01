@@ -1,8 +1,10 @@
-// Lights: pick the LED scene with a live preview. The LEDs change as you scroll, and a small
-// map of the badge on the right shows which LEDs are lit. Everything is saved as you go.
+// Lights: pick the LED scene with a live preview, plus speed, brightness and light shows.
+// A small map of the badge on the right shows which LEDs are lit.
 //
-//   joystick up/down  choose a row          joystick left/right  change it
-//   # on "Share now"  send this scene to nearby badges           * or hold *  done
+// Same keys as every other list on the badge:
+//   joystick up/left = previous, down/right = next, centre (or #) = select, * = back
+// Selecting "Scene" opens the scene list: the LEDs change as you scroll; select keeps the
+// scene, * goes back to the one you had. Selecting any other row changes it.
 #include "configuration.h"
 
 #include "BadgeApp.h"
@@ -27,32 +29,53 @@ class LightsApp : public App
   public:
     const char *name() const override { return "Lights"; }
     uint32_t frameMs() const override { return 150; } // keep the LED map moving
-    void begin() override { row = R_SCENE; }
+    void begin() override
+    {
+        row = R_SCENE;
+        picking = false;
+    }
 
     void key(int k, KeyAction a) override
     {
         if (a == KA_RELEASE && k == AK_STAR) {
-            appClose();
+            if (picking) { // back out of the scene list: restore the scene you had
+                picking = false;
+                if (ledsScene() != savedScene)
+                    ledsSetScene(savedScene);
+            } else {
+                appClose();
+            }
             return;
         }
-        if (a != KA_PRESS && a != KA_REPEAT)
+        bool prev = k == AK_UP || k == AK_LEFT, next = k == AK_DOWN || k == AK_RIGHT;
+        if ((prev || next) && (a == KA_PRESS || a == KA_REPEAT)) {
+            int dir = next ? 1 : -1;
+            if (picking) // live preview, not saved until you select
+                ledsSetScene((ledsScene() + dir + sceneCount()) % sceneCount(), false);
+            else
+                row = (row + dir + R_COUNT) % R_COUNT;
             return;
-        switch (k) {
-        case AK_UP: row = (row + R_COUNT - 1) % R_COUNT; break;
-        case AK_DOWN: row = (row + 1) % R_COUNT; break;
-        case AK_LEFT: change(-1); break;
-        case AK_RIGHT: change(+1); break;
-        case AK_HASH:
-            if (a == KA_PRESS)
+        }
+        if (k == AK_HASH && a == KA_PRESS) {
+            if (picking) {
+                picking = false;
+                ledsSetScene(ledsScene()); // keep it (saves)
+            } else if (row == R_SCENE) {
+                picking = true;
+                savedScene = ledsScene();
+            } else {
                 change(+1);
-            break;
-        default: break;
+            }
         }
     }
 
     void draw(OLEDDisplay *d, int16_t x, int16_t y) override
     {
-        drawTitle(d, x, y, "Lights", "*done");
+        if (picking) {
+            drawPicker(d, x, y);
+            return;
+        }
+        drawTitle(d, x, y, "Lights", "*back");
         int lh = fontHeight(FONT_SMALL);
         int top = y + lh + 2;
         int listW = d->width() - 58;
@@ -75,20 +98,46 @@ class LightsApp : public App
 
   private:
     int row = 0;
+    bool picking = false;
+    int savedScene = 0;
+
+    // the scene list: a few names around the current one, the current one highlighted
+    void drawPicker(OLEDDisplay *d, int16_t x, int16_t y)
+    {
+        drawTitle(d, x, y, "Scene", "select / *back");
+        int lh = fontHeight(FONT_SMALL);
+        int top = y + lh + 2;
+        int listW = d->width() - 58;
+        int rows = (d->height() - lh - 2) / lh;
+        int cur = ledsScene(), n = sceneCount();
+        for (int r = 0; r < rows; r++) {
+            int i = cur - rows / 2 + r;
+            if (i < 0 || i >= n)
+                continue;
+            int ry = top + r * lh;
+            if (i == cur) {
+                d->fillRect(x, ry, listW, lh);
+                d->setColor(BLACK);
+            }
+            d->drawString(x + 2, ry, sceneAt(i).name);
+            d->setColor(WHITE);
+        }
+        drawMap(d, x + listW + 3, top, 54, d->height() - top - 2);
+    }
 
     static const char *onOff(bool b) { return b ? "on" : "off"; }
 
     void label(int r, char *b, size_t n)
     {
         switch (r) {
-        case R_SCENE: snprintf(b, n, "< %s >", sceneAt(ledsScene()).name); break;
+        case R_SCENE: snprintf(b, n, "Scene: %s", sceneAt(ledsScene()).name); break;
         case R_SPEED: snprintf(b, n, "Speed: %s", ledsSpeedName(ledsSpeed())); break;
         case R_BRIGHT: snprintf(b, n, "Bright: %s", ledsBrightName(ledsBright())); break;
         case R_MOON: snprintf(b, n, "Moon: %s", ledsMoonFollows() ? "scene" : "app"); break;
         case R_KEYFX: snprintf(b, n, "Key flash: %s", onOff(ledsKeyFlash())); break;
         case R_JOIN: snprintf(b, n, "Join shows: %s", onOff(meshJoinShows())); break;
         case R_LEAD: snprintf(b, n, "Lead show: %s", onOff(meshLeadingShow())); break;
-        default: snprintf(b, n, "Share now (#)"); break;
+        default: snprintf(b, n, "Share with badges"); break;
         }
     }
 

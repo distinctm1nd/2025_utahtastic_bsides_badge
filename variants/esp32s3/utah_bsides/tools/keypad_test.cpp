@@ -65,7 +65,7 @@ struct FakeBadge : KeypadHooks {
 };
 
 static uint32_t now = 1000;
-static uint16_t raw = 0;
+static uint32_t raw = 0;
 
 static void run(KeypadLogic &k, uint32_t ms)
 {
@@ -77,7 +77,7 @@ static void run(KeypadLogic &k, uint32_t ms)
 // a press with contact bounce on the way down and up
 static void press(KeypadLogic &k, int bit, uint32_t holdMs = 120, bool bouncy = true)
 {
-    uint16_t m = 1u << bit;
+    uint32_t m = 1u << bit;
     if (bouncy)
         for (int i = 0; i < 3; i++) {
             raw |= m; run(k, 10);
@@ -212,6 +212,18 @@ int main()
         expect(t.key(AK_HASH, KA_RELEASE, ms + 100) == TextEntry::TE_DONE, "editor: # finishes");
         t.key(AK_STAR, KA_PRESS, ms);
         expect(t.key(AK_STAR, KA_HOLD, ms + 800) == TextEntry::TE_CANCEL, "editor: hold * cancels");
+    }
+    {
+        FakeBadge b; KeypadLogic k(b);
+        press(k, 16);
+        expect(b.selects == 1, "centre click = select on Meshtastic screens");
+        press(k, 16, 900);
+        expect(b.menus == 1 && b.selects == 1, "hold centre = badge menu");
+        press(k, 16);
+        expect(b.selects == 2 && b.cancels == 0 && !b.banner, "centre click chooses in a menu");
+        b.app = true; b.appLog.clear();
+        press(k, 16, 100, false);
+        expect(b.appLog == "2P 2R ", "badge apps get the centre press as #");
     }
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails ? 1 : 0;

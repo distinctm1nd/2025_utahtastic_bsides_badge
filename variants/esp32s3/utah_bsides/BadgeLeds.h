@@ -25,7 +25,7 @@ const char *ledsBrightName(int i);
 int ledsBright();
 void ledsSetBright(int i);
 
-bool ledsMoonFollows();      // false: moon shows the Ambient Lighting colour from the app
+bool ledsMoonFollows();      // true (default): moon is part of the scene; false: app's Ambient Lighting colour
 void ledsSetMoonFollows(bool on);
 bool ledsKeyFlash();         // keys flash white when pressed
 void ledsSetKeyFlash(bool on);

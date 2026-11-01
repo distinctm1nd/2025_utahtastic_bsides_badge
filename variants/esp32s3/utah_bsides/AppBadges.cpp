@@ -1,6 +1,6 @@
 // "Badges & achievements": badges you've met, achievements, scavenger-hunt flags and high
 // scores, one page each. Also the minibadge list.
-//   joystick left/right  page      up/down  scroll      *  done
+//   joystick up/left, down/right  scroll      centre (or #)  next page      *  back
 #include "configuration.h"
 
 #include "BadgeApp.h"
@@ -30,13 +30,11 @@ class ListApp : public App
         if (a != KA_PRESS && a != KA_REPEAT)
             return;
         int pages = pageCount();
-        if (k == AK_RIGHT)
+        if (k == AK_HASH && a == KA_PRESS)
             page = (page + 1) % pages, scroll = 0;
-        else if (k == AK_LEFT)
-            page = (page + pages - 1) % pages, scroll = 0;
-        else if (k == AK_DOWN)
+        else if (k == AK_DOWN || k == AK_RIGHT)
             scroll++;
-        else if (k == AK_UP && scroll > 0)
+        else if ((k == AK_UP || k == AK_LEFT) && scroll > 0)
             scroll--;
     }
     void draw(OLEDDisplay *d, int16_t x, int16_t y) override

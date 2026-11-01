@@ -1,9 +1,8 @@
 // LED scenes for the Utah BSides badge: pure maths, no Arduino or Meshtastic headers, so
 // the same file also builds on a PC (see tools/scene_preview.cpp in this folder).
 //
-// Every scene draws all 25 badge LEDs in one go: the 13 keypad backlights, the 2 "eye"
-// and 4 logo LEDs on the sign, and the 6 moon LEDs. Whether the moon actually follows the
-// scene is a menu setting (by default the moon keeps the colour set in the Meshtastic app).
+// A scene is a colour palette plus a separate effect for each part of the badge: the 13
+// keypad backlights, the 4 logo LEDs on the sign, the 2 eyes and the 6 moon LEDs.
 #pragma once
 #include <stdint.h>
 
@@ -45,16 +44,17 @@ struct SceneCtx {
     uint8_t npressed;
 };
 
-typedef void (*SceneFn)(SceneCtx &c);
-
 struct Scene {
     const char *name;
-    SceneFn fn;
+    uint8_t palette;
+    uint8_t keypad, logo, eyes, moon; // effect for each part (tables in BadgeScenes.cpp)
 };
 
 int sceneCount();
 const Scene &sceneAt(int i);
 int sceneFind(const char *name); // -1 if unknown
+void sceneRender(int scene, SceneCtx &c); // draw one frame of scene into c.out
+void sceneAccent(int scene, Rgb &out);    // the scene's highlight colour (key press flash)
 
 // Old 2025 firmware stored a palette index 0..6 in NVS ("colorIndex"); this returns the
 // matching scene so an updated badge keeps the pattern its owner picked.
@@ -64,7 +64,7 @@ int sceneFromLegacyIndex(int colorIndex);
 void sceneSetAppColour(float r, float g, float b);
 
 // Short overlays drawn on top of any scene
-void overlayKeyFlash(SceneCtx &c, const float flashLevel[KEYPAD_LEDS]);
+void overlayKeyFlash(SceneCtx &c, const float flashLevel[KEYPAD_LEDS], const Rgb &colour);
 void overlayCelebrate(SceneCtx &c, float secondsLeft);
 void overlayAlert(SceneCtx &c, bool directMessage, float secondsIn); // message arrived
 void overlayPulse(SceneCtx &c, float level, bool includeMoon);      // mesh traffic blink

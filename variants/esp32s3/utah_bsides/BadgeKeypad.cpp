@@ -47,8 +47,8 @@ static bool writeReg2(uint8_t reg, uint8_t a, uint8_t b)
     return Wire.endTransmission() == 0;
 }
 
-// Returns false on an I2C error (state left unchanged).
-static bool readKeys(uint16_t &pressed)
+// Returns false on an I2C error (state left unchanged). Bit 16 is the joystick centre press.
+static bool readKeys(uint32_t &pressed)
 {
     Wire.beginTransmission(BADGE_KEYPAD_ADDR);
     Wire.write(TCA9535_INPUT0);
@@ -59,6 +59,8 @@ static bool readKeys(uint16_t &pressed)
     uint8_t port0 = Wire.read(); // read one byte at a time: the order matters
     uint8_t port1 = Wire.read();
     pressed = (uint16_t)~(port0 | (port1 << 8)); // keys pull the pins low
+    if (digitalRead(BADGE_CENTER_PIN) == LOW)      // 100k pull-up, press = low
+        pressed |= 1u << CENTER_BIT;
     return true;
 }
 
@@ -122,14 +124,15 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
             inputBroker->registerSource(this);
         // all 16 pins inputs, normal polarity (both are the power-on defaults; set anyway)
         writeReg2(TCA9535_CONFIG0, 0xFF, 0xFF);
+        pinMode(BADGE_CENTER_PIN, INPUT_PULLUP);
         writeReg2(TCA9535_POLARITY0, 0x00, 0x00);
     }
-    uint16_t state() const { return logic.state(); }
+    uint32_t state() const { return logic.state(); }
 
   protected:
     int32_t runOnce() override
     {
-        uint16_t keys;
+        uint32_t keys;
         uint32_t now = millis();
         if (readKeys(keys))
             logic.update(keys, now);
@@ -200,7 +203,7 @@ void keypadGetJoystick(int &steps, bool &lean)
     }
 }
 
-uint16_t keypadState()
+uint32_t keypadState()
 {
     return keypad ? keypad->state() : 0;
 }

@@ -31,7 +31,7 @@ int main()
                 c.pressed[0] = (int8_t)((f / 20) % KEYPAD_LEDS);
                 c.npressed = 1;
             }
-            sceneAt(s).fn(c);
+            sceneRender(s, c);
             printf("%s[", f ? "," : "");
             for (int i = 0; i < NUM_LEDS; i++) {
                 int v[3];

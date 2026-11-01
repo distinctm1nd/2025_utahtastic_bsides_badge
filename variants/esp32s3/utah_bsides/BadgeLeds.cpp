@@ -39,7 +39,7 @@ static const int NBRIGHT = sizeof(BRIGHT_LEVEL) / sizeof(BRIGHT_LEVEL[0]);
 static int curScene = 0;
 static int curSpeed = 2;
 static int curBright = 2;
-static bool moonFollows = false;
+static bool moonFollows = true; // the moon is part of the scenes unless set to the app colour
 static bool keyFlash = true;
 static bool sceneReset = true;
 static float sceneTime = 0;
@@ -85,7 +85,7 @@ static void saveSettings()
     p.putString("scene", sceneAt(curScene).name);
     p.putUChar("speed", (uint8_t)curSpeed);
     p.putUChar("bright", (uint8_t)curBright);
-    p.putBool("moon", moonFollows);
+    p.putBool("moonfx", moonFollows);
     p.putBool("keyfx", keyFlash);
     p.putUChar("ledoff", (uint8_t)offMode);
     p.putBool("night", nightMode);
@@ -105,7 +105,7 @@ static void loadSettings()
     curScene = s < 0 ? 0 : s;
     curSpeed = p.getUChar("speed", 2);
     curBright = p.getUChar("bright", 2);
-    moonFollows = p.getBool("moon", false);
+    moonFollows = p.getBool("moonfx", true);
     keyFlash = p.getBool("keyfx", true);
     offMode = p.getUChar("ledoff", 0);
     nightMode = p.getBool("night", false);
@@ -165,13 +165,16 @@ class BadgeLedThread : public concurrency::OSThread
 
         const meshtastic_ModuleConfig_AmbientLightingConfig &al = moduleConfig.ambient_lighting;
         sceneSetAppColour(al.red / 255.0f, al.green / 255.0f, al.blue / 255.0f);
-        sceneAt(curScene).fn(c);
+        sceneRender(curScene, c);
 
         // a badge app (game, fox hunt) can take over the keypad LEDs
         App *app = appActive();
         bool appLeds = app && app->keypadLeds(frame, now);
-        if (keyFlash && !appLeds)
-            overlayKeyFlash(c, flash);
+        if (keyFlash && !appLeds) {
+            Rgb accent;
+            sceneAccent(curScene, accent);
+            overlayKeyFlash(c, flash, accent);
+        }
         if (alertLeft > 0) {
             overlayAlert(c, alertDm, alertLen - alertLeft);
             alertLeft -= dt;

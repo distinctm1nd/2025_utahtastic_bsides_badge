@@ -274,10 +274,10 @@ static void showReset()
 
 static void showHelp()
 {
-    screen->showSimpleBanner("Tap a digit: new message\n"
-                             "Hold a digit: quick send\n"
-                             "Hold * menu, # lights\n"
-                             "In apps: * back/quit",
+    screen->showSimpleBanner("Joystick: move, centre: select\n"
+                             "* back, hold centre: menu\n"
+                             "Tap a digit: new message\n"
+                             "Hold #: next lights",
                              12000);
 }
 
@@ -378,8 +378,8 @@ static void drawWelcome(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t
 {
     (void)state;
     static const char *lines[] = {
-        "Welcome to BSides!",  "Tap a digit: message", "Hold a digit: quick", "# = send / OK",
-        "* = delete / back",   "joystick = move",      "hold * = badge menu", "hold # = next lights",
+        "Welcome to BSides!",   "Joystick: move",      "Centre press: select", "* = back",
+        "Hold centre: menu",    "Tap a digit: message", "Hold #: next lights",  "",
         "(press any key)",
     };
     display->setTextAlignment(TEXT_ALIGN_LEFT);

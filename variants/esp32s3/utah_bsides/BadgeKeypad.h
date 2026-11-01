@@ -26,7 +26,7 @@ enum KeyBit : uint8_t {
 };
 
 void keypadStart(); // from lateInitVariant()
-uint16_t keypadState(); // debounced, 1 = pressed
+uint32_t keypadState(); // debounced, 1 = pressed; bits 0..15 TCA9535, bit 16 joystick centre
 void keypadPokeAwake(); // count as user input so the screen doesn't time out
 // type text into Meshtastic's message box as if from the keypad, then (optionally) send
 void keypadInjectText(const char *text, bool send);
