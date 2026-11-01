@@ -91,7 +91,7 @@ class ChessApp : public App
         else if (k == AK_HASH && a == KA_PRESS)
             choose();
         if (f >= 0 && f < 8 && r >= 0 && r < 8)
-            cursor = Chess::sq(f, r);
+            cursor = Chess::sqAt(f, r);
     }
     void tick(uint32_t now) override
     {
@@ -249,7 +249,7 @@ class ChessApp : public App
     {
         for (int r = 0; r < 8; r++)
             for (int f = 0; f < 8; f++) {
-                int s = Chess::sq(f, r), sx, sy;
+                int s = Chess::sqAt(f, r), sx, sy;
                 squareXY(s, x, y, sx, sy);
                 if (((f + r) & 1) == 0) // dark square: a light dot pattern
                     for (int py = 1; py < SQ; py += 2)

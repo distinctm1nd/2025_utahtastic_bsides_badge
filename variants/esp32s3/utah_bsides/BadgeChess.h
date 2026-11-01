@@ -35,7 +35,7 @@ class Chess
     void reset() { loadFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); }
 
     static bool onBoard(int s) { return !(s & 0x88); }
-    static int sq(int file, int rank) { return rank * 16 + file; }
+    static int sqAt(int file, int rank) { return rank * 16 + file; }
     static int fileOf(int s) { return s & 7; }
     static int rankOf(int s) { return s >> 4; }
 
@@ -53,9 +53,9 @@ class Chess
                 int t = pieceOf(c);
                 if (!t || rank < 0 || file > 7)
                     return false;
-                board[sq(file, rank)] = (int8_t)((c >= 'a') ? -t : t);
+                board[sqAt(file, rank)] = (int8_t)((c >= 'a') ? -t : t);
                 if (t == KING)
-                    kingSq[c >= 'a' ? 1 : 0] = sq(file, rank);
+                    kingSq[c >= 'a' ? 1 : 0] = sqAt(file, rank);
                 file++;
             }
         }
@@ -73,7 +73,7 @@ class Chess
             f++;
         ep = -1;
         if (f[0] >= 'a' && f[0] <= 'h' && f[1] >= '1' && f[1] <= '8')
-            ep = sq(f[0] - 'a', f[1] - '1');
+            ep = sqAt(f[0] - 'a', f[1] - '1');
         halfmoves = 0;
         return true;
     }
