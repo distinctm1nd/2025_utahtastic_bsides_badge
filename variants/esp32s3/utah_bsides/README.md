@@ -34,11 +34,13 @@ Replies from Meshtastic's own message screen use the plain multi-tap typing stra
 text box. New messages go through the badge editor, which shows the letters of the key you
 are tapping in a strip at the bottom, the case mode, and how many characters are left.
 
-### Badge menu (hold `*`)
+### Badge menu (hold the centre press, or hold `*`)
 
 - **Name tag & pictures**: your name in big letters (type it on the badge; until you do it
   shows your Meshtastic name), with an optional tagline under it; then the pictures from
-  `images/`. Joystick flips pages, `#` starts a slideshow, hold `#` edits the name.
+  `images/`. Joystick flips pages, `#` starts a slideshow, hold `#` edits the name. On the
+  name page `1` changes the font (Classic, Wood type, Serif, Typewriter, Fancy) and `2` the
+  size (Auto = as big as fits, Big, Medium, Small); both are also in Settings.
 - **New message**: the badge editor (sends to everyone on the primary channel).
 - **Lights**: select *Scene* to open the scene list; the LEDs change as you scroll, select
   keeps it and `*` goes back to the one you had. Also speed, brightness, moon, key flash and
@@ -50,26 +52,27 @@ are tapping in a strip at the bottom, the case mode, and how many characters are
 - **Badges & achievements**: badges you've met, 16 achievements, scavenger-hunt flags,
   high scores.
 - **Minibadges**: minibadges that talk I2C (button presses and text messages).
-- **Settings**: joystick setup, name tag name and tagline, whether the name tag keeps the
+- **Settings**: joystick setup, name tag name, font, size and tagline, whether the name tag keeps the
   screen on, screen colour, LEDs while the screen sleeps (stay on / dim to 30% / off; stays
   on unless you change it), night mode (red screen, dim LEDs), remote `!commands`, welcome
   tips, factory reset.
 
 ### Joystick setup
 
-The joystick is mounted at an angle, so pushing straight up can close its UP switch, its
-RIGHT switch, or both. Settings → *Joystick setup* fixes that on the badge:
+The joystick is mounted at an angle, so a straight push can close one of its four switches
+or two of them, and not the one its label suggests. Out of the box the badge assumes the
+usual 45° turn. If directions come out wrong, Settings → *Joystick setup* teaches the badge
+how your stick is mounted, whatever the angle (or even if it is mirrored):
 
-1. Push the stick straight up and let go, then straight right and let go. The badge works
-   out the correction from which switches each push closed.
-2. Push around: an arrow shows what each push now means, and the four switches light up as
-   they close. If something is off, keys 1–8 try the eight 45° angles and 0 flips the
-   "lean" (which way a push that closes only one switch goes). 9 starts over.
-3. `#` saves, `*` cancels.
+1. Push straight up, right, down and left as the screen asks (as you hold the badge),
+   letting go each time. The four circles show which switches each push closes.
+2. Push around: an arrow shows what each push now means. The line under it (e.g.
+   `U14 R12 D23 L34`) is what the badge learned. `0` flips the "lean" (which way a push
+   that only catches one switch goes), `9` starts over.
+3. Centre (or `#`) saves, `*` cancels.
 
-Pushes that close two switches at once count as the direction between them, so angled
-pushes work even though the stick only has four switches. (The badge waits 35 ms after the
-first switch closes to see whether a second one follows.)
+The badge waits 60 ms after the first switch closes to see whether a second one follows, so
+angled pushes count as one direction.
 
 ### Mesh features
 
@@ -81,7 +84,7 @@ first switch closes to see whether a second one follows.)
   range, and they all play it in step. *Lead show* re-sends it every minute. Turn
   *Join shows* off to ignore other people's shows. Joined shows are not saved.
 - **Remote commands**: a direct message to the badge starting with `!` changes its lights and
-  gets a reply: `!lights next`, `!lights list`, `!lights candlelight`, `!bright high`,
+  gets a reply: `!lights next`, `!lights list`, `!lights skinwalker`, `!bright high`,
   `!speed slow`, `!help`. Turn it off in Settings.
 - **Phone colour**: the APP COLOUR and APP SHIMMER scenes use the colour set in the
   Meshtastic app under Module settings → Ambient Lighting.
@@ -99,6 +102,16 @@ colour (Meshtastic's screen driver draws a single colour on black; pick the colo
 Settings). Animated GIFs play (up to 24 frames). Files are shown in name order, so number
 them (`01_…`, `02_…`). Pictures with light backgrounds usually look better inverted: put
 `_inv` in the name. About 2.5 KB per frame; the script stops at 512 KB.
+
+The Old West sample pictures (`04_wanted`, `05_skinwalker` (animated), `06_mesh_marshal`,
+`07_ghost_town` (animated), `08_dont_answer`) are drawn by
+`tools/make_west_images.py`; delete any you don't want.
+
+### Name tag fonts
+
+`BadgeFonts.h` holds the extra name fonts in Meshtastic's own font format, made by
+`tools/make_fonts.py` from open-licence fonts (DejaVu, Liberation, GNU FreeFont) at three
+sizes each. Edit the font list in that script and run it to change them.
 
 ### Scavenger hunt
 

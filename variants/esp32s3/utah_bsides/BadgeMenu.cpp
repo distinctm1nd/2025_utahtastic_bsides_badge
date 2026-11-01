@@ -58,6 +58,8 @@ enum Step {
     S_TAGLINE,
     S_NAME,
     S_JOYSTICK,
+    S_TAGFONT,
+    S_TAGSIZE,
 };
 static volatile Step queued = S_NONE;
 static uint32_t pickedNode = 0;
@@ -120,7 +122,10 @@ static void applyColour(int i)
     if (i < 0 || i >= NCOLOURS)
         i = 0;
     uint32_t c = COLOUR_RGB[i];
-    TFT_MESH = (uint16_t)(((c >> 8) & 0xF800) | ((c >> 5) & 0x07E0) | ((c & 0xFF) >> 3)); // RGB565
+    uint8_t r = (c >> 16) & 0xFF, g = (c >> 8) & 0xFF, b = c & 0xFF;
+    // this ST7735S panel takes its colours blue-first (BGR): send red in the blue bits and
+    // blue in the red bits, or red shows as blue and amber as light blue
+    TFT_MESH = (uint16_t)(((b & 0xF8) << 8) | ((g & 0xFC) << 3) | (r >> 3));
     // the driver only sends pixels that changed: flash the whole screen once so every lit
     // pixel is sent again in the new colour
     if (screen && screen->getDisplayDevice()) {
@@ -180,7 +185,7 @@ static void showGames()
     banner("Games", items, 7, 1, [](int sel) -> void { queue(go[sel]); });
 }
 
-enum SetItem { SI_BACK, SI_JOYSTICK, SI_NAME, SI_TAGLINE, SI_TAGAWAKE, SI_COLOUR, SI_LEDOFF, SI_NIGHT, SI_REMOTE, SI_WELCOME, SI_RESET, SI_COUNT };
+enum SetItem { SI_BACK, SI_JOYSTICK, SI_NAME, SI_TAGFONT, SI_TAGSIZE, SI_TAGLINE, SI_TAGAWAKE, SI_COLOUR, SI_LEDOFF, SI_NIGHT, SI_REMOTE, SI_WELCOME, SI_RESET, SI_COUNT };
 static char lbl[SI_COUNT][40];
 static const char *setItems[SI_COUNT];
 
@@ -190,6 +195,8 @@ static void showSettings(int selected = 1)
     snprintf(lbl[SI_BACK], 40, "Back");
     snprintf(lbl[SI_JOYSTICK], 40, "Joystick setup");
     snprintf(lbl[SI_NAME], 40, "Name tag: your name");
+    snprintf(lbl[SI_TAGFONT], 40, "Name font: %s", nametagFontName(nametagFont()));
+    snprintf(lbl[SI_TAGSIZE], 40, "Name size: %s", nametagSizeName(nametagSize()));
     snprintf(lbl[SI_COLOUR], 40, "Screen: %s", COLOUR_NAMES[colourSetting() % NCOLOURS]);
     snprintf(lbl[SI_LEDOFF], 40, "LEDs, screen asleep: %s", OFFMODE[ledsOffMode() % 3]);
     snprintf(lbl[SI_NIGHT], 40, "Night mode: %s", ledsNightMode() ? "on" : "off");
@@ -216,6 +223,8 @@ static void showSettings(int selected = 1)
             break;
         case SI_TAGLINE: queue(S_TAGLINE); break;
         case SI_NAME: queue(S_NAME); break;
+        case SI_TAGFONT: queue(S_TAGFONT); break;
+        case SI_TAGSIZE: queue(S_TAGSIZE); break;
         case SI_JOYSTICK: queue(S_JOYSTICK); break;
         case SI_REMOTE:
             meshSetRemoteCommands(!meshRemoteCommands());
@@ -243,6 +252,41 @@ static void showColours()
             applyColour(activeColour());
         }
         queue(S_SETTINGS);
+    });
+}
+
+// the name tag opens after a choice so you can see it
+static void showTagFont()
+{
+    static const char *items[12];
+    int n = nametagFontCount();
+    if (n > 11)
+        n = 11;
+    items[0] = "Back";
+    for (int i = 0; i < n; i++)
+        items[i + 1] = nametagFontName(i);
+    banner("Name font", items, n + 1, nametagFont() + 1, [](int sel) -> void {
+        if (sel > 0) {
+            nametagSetFont(sel - 1);
+            queue(S_NAMETAG);
+        } else {
+            queue(S_SETTINGS);
+        }
+    });
+}
+static void showTagSize()
+{
+    static const char *items[5];
+    items[0] = "Back";
+    for (int i = 0; i < 4; i++)
+        items[i + 1] = nametagSizeName(i);
+    banner("Name size", items, 5, nametagSize() + 1, [](int sel) -> void {
+        if (sel > 0) {
+            nametagSetSize(sel - 1);
+            queue(S_NAMETAG);
+        } else {
+            queue(S_SETTINGS);
+        }
     });
 }
 
@@ -359,6 +403,8 @@ void menuPoll()
     case S_TAGLINE: openTaglineEditor(); break;
     case S_NAME: openNameEditor(); break;
     case S_JOYSTICK: openJoystickSetup(); break;
+    case S_TAGFONT: showTagFont(); break;
+    case S_TAGSIZE: showTagSize(); break;
     default: break;
     }
 }

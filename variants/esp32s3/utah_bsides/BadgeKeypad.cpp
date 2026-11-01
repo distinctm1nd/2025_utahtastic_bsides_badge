@@ -27,6 +27,20 @@ extern graphics::Screen *screen;
 // and down without any setup; the setup is only needed if a badge differs.
 static const int JOY_DEFAULT_STEPS = 7;
 
+// Joystick setup's four learned pushes, kept in NVS "joymap": 4 bits each, bit 16 = valid
+static uint32_t packMap(const uint8_t m[4])
+{
+    return 0x10000u | (m[0] & 0xF) | ((m[1] & 0xF) << 4) | ((m[2] & 0xF) << 8) | ((uint32_t)(m[3] & 0xF) << 12);
+}
+static bool unpackMap(uint32_t v, uint8_t m[4])
+{
+    if (!(v & 0x10000u))
+        return false;
+    for (int i = 0; i < 4; i++)
+        m[i] = (v >> (4 * i)) & 0xF;
+    return m[0] && m[1] && m[2] && m[3];
+}
+
 namespace badge
 {
 
@@ -123,6 +137,9 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
         Preferences p;
         if (p.begin("utah", true)) {
             logic.setJoystick(p.getInt("joy", JOY_DEFAULT_STEPS), p.getBool("joylean", false));
+            uint8_t masks[4];
+            if (unpackMap(p.getUInt("joymap", 0), masks))
+                logic.setJoystickMap(masks, p.getBool("joylean", false));
             p.end();
         }
         if (inputBroker)
@@ -152,6 +169,7 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
   public:
     void emitNow(KpEvent ev, uint8_t ch) { hooks.emit(ev, ch); }
     void setJoystick(int steps, bool lean) { logic.setJoystick(steps, lean); }
+    void setJoystickMap(const uint8_t masks[4], bool lean) { logic.setJoystickMap(masks, lean); }
 
   private:
     MeshtasticHooks hooks;
@@ -193,9 +211,37 @@ void keypadSetJoystick(int steps, bool lean, bool save)
         if (p.begin("utah", false)) {
             p.putInt("joy", steps);
             p.putBool("joylean", lean);
+            p.putUInt("joymap", 0); // an angle replaces any learned pushes
             p.end();
         }
     }
+}
+
+void keypadSetJoystickMap(const uint8_t masks[4], bool lean, bool save)
+{
+    if (keypad)
+        keypad->setJoystickMap(masks, lean);
+    if (save) {
+        Preferences p;
+        if (p.begin("utah", false)) {
+            p.putUInt("joymap", packMap(masks));
+            p.putBool("joylean", lean);
+            p.end();
+        }
+    }
+}
+
+bool keypadGetJoystickMap(uint8_t masks[4], bool &lean)
+{
+    bool ok = false;
+    lean = false;
+    Preferences p;
+    if (p.begin("utah", true)) {
+        ok = unpackMap(p.getUInt("joymap", 0), masks);
+        lean = p.getBool("joylean", false);
+        p.end();
+    }
+    return ok;
 }
 
 void keypadGetJoystick(int &steps, bool &lean)

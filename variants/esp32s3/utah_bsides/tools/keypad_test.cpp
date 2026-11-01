@@ -248,6 +248,30 @@ int main()
         expect(KeypadLogic::resolveJoystick(4 | 8, 7, false) == 2, "default angle: D+L = down (was moving up)");
         expect(KeypadLogic::resolveJoystick(8 | 1, 7, false) == 3, "default angle: L+U = left");
     }
+    {
+        // Joystick setup's learned pushes (switch bits as wired: 1, 2, 4, 8)
+        int8_t map[16];
+        const uint8_t rot45[4] = {1 | 8, 1 | 2, 2 | 4, 4 | 8}; // up closes 1+4, ... (rotated)
+        KeypadLogic::buildJoyMap(rot45, false, map);
+        expect(map[1 | 8] == 0 && map[1 | 2] == 1 && map[2 | 4] == 2 && map[4 | 8] == 3, "learned: rotated stick, all four pushes");
+        expect(map[1] >= 0 && map[1] != 2, "learned: one switch goes to a neighbouring direction");
+        expect(map[1 | 4] == -1, "learned: opposite switches do nothing");
+        const uint8_t mirror[4] = {1, 8, 4, 2}; // left and right wired the other way round
+        KeypadLogic::buildJoyMap(mirror, false, map);
+        expect(map[1] == 0 && map[8] == 1 && map[4] == 2 && map[2] == 3, "learned: mirrored stick");
+        const uint8_t straight[4] = {1, 2, 4, 8};
+        int8_t a[16], b[16];
+        KeypadLogic::buildJoyMap(straight, false, a);
+        KeypadLogic::buildJoyMap(straight, true, b);
+        expect(a[3] != b[3] && (a[3] == 0 || a[3] == 1) && (b[3] == 0 || b[3] == 1), "learned: lean picks the other neighbour");
+        FakeBadge fb; KeypadLogic k(fb);
+        k.setJoystickMap(rot45, false);
+        fb.downs = 0;
+        uint32_t t = 1000;
+        k.update(1u << 12 | 1u << 15, t); for (int i = 1; i < 12; i++) k.update(1u << 12 | 1u << 15, t + i * 10);
+        k.update(0, t + 200); k.update(0, t + 300);
+        expect(fb.ups == 1, "learned map is used for menu moves");
+    }
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails ? 1 : 0;
 }

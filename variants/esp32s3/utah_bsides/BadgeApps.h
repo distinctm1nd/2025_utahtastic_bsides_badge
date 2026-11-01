@@ -27,5 +27,13 @@ const char *nametagName();
 void nametagSetName(const char *text);
 const char *taglineGet(); // optional second line, empty by default
 void taglineSet(const char *text);
+// name tag font and size (AppNameTag.cpp)
+int nametagFontCount();
+const char *nametagFontName(int i);
+int nametagFont();
+void nametagSetFont(int i);
+const char *nametagSizeName(int i); // 0 Auto, 1 Big, 2 Medium, 3 Small
+int nametagSize();
+void nametagSetSize(int i);
 
 } // namespace badge

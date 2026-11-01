@@ -33,5 +33,8 @@ void keypadInjectText(const char *text, bool send);
 // joystick angle correction (see KeypadLogic::setJoystick)
 void keypadSetJoystick(int steps, bool lean, bool save);
 void keypadGetJoystick(int &steps, bool &lean);
+// Joystick setup's learned pushes: switches closed for up, right, down, left (bits as wired)
+void keypadSetJoystickMap(const uint8_t masks[4], bool lean, bool save);
+bool keypadGetJoystickMap(uint8_t masks[4], bool &lean); // false if none saved
 
 } // namespace badge

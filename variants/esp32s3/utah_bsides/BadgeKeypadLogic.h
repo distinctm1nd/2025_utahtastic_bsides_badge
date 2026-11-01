@@ -115,6 +115,45 @@ class KeypadLogic
     {
         joySteps = ((steps % 8) + 8) % 8;
         joyLean = lean;
+        joyMapSet = false;
+    }
+    // learned from Joystick setup: the switches each push closed (up, right, down, left).
+    // Works for any mounting, rotated or mirrored.
+    void setJoystickMap(const uint8_t masks[4], bool lean)
+    {
+        buildJoyMap(masks, lean, joyMap);
+        joyMapSet = true;
+    }
+
+    // switch mask -> direction from the four learned pushes. A push that closes exactly what a
+    // learned push closed is that direction; otherwise the direction sharing the most switches
+    // (a tie between two neighbours goes to the first, or the second with lean); -1 if unclear.
+    static void buildJoyMap(const uint8_t masks[4], bool lean, int8_t out[16])
+    {
+        out[0] = -1;
+        for (int m = 1; m < 16; m++) {
+            int score[4], best = -99;
+            for (int d = 0; d < 4; d++) {
+                uint8_t k = masks[d] & 0xF;
+                if (!k) {
+                    score[d] = -99;
+                    continue;
+                }
+                score[d] = 2 * __builtin_popcount(m & k) - __builtin_popcount(m & ~k) + (m == k ? 10 : 0);
+                if (score[d] > best)
+                    best = score[d];
+            }
+            int cand[4], n = 0;
+            for (int d = 0; d < 4; d++)
+                if (score[d] == best)
+                    cand[n++] = d;
+            if (best <= 0 || n > 2)
+                out[m] = -1;
+            else if (n == 1)
+                out[m] = (int8_t)cand[0];
+            else // two neighbours: 0 and 3 are neighbours too (up / left)
+                out[m] = (int8_t)((cand[0] == 0 && cand[1] == 3) ? (lean ? 0 : 3) : (lean ? cand[1] : cand[0]));
+        }
     }
 
     uint32_t state() const { return stable; }
@@ -211,6 +250,8 @@ class KeypadLogic
     KeypadHooks &hooks;
     int joySteps = 0;
     bool joyLean = false;
+    bool joyMapSet = false;
+    int8_t joyMap[16] = {};
     int joyDir = -1;          // direction being held, -1 none
     uint8_t joyTarget = 0;    // where it went: 0 Meshtastic, 1 badge app, 2 used up
     uint32_t joyCand = 0, joyDownAt = 0, joyRepeatAt = 0;
@@ -276,7 +317,7 @@ class KeypadLogic
             }
             if (now - joyCand < CHORD_MS)
                 return;
-            int d = resolveJoystick(m, joySteps, joyLean);
+            int d = joyMapSet ? joyMap[m & 0xF] : resolveJoystick(m, joySteps, joyLean);
             if (d < 0)
                 return;
             joyDir = d;

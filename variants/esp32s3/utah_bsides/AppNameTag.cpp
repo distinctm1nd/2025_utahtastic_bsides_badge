@@ -6,10 +6,12 @@
 //
 //   joystick         previous / next page      #       slideshow on/off (8 s per page)
 //   hold #           edit your name            *       done
+//   1                next font                 2       next size (on the name page)
 #include "configuration.h"
 
 #include "BadgeApp.h"
 #include "BadgeApps.h"
+#include "BadgeFonts.h"
 #include "BadgeImagesData.h"
 #include "BadgeStats.h"
 
@@ -22,6 +24,84 @@
 
 namespace badge
 {
+
+// ---- name font and size (NVS "utah": "tagfont", "tagsize") ----------------------------------
+// font 0 = Meshtastic's own (Arial), 1.. = BadgeFonts.h; size 0 = as big as fits, 1 big,
+// 2 medium, 3 small
+static const char *SIZE_NAMES[] = {"Auto", "Big", "Medium", "Small"};
+static int tagFont = -1, tagSize = -1;
+
+static void loadStyle()
+{
+    if (tagFont >= 0)
+        return;
+    tagFont = 0;
+    tagSize = 0;
+    Preferences p;
+    if (p.begin("utah", true)) {
+        tagFont = p.getInt("tagfont", 1); // Wood type: the badge's Old West theme
+        tagSize = p.getInt("tagsize", 0);
+        p.end();
+    }
+    if (tagFont < 0 || tagFont >= nametagFontCount())
+        tagFont = 0;
+    if (tagSize < 0 || tagSize > 3)
+        tagSize = 0;
+}
+static void saveStyle()
+{
+    Preferences p;
+    if (p.begin("utah", false)) {
+        p.putInt("tagfont", tagFont);
+        p.putInt("tagsize", tagSize);
+        p.end();
+    }
+}
+int nametagFontCount()
+{
+    return 1 + BADGE_FONT_FAMILIES;
+}
+const char *nametagFontName(int i)
+{
+    if (i <= 0 || i >= nametagFontCount())
+        return "Classic";
+    return BADGE_FONT_NAMES[i - 1];
+}
+int nametagFont()
+{
+    loadStyle();
+    return tagFont;
+}
+void nametagSetFont(int i)
+{
+    loadStyle();
+    tagFont = (i >= 0 && i < nametagFontCount()) ? i : 0;
+    saveStyle();
+}
+const char *nametagSizeName(int i)
+{
+    return SIZE_NAMES[(i >= 0 && i < 4) ? i : 0];
+}
+int nametagSize()
+{
+    loadStyle();
+    return tagSize;
+}
+void nametagSetSize(int i)
+{
+    loadStyle();
+    tagSize = (i >= 0 && i < 4) ? i : 0;
+    saveStyle();
+}
+// the font for size 0 big, 1 medium, 2 small in the chosen family
+static const uint8_t *styleFont(int which)
+{
+    if (tagFont <= 0) {
+        static const uint8_t *const classic[3] = {FONT_LARGE, FONT_MEDIUM, FONT_SMALL};
+        return classic[which];
+    }
+    return BADGE_FONTS[tagFont - 1][which];
+}
 
 static bool keepOnSetting()
 {
@@ -48,6 +128,7 @@ class NameTagApp : public App
     void begin() override
     {
         keepOn = keepOnSetting();
+        page = 0; // always start on the name
         openedAt = millis();
         pageAt = openedAt;
         frame = 0;
@@ -80,6 +161,14 @@ class NameTagApp : public App
                 slideshow = !slideshow;
                 pageAt = millis();
             }
+        } else if (a == KA_PRESS && page == 0 && appKeyDigit(k) == 1) {
+            nametagSetFont((nametagFont() + 1) % nametagFontCount());
+            showStyleUntil = millis() + 1500;
+            appRedraw();
+        } else if (a == KA_PRESS && page == 0 && appKeyDigit(k) == 2) {
+            nametagSetSize((nametagSize() + 1) % 4);
+            showStyleUntil = millis() + 1500;
+            appRedraw();
         } else if (a == KA_PRESS || a == KA_REPEAT) {
             if (k == AK_RIGHT || k == AK_DOWN)
                 go(+1);
@@ -99,7 +188,7 @@ class NameTagApp : public App
     int page = 0;
     int frame = 0;
     bool slideshow = false, editing = false, keepOn = true;
-    uint32_t openedAt = 0, pageAt = 0, frameAt = 0;
+    uint32_t openedAt = 0, pageAt = 0, frameAt = 0, showStyleUntil = 0;
 
     void go(int dir)
     {
@@ -125,27 +214,55 @@ class NameTagApp : public App
         const char *tag = taglineGet();
         int tagH = tag[0] ? fontHeight(FONT_SMALL) * 2 + 2 : 0;
 
-        const uint8_t *fonts[] = {FONT_LARGE, FONT_MEDIUM, FONT_SMALL};
+        loadStyle();
+        // Auto: the biggest that fits on one line; a chosen size: that size
+        int firstSize = tagSize == 0 ? 0 : tagSize - 1, lastSize = tagSize == 0 ? 2 : tagSize - 1;
         const uint8_t *f = nullptr;
-        for (const uint8_t *cand : fonts) {
-            d->setFont(cand);
-            if (d->getStringWidth(nm, (uint16_t)strlen(nm)) <= W - 6) {
-                f = cand;
-                break;
-            }
+        for (int s = firstSize; s <= lastSize && !f; s++) {
+            d->setFont(styleFont(s));
+            if (d->getStringWidth(nm, (uint16_t)strlen(nm)) <= W - 4)
+                f = styleFont(s);
         }
         if (f) {
             int ny = y + (H - tagH - fontHeight(f)) / 2;
             drawCentered(d, x, ny, nm, f);
-        } else { // too long for one line: two lines in the medium font
-            int lh = fontHeight(FONT_MEDIUM);
+        } else { // too long for one line: two lines, as big as fits
+            const uint8_t *two = styleFont(lastSize);
+            if (tagSize == 0) // Auto: the biggest whose two lines fit
+                for (int s = 0; s <= 2; s++)
+                    if (2 * fontHeight(styleFont(s)) <= H - tagH && fitsTwoLines(d, nm, styleFont(s), W - 4)) {
+                        two = styleFont(s);
+                        break;
+                    }
+            int lh = fontHeight(two);
             int ny = y + (H - tagH - 2 * lh) / 2;
-            drawWrappedCentered(d, x, ny, W - 6, ny + 2 * lh, nm, FONT_MEDIUM);
+            drawWrappedCentered(d, x, ny, W - 4, ny + 2 * lh, nm, two);
+        }
+        if (millis() < showStyleUntil) { // which font/size, after pressing 1 or 2
+            char b[40];
+            snprintf(b, sizeof(b), "%s, %s", nametagFontName(tagFont), nametagSizeName(tagSize));
+            int lh = fontHeight(FONT_SMALL);
+            d->setColor(BLACK);
+            d->fillRect(x, y, W, lh + 1);
+            d->setColor(WHITE);
+            drawCentered(d, x, y, b, FONT_SMALL);
         }
         if (tag[0])
             drawWrappedCentered(d, x, y + H - tagH, W - 6, y + H, tag, FONT_SMALL);
         if (slideshow)
             d->fillCircle(x + W - 4, y + H - 4, 2);
+    }
+
+    // would the name fit in two lines of this font (breaking at a space)?
+    static bool fitsTwoLines(OLEDDisplay *d, const char *t, const uint8_t *font, int w)
+    {
+        d->setFont(font);
+        int n = (int)strlen(t);
+        for (int i = 1; i < n; i++)
+            if (t[i] == ' ' && d->getStringWidth(t, (uint16_t)i) <= w &&
+                d->getStringWidth(t + i + 1, (uint16_t)(n - i - 1)) <= w)
+                return true;
+        return false;
     }
 
     // up to two centred lines, breaking at spaces
