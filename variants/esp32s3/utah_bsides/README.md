@@ -164,7 +164,9 @@ before every build, scales each picture to fit the 160×128 screen and dithers i
 colour (Meshtastic's screen driver draws a single colour on black; pick the colour in
 Settings). Animated GIFs play (up to 24 frames). Files are shown in name order, so number
 them (`01_…`, `02_…`). Pictures with light backgrounds usually look better inverted: put
-`_inv` in the name. About 2.5 KB per frame; the script stops at 512 KB.
+`_inv` in the name. Frames are stored packed (see `BadgeImageCodec.h`): black areas and the
+parts of an animation that don't change take almost no space; the script stops at 512 KB
+packed. `tools/image_test.cpp` checks every frame unpacks exactly.
 
 The Old West sample pictures (`04_wanted`, `05_skinwalker` (animated), `06_mesh_marshal`,
 `07_ghost_town` (animated), `08_dont_answer`) are drawn by
@@ -265,10 +267,9 @@ and flash random colours.
 - **LoRa**: same pins; the firmware now finds either the stock LLCC68 module or an SX1262
   module (see below). DIO2 now drives the module's RF switch, which is the usual wiring
   for these modules; check range against an old-firmware badge on first test.
-- **Program space**: the firmware leaves out Meshtastic modules for hardware the badge
-  doesn't have (Paxcounter, ATAK, detection sensor, remote hardware, power stress, dropzone,
-  and power / health / air-quality telemetry) to make room for the badge's own features;
-  see `platformio.ini`. The app still lists their settings; they just do nothing.
+- **Program space**: the pictures are stored packed (each frame as the change from the one
+  before, run-length coded), which took them from about 122 KB to 21 KB, so every Meshtastic
+  module stays in.
 - Splash: the UTAHtastic image moved from `userPrefs.h` (gone in 2.7) to the `USERPREFS_OEM_*`
   settings in `userPrefs.jsonc`.
 

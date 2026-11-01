@@ -9,12 +9,15 @@ Drop .png .jpg .jpeg .gif .bmp or .webp files into images/. Each one is scaled t
 one colour on black), and shown on the badge's name tag pages in file-name order. Animated
 GIFs keep up to 24 frames. Name files 01_first.png, 02_next.gif ... to choose the order.
 Images with light backgrounds look best inverted: put "_inv" in the file name.
+
+Frames are stored packed (see BadgeImageCodec.h): each frame XOR the one before, then PackBits.
+Black areas and the parts of an animation that don't change take almost no space.
 """
 import hashlib
 import os
 import sys
 
-VERSION = "1"
+VERSION = "2"  # 2: frames packed (XOR with the previous frame, then PackBits)
 W, H = 160, 128
 MAX_FRAMES = 24
 BUDGET = 512 * 1024  # bytes of image data in the firmware
@@ -101,6 +104,32 @@ def to_xbm(img, invert):
     return w, h, bytes(out)
 
 
+def packbits(data):
+    out, i, n = bytearray(), 0, len(data)
+    while i < n:
+        run = 1
+        while i + run < n and run < 128 and data[i + run] == data[i]:
+            run += 1
+        if run >= 3:
+            out += bytes([257 - run, data[i]])
+            i += run
+            continue
+        j = i  # literals until the next run of 3 or more
+        while j < n and j - i < 128:
+            if j + 2 < n and data[j] == data[j + 1] == data[j + 2]:
+                break
+            j += 1
+        out += bytes([j - i - 1]) + data[i:j]
+        i = j
+    return bytes(out)
+
+
+def fnv(h, data):
+    for b in data:
+        h = ((h ^ b) * 16777619) & 0xFFFFFFFF
+    return h
+
+
 def convert(files):
     from PIL import Image, ImageSequence
 
@@ -117,17 +146,22 @@ def convert(files):
         step = max(1, (len(frames) + MAX_FRAMES - 1) // MAX_FRAMES)
         frames = frames[::step][:MAX_FRAMES]
         duration = int(src.info.get("duration", 100) or 100) * step
-        data, w, h = b"", 0, 0
+        data, w, h, raw, check = b"", 0, 0, 0, 2166136261
+        prev = None
         for fr in frames:
             w, h, bits = to_xbm(fr, invert)
-            data += bits
+            delta = bits if prev is None else bytes(a ^ b for a, b in zip(bits, prev))
+            data += packbits(delta)
+            prev = bits
+            raw += len(bits)
+            check = fnv(check, bits)
         if total + len(data) > BUDGET:
             log("skipping", f, "- image budget full (%d KB)" % (BUDGET // 1024))
             continue
         total += len(data)
         name = os.path.splitext(f)[0]
-        images.append((name, w, h, len(frames), max(40, min(duration, 5000)), data))
-        log("%s: %dx%d, %d frame(s)" % (f, w, h, len(frames)))
+        images.append((name, w, h, len(frames), max(40, min(duration, 5000)), data, check))
+        log("%s: %dx%d, %d frame(s), %d KB packed from %d KB" % (f, w, h, len(frames), (len(data) + 1023) // 1024, (raw + 1023) // 1024))
     return images, total
 
 
@@ -141,19 +175,20 @@ def write(images, fp):
              "struct BadgeImage {",
              "    const char *name;",
              "    uint16_t w, h, frames, frameMs;",
-             "    const uint8_t *bits; // XBM, one frame after another",
+             "    const uint8_t *bits; // packed frames, see BadgeImageCodec.h",
+             "    uint32_t check;      // FNV-1a of all unpacked frames (for tools/image_test.cpp)",
              "};",
              ""]
-    for i, (name, w, h, n, ms, data) in enumerate(images):
+    for i, (name, w, h, n, ms, data, check) in enumerate(images):
         lines.append("static const uint8_t BADGE_IMG_%d[] = {" % i)
         for j in range(0, len(data), 24):
             lines.append("    " + ", ".join("0x%02x" % b for b in data[j:j + 24]) + ",")
         lines.append("};")
     if images:
         lines.append("static const BadgeImage BADGE_IMAGE_TABLE[] = {")
-        for i, (name, w, h, n, ms, data) in enumerate(images):
+        for i, (name, w, h, n, ms, data, check) in enumerate(images):
             safe = name.replace("\\", "/").replace('"', "'")
-            lines.append('    {"%s", %d, %d, %d, %d, BADGE_IMG_%d},' % (safe, w, h, n, ms, i))
+            lines.append('    {"%s", %d, %d, %d, %d, BADGE_IMG_%d, 0x%08xu},' % (safe, w, h, n, ms, i, check))
         lines.append("};")
         lines.append("static const BadgeImage *const BADGE_IMAGES = BADGE_IMAGE_TABLE;")
     else:

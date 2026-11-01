@@ -12,6 +12,7 @@
 #include "BadgeApp.h"
 #include "BadgeApps.h"
 #include "BadgeFonts.h"
+#include "BadgeImageCodec.h"
 #include "BadgeImagesData.h"
 #include "BadgeStats.h"
 
@@ -198,10 +199,29 @@ class NameTagApp : public App
         pageAt = frameAt = millis();
     }
 
+    // frames are packed, each relative to the one before (BadgeImageCodec.h): unpack up to the
+    // frame wanted, starting again from the first frame when the animation loops
+    uint8_t frameBuf[(160 + 7) / 8 * 128];
+    const uint8_t *nextSrc = nullptr;
+    const BadgeImage *unpacked = nullptr;
+    int unpackedFrame = -1;
+
     void drawImage(OLEDDisplay *d, int16_t x, int16_t y, const BadgeImage &im)
     {
-        size_t frameBytes = (size_t)((im.w + 7) / 8) * im.h;
-        d->drawXbm(x + (d->width() - im.w) / 2, y + (d->height() - im.h) / 2, im.w, im.h, im.bits + frameBytes * frame);
+        int n = (im.w + 7) / 8 * im.h;
+        if (n > (int)sizeof(frameBuf))
+            return;
+        if (unpacked != &im || frame < unpackedFrame) {
+            memset(frameBuf, 0, sizeof(frameBuf));
+            nextSrc = im.bits;
+            unpacked = &im;
+            unpackedFrame = -1;
+        }
+        while (unpackedFrame < frame && unpackedFrame + 1 < im.frames) {
+            nextSrc = unpackFrame(nextSrc, frameBuf, n);
+            unpackedFrame++;
+        }
+        d->drawXbm(x + (d->width() - im.w) / 2, y + (d->height() - im.h) / 2, im.w, im.h, frameBuf);
     }
 
     // your name, as big as it fits, in the middle of the screen; the tagline (if any) below
