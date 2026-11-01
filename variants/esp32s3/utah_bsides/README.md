@@ -265,6 +265,10 @@ and flash random colours.
 - **LoRa**: same pins; the firmware now finds either the stock LLCC68 module or an SX1262
   module (see below). DIO2 now drives the module's RF switch, which is the usual wiring
   for these modules; check range against an old-firmware badge on first test.
+- **Program space**: the firmware leaves out Meshtastic modules for hardware the badge
+  doesn't have (Paxcounter, ATAK, detection sensor, remote hardware, power stress, dropzone,
+  and power / health / air-quality telemetry) to make room for the badge's own features;
+  see `platformio.ini`. The app still lists their settings; they just do nothing.
 - Splash: the UTAHtastic image moved from `userPrefs.h` (gone in 2.7) to the `USERPREFS_OEM_*`
   settings in `userPrefs.jsonc`.
 
