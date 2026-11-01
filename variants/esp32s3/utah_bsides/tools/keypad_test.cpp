@@ -241,6 +241,13 @@ int main()
         t.key(AK_8, KA_PRESS, ms + 1900);
         expect(strcmp(t.text(), "vt") == 0, "editor: a pause starts a new letter");
     }
+    {
+        // the badge's default: straight up closes UP+RIGHT, straight down DOWN+LEFT
+        expect(KeypadLogic::resolveJoystick(1 | 2, 7, false) == 0, "default angle: U+R = up");
+        expect(KeypadLogic::resolveJoystick(2 | 4, 7, false) == 1, "default angle: R+D = right");
+        expect(KeypadLogic::resolveJoystick(4 | 8, 7, false) == 2, "default angle: D+L = down (was moving up)");
+        expect(KeypadLogic::resolveJoystick(8 | 1, 7, false) == 3, "default angle: L+U = left");
+    }
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails ? 1 : 0;
 }

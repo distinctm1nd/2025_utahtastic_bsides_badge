@@ -22,6 +22,11 @@
 
 extern graphics::Screen *screen;
 
+// The joystick sits about 45 degrees round on every badge: straight up closes the UP and RIGHT
+// switches, straight down DOWN and LEFT. Angle 8 in Joystick setup (7 steps) reads those as up
+// and down without any setup; the setup is only needed if a badge differs.
+static const int JOY_DEFAULT_STEPS = 7;
+
 namespace badge
 {
 
@@ -117,7 +122,7 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
     {
         Preferences p;
         if (p.begin("utah", true)) {
-            logic.setJoystick(p.getInt("joy", 0), p.getBool("joylean", false));
+            logic.setJoystick(p.getInt("joy", JOY_DEFAULT_STEPS), p.getBool("joylean", false));
             p.end();
         }
         if (inputBroker)
@@ -195,11 +200,11 @@ void keypadSetJoystick(int steps, bool lean, bool save)
 
 void keypadGetJoystick(int &steps, bool &lean)
 {
-    steps = 0;
+    steps = JOY_DEFAULT_STEPS;
     lean = false;
     Preferences p;
     if (p.begin("utah", true)) {
-        steps = p.getInt("joy", 0);
+        steps = p.getInt("joy", JOY_DEFAULT_STEPS);
         lean = p.getBool("joylean", false);
         p.end();
     }

@@ -100,7 +100,7 @@ class KeypadLogic
     static const uint32_t HOLD_MS = 700;      // hold: * = badge menu, # = next LED scene, digit = the digit
     static const uint32_t REPEAT_DELAY_MS = 450;
     static const uint32_t REPEAT_MS = 130;
-    static const uint32_t CHORD_MS = 35; // wait this long for a second joystick switch (angled pushes)
+    static const uint32_t CHORD_MS = 60; // wait this long for a second joystick switch (angled pushes)
 
     // Joystick correction (it is mounted at an angle):
     //   steps  turn the directions clockwise by steps x 45 degrees (0..7)
