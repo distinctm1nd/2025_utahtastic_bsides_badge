@@ -25,6 +25,8 @@ constexpr int MOON_LEDS = 6;    // GPIO16, D14..D19
 constexpr int NUM_LEDS = KEYPAD_LEDS + LOGO_LEDS + MOON_LEDS;
 constexpr int FIRST_LOGO = KEYPAD_LEDS;
 constexpr int FIRST_MOON = KEYPAD_LEDS + LOGO_LEDS;
+constexpr int SKULL_LED = 12; // D13, the skull printed left of * (on the keypad strip)
+constexpr int KEY_LEDS = 12;  // D1..D12 behind the keys
 
 extern const LedInfo LEDS[NUM_LEDS];
 

@@ -258,6 +258,7 @@ static const Zone Z_KEYPAD = {0, KEYPAD_LEDS};
 static const Zone Z_EYES = {FIRST_LOGO, 2};
 static const Zone Z_LOGO = {FIRST_LOGO + 2, 4};
 static const Zone Z_MOON = {FIRST_MOON, MOON_LEDS};
+static const Zone Z_SKULL = {SKULL_LED, 1}; // the skull left of *: its own glow, like the eyes
 
 struct Fx {
     SceneCtx &c;
@@ -702,12 +703,14 @@ static void mFull(Fx &f) // full moon: pale light with clouds drifting across it
 // moon flash together (and badges in a light show flash together).
 static float lightning(float t, int *boltCol = nullptr)
 {
-    float slot = floorf(t / 3.2f), in = t - slot * 3.2f;
+    // one chance of a strike a minute, taken half the time: one every couple of minutes.
+    // The first minute always strikes, a few seconds in, so you see it when picking the scene.
+    float slot = floorf(t / 60.0f), in = t - slot * 60.0f;
     if (boltCol)
         *boltCol = (int)(hash1(slot * 5.3f + 1.7f) * 3) % 3;
-    if (hash1(slot * 1.37f + 0.5f) > 0.5f)
+    if (slot > 0 && hash1(slot * 1.37f + 0.5f) > 0.5f)
         return 0; // no strike this time
-    float x = in - hash1(slot * 2.11f + 3.1f) * 2.0f;
+    float x = in - (slot > 0 ? hash1(slot * 2.11f + 3.1f) * 55.0f : 3.0f);
     if (x < 0)
         return 0;
     float v = 0;
@@ -1002,8 +1005,8 @@ static const FxFn MOON_FX[] = {mPhase, mGlow, mHalo, mEclipse, mTwinkle, mShimme
 // Scenes: name, palette, keypad, logo, eyes, moon
 // ------------------------------------------------------------------------------------
 static const Scene SCENES[] = {
-    // the 2025 colours, now with an effect on every part
-    {"RAINBOW", P_RAINBOW, K_WAVE, L_FLOW, E_CYCLE, M_HALO},
+    // the 2025 colours (renamed for the theme), now with an effect on every part
+    {"PAINTED DESERT", P_RAINBOW, K_WAVE, L_FLOW, E_CYCLE, M_HALO},
     // Old West: the badge's theme
     {"SKINWALKER", P_SKINWALKER, K_STALK, L_NEON, E_STALKER, M_ECLIPSE},
     {"SHAPESHIFTER", P_SKINWALKER, K_PLASMA, L_STEP, E_STALKER, M_PHASE},
@@ -1020,43 +1023,43 @@ static const Scene SCENES[] = {
     {"GHOST TOWN", P_GHOSTTOWN, K_TUMBLE, L_NEON, E_LOOK, M_DUST},
     {"SILVER MINE", P_MINE, K_SPARKLE, L_LANTERN, E_COYOTE, M_GLOW},
     {"HIGH NOON", P_NOON, K_PLASMA, L_STAR, E_GLOW, M_FULL},
-    {"BLUE + WHITE", P_BLUEWHITE, K_CHECKER, L_CHASE, E_GLOW, M_FULL},
-    {"RED + MAROON", P_REDMAROON, K_BREATHE, L_HEART, E_DEMON, M_ECLIPSE},
-    {"PINK + WHITE", P_PINKWHITE, K_SPARKLE, L_FLOW, E_WINK, M_TWINKLE},
-    {"PINK + PURPLE", P_PINKPURPLE, K_PLASMA, L_BREATHE, E_LOOK, M_SHIMMER},
-    {"GREEN + BLUE", P_GREENBLUE, K_RAIN, L_CHASE, E_SCAN, M_GLOW},
+    {"CAVALRY BLUE", P_BLUEWHITE, K_CHECKER, L_CHASE, E_GLOW, M_FULL},
+    {"BLOOD ON THE SADDLE", P_REDMAROON, K_BREATHE, L_HEART, E_DEMON, M_ECLIPSE},
+    {"DESERT ROSE", P_PINKWHITE, K_SPARKLE, L_FLOW, E_WINK, M_TWINKLE},
+    {"PRICKLY PEAR", P_PINKPURPLE, K_PLASMA, L_BREATHE, E_LOOK, M_SHIMMER},
+    {"TURQUOISE TRAIL", P_GREENBLUE, K_RAIN, L_CHASE, E_SCAN, M_GLOW},
     // Utah
     {"RED ROCKS SUNSET", P_SUNSET, K_WAVE, L_FLOW, E_GLOW, M_PHASE},
     {"DESERT NIGHT", P_DESERT, K_SPARKLE, L_NEON, E_LOOK, M_FULL},
-    {"BSIDES GOLD", P_GOLD, K_SCAN, L_CHASE, E_GLOW, M_FULL},
+    {"GOLD RUSH", P_GOLD, K_SCAN, L_CHASE, E_GLOW, M_FULL},
     // colourful
-    {"SYNTHWAVE", P_SYNTH, K_EQ, L_CHASE, E_SCAN, M_HALO},
-    {"NEON CITY", P_NEON, K_SNAKE, L_NEON, E_CYCLE, M_SHIMMER},
-    {"OCEAN", P_OCEAN, K_RIPPLE, L_FLOW, E_GLOW, M_SHIMMER},
-    {"ICE CAVE", P_ICE, K_SPARKLE, L_BREATHE, E_WINK, M_TWINKLE},
-    {"FIRE", P_FIRE, K_FIRE, L_SPARK, E_FLICKER, M_GLOW},
-    {"LAVA", P_LAVA, K_PLASMA, L_HEART, E_DEMON, M_ECLIPSE},
-    {"TOXIC", P_TOXIC, K_RAIN, L_NEON, E_FLICKER, M_SHIMMER},
-    {"AURORA", P_AURORA, K_WAVE, L_FLOW, E_LOOK, M_SHIMMER},
-    {"FIREFLY FOREST", P_FOREST, K_BREATHE, L_SPARK, E_GLOW, M_TWINKLE},
-    {"CANDY", P_CANDY, K_CHECKER, L_STEP, E_WINK, M_HALO},
-    {"VAPORWAVE", P_VAPOR, K_SPIRAL, L_FLOW, E_CYCLE, M_GLOW},
-    {"THE MATRIX", P_MATRIX, K_RAIN, L_NEON, E_SCAN, M_TWINKLE},
+    {"MIDNIGHT RODEO", P_SYNTH, K_EQ, L_CHASE, E_SCAN, M_HALO},
+    {"BOOMTOWN", P_NEON, K_SNAKE, L_NEON, E_CYCLE, M_SHIMMER},
+    {"FLASH FLOOD", P_OCEAN, K_RIPPLE, L_FLOW, E_GLOW, M_SHIMMER},
+    {"FROZEN PASS", P_ICE, K_SPARKLE, L_BREATHE, E_WINK, M_TWINKLE},
+    {"PRAIRIE FIRE", P_FIRE, K_FIRE, L_SPARK, E_FLICKER, M_GLOW},
+    {"BRANDING IRON", P_LAVA, K_PLASMA, L_HEART, E_DEMON, M_ECLIPSE},
+    {"SNAKE OIL", P_TOXIC, K_RAIN, L_NEON, E_FLICKER, M_SHIMMER},
+    {"SPIRIT LIGHTS", P_AURORA, K_WAVE, L_FLOW, E_LOOK, M_SHIMMER},
+    {"JUNIPER FIREFLIES", P_FOREST, K_BREATHE, L_SPARK, E_GLOW, M_TWINKLE},
+    {"GENERAL STORE", P_CANDY, K_CHECKER, L_STEP, E_WINK, M_HALO},
+    {"MIRAGE", P_VAPOR, K_SPIRAL, L_FLOW, E_CYCLE, M_GLOW},
+    {"MOONSHINE", P_MATRIX, K_RAIN, L_NEON, E_SCAN, M_TWINKLE},
     // Halloween
-    {"HALLOWEEN", P_HALLOWEEN, K_PLASMA, L_STEP, E_DEMON, M_ECLIPSE},
-    {"JACK-O-LANTERN", P_PUMPKIN, K_FIRE, L_NEON, E_FLICKER, M_FULL},
+    {"WITCHING HOUR", P_HALLOWEEN, K_PLASMA, L_STEP, E_DEMON, M_ECLIPSE},
+    {"HARVEST LANTERN", P_PUMPKIN, K_FIRE, L_NEON, E_FLICKER, M_FULL},
     {"BLOOD MOON", P_BLOOD, K_BREATHE, L_HEART, E_DEMON, M_ECLIPSE},
-    {"GHOSTS", P_GHOST, K_RIPPLE, L_BREATHE, E_LOOK, M_PHASE},
-    {"CAULDRON", P_CAULDRON, K_EQ, L_SPARK, E_FLICKER, M_SHIMMER},
-    {"GRAVEYARD", P_GHOST, K_SPARKLE, L_NEON, E_WINK, M_PHASE},
+    {"GHOST RIDERS", P_GHOST, K_RIPPLE, L_BREATHE, E_LOOK, M_PHASE},
+    {"HEXED", P_CAULDRON, K_EQ, L_SPARK, E_FLICKER, M_SHIMMER},
+    {"BOOT HILL", P_GHOST, K_SPARKLE, L_NEON, E_WINK, M_PHASE},
     {"POSSESSED", P_CAULDRON, K_SPIRAL, L_NEON, E_DEMON, M_ECLIPSE},
-    {"CANDY CORN", P_CANDYCORN, K_WAVE, L_STEP, E_GLOW, M_FULL},
+    {"CORNFIELD", P_CANDYCORN, K_WAVE, L_STEP, E_GLOW, M_FULL},
     // calm keys that light up as you type
-    {"TYPE RIPPLE", P_OCEAN, K_RIPPLE, L_BREATHE, E_GLOW, M_GLOW},
+    {"WATERING HOLE", P_OCEAN, K_RIPPLE, L_BREATHE, E_GLOW, M_GLOW},
     // colour from the phone app (Meshtastic: Module settings > Ambient Lighting)
-    {"APP COLOUR", P_APP, K_BREATHE, L_FLOW, E_GLOW, M_GLOW},
-    {"APP SHIMMER", P_APP, K_SPARKLE, L_SPARK, E_CYCLE, M_SHIMMER},
-    {"OFF", P_BLUEWHITE, K_OFF, L_OFF, E_OFF, M_OFF},
+    {"YOUR BRAND", P_APP, K_BREATHE, L_FLOW, E_GLOW, M_GLOW},
+    {"YOUR BRAND GLITTER", P_APP, K_SPARKLE, L_SPARK, E_CYCLE, M_SHIMMER},
+    {"LIGHTS OUT", P_BLUEWHITE, K_OFF, L_OFF, E_OFF, M_OFF},
 };
 
 int sceneCount()
@@ -1069,13 +1072,63 @@ const Scene &sceneAt(int i)
         i = 0;
     return SCENES[i];
 }
-int sceneFind(const char *name)
+// earlier names, so a saved scene, an older badge's light show or "!lights rainbow" still work
+static const char *const RENAMED[][2] = {
+    {"RAINBOW", "PAINTED DESERT"},
+    {"BLUE + WHITE", "CAVALRY BLUE"},
+    {"RED + MAROON", "BLOOD ON THE SADDLE"},
+    {"PINK + WHITE", "DESERT ROSE"},
+    {"PINK + PURPLE", "PRICKLY PEAR"},
+    {"GREEN + BLUE", "TURQUOISE TRAIL"},
+    {"BSIDES GOLD", "GOLD RUSH"},
+    {"SYNTHWAVE", "MIDNIGHT RODEO"},
+    {"NEON CITY", "BOOMTOWN"},
+    {"OCEAN", "FLASH FLOOD"},
+    {"ICE CAVE", "FROZEN PASS"},
+    {"FIRE", "PRAIRIE FIRE"},
+    {"LAVA", "BRANDING IRON"},
+    {"TOXIC", "SNAKE OIL"},
+    {"AURORA", "SPIRIT LIGHTS"},
+    {"FIREFLY FOREST", "JUNIPER FIREFLIES"},
+    {"CANDY", "GENERAL STORE"},
+    {"VAPORWAVE", "MIRAGE"},
+    {"THE MATRIX", "MOONSHINE"},
+    {"HALLOWEEN", "WITCHING HOUR"},
+    {"JACK-O-LANTERN", "HARVEST LANTERN"},
+    {"GHOSTS", "GHOST RIDERS"},
+    {"CAULDRON", "HEXED"},
+    {"GRAVEYARD", "BOOT HILL"},
+    {"CANDY CORN", "CORNFIELD"},
+    {"TYPE RIPPLE", "WATERING HOLE"},
+    {"APP COLOUR", "YOUR BRAND"},
+    {"APP SHIMMER", "YOUR BRAND GLITTER"},
+    {"OFF", "LIGHTS OUT"},
+};
+
+static bool sameName(const char *a, const char *b)
+{
+    for (; *a && *b; a++, b++) {
+        char x = *a, y = *b;
+        if (x >= 'a' && x <= 'z')
+            x -= 32;
+        if (y >= 'a' && y <= 'z')
+            y -= 32;
+        if (x != y)
+            return false;
+    }
+    return *a == *b;
+}
+
+int sceneFind(const char *name) // any case; old names too
 {
     if (!name)
         return -1;
     for (int i = 0; i < sceneCount(); i++)
-        if (strcmp(SCENES[i].name, name) == 0)
+        if (sameName(SCENES[i].name, name))
             return i;
+    for (const auto &r : RENAMED)
+        if (sameName(r[0], name))
+            return sceneFind(r[1]);
     return -1;
 }
 int sceneFromLegacyIndex(int idx)
@@ -1117,6 +1170,9 @@ void sceneRender(int i, SceneCtx &c)
     EYES_FX[s.eyes](e);
     Fx m = {c, p, Z_MOON, c.t};
     MOON_FX[s.moon](m);
+    // the skull glows with the eyes' effect (a little behind them), not with the keys
+    Fx sk = {c, p, Z_SKULL, c.t - 0.4f};
+    EYES_FX[s.eyes](sk);
 }
 
 void sceneAccent(int i, Rgb &out)

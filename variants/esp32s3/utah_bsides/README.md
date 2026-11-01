@@ -45,8 +45,10 @@ are tapping in a strip at the bottom, the case mode, and how many characters are
 - **Lights**: select *Scene* to open the scene list; the LEDs change as you scroll, select
   keeps it and `*` goes back to the one you had. Also speed, brightness, moon, key flash and
   light shows (select a row to change it). A map of the badge shows which LEDs are lit.
-- **Games**: Simon and Whack-a-mole (on the lit keys), Snake, Blocks, Tic-tac-toe against
-  the badge or against another badge (keys 1–9 are the board; X red, O blue).
+- **Games**: *Skinwalker Mine*, a Doom-style 3D shooter (below); *Chess* against the badge
+  (Easy / Normal / Hard) or two players; Simon and Whack-a-mole (on the lit keys), Snake,
+  Blocks, Tic-tac-toe against the badge or against another badge (keys 1–9 are the board;
+  X red, O blue).
 - **Fox hunt**: pick a node; the screen and a bar graph on the keys show its signal as you
   walk ("Warmer" / "Colder"). Any Meshtastic node can be the fox.
 - **Badges & achievements**: badges you've met, 16 achievements, scavenger-hunt flags,
@@ -94,6 +96,36 @@ The badge's own traffic is small: light shows and pings are a few bytes on the p
 port (256), sent only when you ask (or once a minute while leading a show / every 20 s
 during a fox hunt).
 
+### Skinwalker Mine
+
+A Doom-style shooter: a raycaster draws the old silver mine in 3D at about 15 frames a
+second. Seven skinwalkers lurk in it; clear them all. You have a six-shooter (reloads
+itself when empty, or press `0`), and there are bullets and medicine lying around.
+
+| Control | Does |
+|---|---|
+| joystick up / down | walk forward / back |
+| joystick left / right | turn |
+| `4` / `6` | step sideways |
+| `2` / `8` | walk (so you can walk and turn with the stick at once) |
+| centre, `#` or `5` | shoot (and start / play again) |
+| hold `*` | quit |
+
+The keys show your health (green to red), flash when you shoot and go red when you're hit;
+the skull's heartbeat speeds up as a skinwalker closes in. The engine is `BadgeMine.h`;
+`tools/mine_preview.cpp` renders frames on a PC and checks the level can be finished.
+Real Doom doesn't fit: it needs several MB of RAM (this board has no PSRAM) and a 4 MB
+game file.
+
+### Chess
+
+Play White, Black (the board turns round) or two players passing the badge, against the
+badge at Easy, Normal or Hard. Move the cursor with the joystick, centre picks up a piece
+(dots show where it can go) and puts it down; `*` puts it back, hold `*` quits. Castling,
+en passant and promotion (to a queen) are all there; checkmate, stalemate and the 50-move
+rule end the game. The engine (`BadgeChess.h`) is checked against the standard perft move
+counts in `tools/chess_test.cpp`.
+
 ### Pictures and memes
 
 Put `.png .jpg .gif .bmp .webp` files in `images/` and build. `tools/make_images.py` runs
@@ -132,8 +164,15 @@ LED brightness and your latest game score. The minibadge CLK is left exactly as 
 
 Each scene is a colour palette plus its own effect for each part of the badge, so the
 logo, eyes, moon and keypad all move differently while the colours belong together. Key
-presses always flash the key in the scene's highlight colour. Changing scene crossfades
-over about half a second.
+presses turn the key a contrasting colour for a moment so you can see the press counted.
+Changing scene crossfades over about half a second.
+
+- **Typing**: while a text box is open (the badge editor or Meshtastic's own), the keys
+  light up warm white at least at "High" brightness so the printing on them is readable,
+  and a key you press turns green.
+- **The skull** left of `*` has its own light: it glows with the scene's eye effect, not
+  the keypad's. When a message arrives it strobes (cyan for a direct message, green for a
+  channel), then pulses slowly until you press any key.
 
 | Part | Effects |
 |---|---|
@@ -142,15 +181,19 @@ over about half a second.
 | Eyes | glow and blink, look around, candle flicker, demon flare, wink, colour cycle, ping-pong, eyes in the dark, coyote eyeshine |
 | Moon | phases, glow, circling halo, eclipse, star twinkle, aurora shimmer, clouds drifting past, howling moon, storm, dust haze |
 
-47 scenes. **Old West** (the badge's theme, right after Rainbow): Skinwalker, Shapeshifter,
-Coyote Moon, Campfire, Saloon, Sheriff's Star, Wanted Poster, Dust Devil, Rattlesnake, Bone
-Orchard, Dead Man's Hand, Thunderbird, Ghost Town, Silver Mine, High Noon. The lightning in
-Thunderbird is worked out from the scene time, so the keypad, sign and moon flash together,
-and so do badges in a light show. Then Blue + White, Red + Maroon, Pink + White, Pink + Purple, Green + Blue
-(the 2025 colours), Red Rocks Sunset, Desert Night, BSides Gold, Synthwave, Neon City,
-Ocean, Ice Cave, Fire, Lava, Toxic, Aurora, Firefly Forest, Candy, Vaporwave, The Matrix,
-Halloween, Jack-O-Lantern, Blood Moon, Ghosts, Cauldron, Graveyard, Possessed, Candy Corn,
-Type Ripple, App Colour and App Shimmer (colour from the phone app), and Off.
+48 scenes, all named for the theme. **Old West**: Skinwalker, Shapeshifter, Coyote Moon,
+Campfire, Saloon, Sheriff's Star, Wanted Poster, Dust Devil, Rattlesnake, Bone Orchard, Dead
+Man's Hand, Thunderbird, Ghost Town, Silver Mine, High Noon. Lightning (Thunderbird) strikes
+every couple of minutes, plus once a few seconds after you pick the scene; it is worked out
+from the scene time, so the keypad, sign and moon flash together, and so do badges in a
+light show. Then the earlier colours under new names: Painted Desert (rainbow), Cavalry Blue,
+Blood on the Saddle, Desert Rose, Prickly Pear, Turquoise Trail (the 2025 colours), Red Rocks
+Sunset, Desert Night, Gold Rush, Midnight Rodeo, Boomtown, Flash Flood, Frozen Pass, Prairie
+Fire, Branding Iron, Snake Oil, Spirit Lights, Juniper Fireflies, General Store, Mirage,
+Moonshine, Witching Hour, Harvest Lantern, Blood Moon, Ghost Riders, Hexed, Boot Hill,
+Possessed, Cornfield, Watering Hole (calm keys that ripple as you type), Your Brand and Your
+Brand Glitter (the colour set in the phone app), and Lights Out. The old names still work
+in `!lights` and in saved settings.
 
 The moon is part of the scenes by default; Lights → Moon switches it to the Ambient
 Lighting colour set in the Meshtastic app instead.

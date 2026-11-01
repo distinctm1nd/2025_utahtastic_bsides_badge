@@ -25,6 +25,7 @@ class App
     virtual void draw(OLEDDisplay *d, int16_t x, int16_t y) = 0;
     virtual uint32_t frameMs() const { return 250; } // how often to redraw by itself
     virtual bool keepAwake() const { return false; }  // keep the screen from sleeping
+    virtual bool typingLights() const { return false; } // light the keys up to read them (editors)
     // Keypad LEDs: return true and fill the 13 colours to take them over (games, fox hunt)
     virtual bool keypadLeds(Rgb *out13, uint32_t now)
     {

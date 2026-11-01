@@ -49,6 +49,7 @@ class EditorApp : public App
         }
     }
     uint32_t frameMs() const override { return 120; }
+    bool typingLights() const override { return true; }
     void tick(uint32_t now) override
     {
         bool before = te.pendingLetters() != nullptr;

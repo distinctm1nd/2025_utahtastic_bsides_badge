@@ -6,6 +6,7 @@
 #include "BadgeLeds.h"
 #include "BadgeScenes.h"
 #include "BadgeApp.h"
+#include "BadgeKeypad.h"
 
 #include "NodeDB.h"
 #include "concurrency/OSThread.h"
@@ -65,6 +66,37 @@ static float fadeLeft = 0;
 static bool fadeStart = false;
 static const float FADE_S = 0.6f; // crossfade between scenes, seconds
 static bool forceShow = true;     // resend everything (start, moon handed back)
+static float typingK = 0;         // 0..1: keys lit up for typing
+static bool skullUnread = false;  // a message came in and no key has been pressed since
+static bool unreadDm = false;
+
+// keys while typing: warm white, like an old lamp, so the printing on them is easy to read
+static const Rgb BACKLIGHT = {1.0f, 0.78f, 0.5f};
+// a key you press while typing turns this colour, so you can see the press registered
+static const Rgb PRESS_TYPING = {0.05f, 1.0f, 0.2f};
+static const float TYPING_LEVEL = 0.25f; // at least the "High" brightness while typing
+
+// the colour a pressed key flashes: the scene's highlight, unless that looks too much like
+// what the key is already showing; then its opposite (or green, against white)
+static void pressColour(const Rgb &under, const Rgb &accent, Rgb &out)
+{
+    float d = fabsf(under[0] - accent[0]) + fabsf(under[1] - accent[1]) + fabsf(under[2] - accent[2]);
+    if (d > 0.9f) {
+        memcpy(out, accent, sizeof(Rgb));
+        return;
+    }
+    float m = 0;
+    for (int j = 0; j < 3; j++) {
+        out[j] = 1 - accent[j];
+        m = out[j] > m ? out[j] : m;
+    }
+    if (m < 0.3f) {
+        memcpy(out, PRESS_TYPING, sizeof(Rgb));
+        return;
+    }
+    for (int j = 0; j < 3; j++)
+        out[j] /= m;
+}
 
 // Output stage. Gamma is applied before brightness, in floating point, so dim settings still
 // get smooth steps (the old 8-bit table turned everything at "Dim" into on/off 0/1 values
@@ -208,14 +240,46 @@ class BadgeLedThread : public concurrency::OSThread
         // a badge app (game, fox hunt) can take over the keypad LEDs
         App *app = appActive();
         bool appLeds = app && app->keypadLeds(frame, now);
+        // typing: the keys (not the skull) light up so you can read them
+        bool typing = !appLeds && keypadTyping();
+        typingK += (typing ? dt : -dt) / 0.3f;
+        typingK = typingK < 0 ? 0 : (typingK > 1 ? 1 : typingK);
+        if (typingK > 0)
+            for (int i = 0; i < KEY_LEDS; i++)
+                for (int j = 0; j < 3; j++)
+                    frame[i][j] += (BACKLIGHT[j] - frame[i][j]) * typingK;
+        // a pressed key changes colour so you can see it registered
         if (keyFlash && !appLeds) {
             Rgb accent;
             sceneAccent(curScene, accent);
-            overlayKeyFlash(c, flash, accent);
+            for (int i = 0; i < KEY_LEDS; i++) {
+                if (flash[i] <= 0)
+                    continue;
+                Rgb col;
+                if (typing)
+                    memcpy(col, PRESS_TYPING, sizeof(Rgb));
+                else
+                    pressColour(frame[i], accent, col);
+                float k = flash[i] > 1 ? 1 : flash[i];
+                for (int j = 0; j < 3; j++)
+                    frame[i][j] += (col[j] - frame[i][j]) * k;
+            }
         }
         if (alertLeft > 0) {
             overlayAlert(c, alertDm, alertLen - alertLeft);
             alertLeft -= dt;
+        }
+        // the skull: strobes when a message arrives, then pulses until you press a key
+        {
+            const Rgb dmCol = {0.0f, 0.9f, 1.0f}, chCol = {0.1f, 1.0f, 0.2f};
+            const float *col = (alertLeft > 0 ? alertDm : unreadDm) ? dmCol : chCol;
+            float k = 0;
+            if (alertLeft > 0)
+                k = fmodf(alertLen - alertLeft, 0.16f) < 0.08f ? 1.0f : 0.0f; // fast strobe
+            else if (skullUnread)
+                k = 0.5f + 0.5f * sinf(now * 0.0045f); // slow pulse, about every 1.4 s
+            for (int j = 0; j < 3; j++)
+                frame[SKULL_LED][j] += (col[j] - frame[SKULL_LED][j]) * k;
         }
         if (pulseLeft > 0) {
             overlayPulse(c, pulseLeft / 0.35f, moonFollows);
@@ -236,13 +300,15 @@ class BadgeLedThread : public concurrency::OSThread
         if (screen && !screen->isScreenOn() && offMode)
             level = offMode == 2 ? 0 : level * 0.3f; // save the AA batteries while nobody looks
 
+        float keyLevel = level + ((level > TYPING_LEVEL ? level : TYPING_LEVEL) - level) * typingK;
+
         // linear light for each channel, then the power cap
         static float lin[NUM_LEDS][3];
         float total = 0;
         int lastLed = moonFollows ? NUM_LEDS : FIRST_MOON;
         for (int i = 0; i < lastLed; i++)
             for (int j = 0; j < 3; j++)
-                total += (lin[i][j] = gamma22(frame[i][j]) * level);
+                total += (lin[i][j] = gamma22(frame[i][j]) * (i < KEY_LEDS ? keyLevel : level));
         float want = total > POWER_BUDGET ? POWER_BUDGET / total : 1;
         // drop at once, recover slowly, so the cap itself never pumps
         float rate = dt * 2 > 1 ? 1 : dt * 2;
@@ -356,6 +422,8 @@ void ledsMessageAlert(bool dm)
 {
     alertDm = dm;
     alertLen = alertLeft = dm ? 1.8f : 0.8f;
+    skullUnread = true;
+    unreadDm = dm;
 }
 void ledsMeshPulse()
 {
@@ -455,10 +523,11 @@ void ledsKeyPressed(int keyBit)
 {
     if (keyBit < 0 || keyBit > 15)
         return;
+    skullUnread = false; // any key, the joystick too: message seen
     int led = KEY_BIT_TO_LED[keyBit];
     if (led < 0)
         return;
-    flash[led] = 1.0f;
+    flash[led] = 1.3f; // stays the press colour a moment before fading back
     if (npending < sizeof(pending))
         pending[npending++] = (int8_t)led;
 }

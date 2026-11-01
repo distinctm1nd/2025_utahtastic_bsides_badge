@@ -15,6 +15,8 @@ void openSimon();                    // AppGames.cpp
 void openWhack();                    // AppGames.cpp
 void openSnake();                    // AppGames.cpp
 void openTetris();                   // AppTetris.cpp
+void openChess();                    // AppChess.cpp
+void openMine();                     // AppMine.cpp: Skinwalker Mine, the Doom-style shooter
 void openTicTacToeCpu();             // AppTicTacToe.cpp: against the badge
 void openTicTacToeMesh(uint32_t opponent, bool weInvited); // AppTicTacToe.cpp: against another badge
 void tttPoll(); // call often: shows tic-tac-toe invitations

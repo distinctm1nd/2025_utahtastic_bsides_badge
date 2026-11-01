@@ -253,10 +253,6 @@ static int findByName(const char *arg, int count, const char *(*name)(int))
             return i;
     return -1;
 }
-static const char *sceneNameAt(int i)
-{
-    return sceneAt(i).name;
-}
 
 static void handleCommand(const meshtastic_MeshPacket &mp, const char *text)
 {
@@ -276,7 +272,7 @@ static void handleCommand(const meshtastic_MeshPacket &mp, const char *text)
             for (int i = 0; i < sceneCount() && o < sizeof(reply) - 20; i++)
                 o += (size_t)snprintf(reply + o, sizeof(reply) - o, "%s%s", i ? ", " : " ", sceneAt(i).name);
         } else {
-            int i = findByName(arg, sceneCount(), sceneNameAt);
+            int i = sceneFind(arg); // any case, old names too
             if (i >= 0) {
                 ledsSetScene(i);
                 snprintf(reply, sizeof(reply), "Lights: %s", sceneAt(i).name);

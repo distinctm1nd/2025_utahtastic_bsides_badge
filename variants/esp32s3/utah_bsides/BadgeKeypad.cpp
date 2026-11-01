@@ -256,6 +256,14 @@ void keypadGetJoystick(int &steps, bool &lean)
     }
 }
 
+bool keypadTyping()
+{
+    App *a = appActive();
+    if (a)
+        return a->typingLights();
+    return cannedMessageModule && cannedMessageModule->isCharInputAllowed();
+}
+
 uint32_t keypadState()
 {
     return keypad ? keypad->state() : 0;

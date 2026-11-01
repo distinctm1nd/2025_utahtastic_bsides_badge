@@ -60,6 +60,8 @@ enum Step {
     S_JOYSTICK,
     S_TAGFONT,
     S_TAGSIZE,
+    S_CHESS,
+    S_MINE,
 };
 static volatile Step queued = S_NONE;
 static uint32_t pickedNode = 0;
@@ -180,9 +182,10 @@ static void showMain()
 
 static void showGames()
 {
-    static const char *items[] = {"Back", "Simon", "Whack-a-mole", "Snake", "Blocks", "Tic-tac-toe: badge", "Tic-tac-toe: vs CPU"};
-    static const Step go[] = {S_MAIN, S_SIMON, S_WHACK, S_SNAKE, S_BLOCKS, S_TTT_PICK, S_TTT_CPU};
-    banner("Games", items, 7, 1, [](int sel) -> void { queue(go[sel]); });
+    static const char *items[] = {"Back", "Skinwalker Mine (3D)", "Chess", "Simon", "Whack-a-mole", "Snake", "Blocks",
+                                  "Tic-tac-toe: badge", "Tic-tac-toe: vs CPU"};
+    static const Step go[] = {S_MAIN, S_MINE, S_CHESS, S_SIMON, S_WHACK, S_SNAKE, S_BLOCKS, S_TTT_PICK, S_TTT_CPU};
+    banner("Games", items, 9, 1, [](int sel) -> void { queue(go[sel]); });
 }
 
 enum SetItem { SI_BACK, SI_JOYSTICK, SI_NAME, SI_TAGFONT, SI_TAGSIZE, SI_TAGLINE, SI_TAGAWAKE, SI_COLOUR, SI_LEDOFF, SI_NIGHT, SI_REMOTE, SI_WELCOME, SI_RESET, SI_COUNT };
@@ -404,6 +407,8 @@ void menuPoll()
     case S_NAME: openNameEditor(); break;
     case S_JOYSTICK: openJoystickSetup(); break;
     case S_TAGFONT: showTagFont(); break;
+    case S_CHESS: openChess(); break;
+    case S_MINE: openMine(); break;
     case S_TAGSIZE: showTagSize(); break;
     default: break;
     }
