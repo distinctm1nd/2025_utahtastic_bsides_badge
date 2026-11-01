@@ -626,7 +626,10 @@ void meshSettingsPoll()
     case MS_CANNED: showCanned(); break;
     case MS_CANNED_ITEM: showCannedItem(); break;
     case MS_LORA: graphics::menuHandler::loraMenu(); break; // Meshtastic's own pickers
-    case MS_BT: graphics::menuHandler::bluetoothToggleMenu(); break;
+    case MS_BT: // Meshtastic's own toggle, opened through its menu queue (as its System menu does)
+        graphics::menuHandler::menuQueue = graphics::menuHandler::BluetoothToggleMenu;
+        screen->runNow();
+        break;
     default: break;
     }
 }
