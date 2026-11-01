@@ -377,7 +377,7 @@ class KeypadLogic
         }
         hooks.emit(KP_ANYKEY, (uint8_t)letters[tapIdx]);
         tapAt = now;
-        tapBit = hooks.inFreeText() ? b : -1; // only cycle a letter that reached the draft
+        tapBit = b; // the next tap of this key within a second replaces the letter
     }
 
     void onHold(int b)

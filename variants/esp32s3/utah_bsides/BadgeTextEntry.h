@@ -51,7 +51,7 @@ class TextEntry
     // call every frame: a tapped letter is final once the key hasn't been tapped for a second
     void tick(uint32_t now)
     {
-        if (pendKey >= 0 && now - pendAt >= COMMIT_MS)
+        if (pendKey >= 0 && (int32_t)(now - pendAt) >= (int32_t)COMMIT_MS) // signed: now may be a bit older than pendAt
             pendKey = -1;
     }
 
@@ -116,7 +116,7 @@ class TextEntry
         const char *letters = KeypadLogic::lettersFor(k);
         if (!letters)
             return TE_NONE;
-        if (pendKey == k && now - pendAt < COMMIT_MS && cur > 0) {
+        if (pendKey == k && (int32_t)(now - pendAt) < (int32_t)COMMIT_MS && cur > 0) {
             pendIdx = letters[pendIdx + 1] ? pendIdx + 1 : 0;
             buf[cur - 1] = caseAtPend ? upper(letters[pendIdx]) : letters[pendIdx];
         } else {

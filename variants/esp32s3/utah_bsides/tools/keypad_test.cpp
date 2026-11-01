@@ -225,6 +225,22 @@ int main()
         press(k, 16, 100, false);
         expect(b.appLog == "2P 2R ", "badge apps get the centre press as #");
     }
+    {
+        // the badge ticks the editor with a time a little older than the key's stamp
+        // (it used to commit the letter at once, so 8 8 typed "Tt" instead of "U")
+        TextEntry t; t.reset("", 200, TextEntry::CASE_LOWER);
+        uint32_t ms = 5000;
+        t.key(AK_8, KA_PRESS, ms + 1); t.key(AK_8, KA_RELEASE, ms + 80);
+        t.tick(ms);
+        t.tick(ms + 300);
+        t.key(AK_8, KA_PRESS, ms + 400); t.key(AK_8, KA_RELEASE, ms + 480);
+        t.tick(ms + 399);
+        t.key(AK_8, KA_PRESS, ms + 700);
+        expect(strcmp(t.text(), "v") == 0, "editor: 8 x3 = v even with a slightly older tick time");
+        t.tick(ms + 1800);
+        t.key(AK_8, KA_PRESS, ms + 1900);
+        expect(strcmp(t.text(), "vt") == 0, "editor: a pause starts a new letter");
+    }
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails ? 1 : 0;
 }

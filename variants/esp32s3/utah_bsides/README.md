@@ -119,16 +119,21 @@ LED brightness and your latest game score. The minibadge CLK is left exactly as 
 
 Each scene is a colour palette plus its own effect for each part of the badge, so the
 logo, eyes, moon and keypad all move differently while the colours belong together. Key
-presses always flash the key in the scene's highlight colour.
+presses always flash the key in the scene's highlight colour. Changing scene crossfades
+over about half a second.
 
 | Part | Effects |
 |---|---|
-| Keypad | wave, rain, sparkle, fire, snake, ripple, scanner, breathing rows, plasma, checkerboard, spiral, equaliser |
-| Logo (the B sign) | colour flow, marquee chase, flickering neon, breathe, fireflies, heartbeat, colour steps |
-| Eyes | glow and blink, look around, candle flicker, demon flare, wink, colour cycle, ping-pong |
-| Moon | phases, glow, circling halo, eclipse, star twinkle, aurora shimmer, clouds drifting past |
+| Keypad | wave, rain, sparkle, fire, snake, ripple, scanner, breathing rows, plasma, checkerboard, spiral, equaliser, stalking eyes, dust devil, lightning storm, campfire embers, saloon marquee, tumbleweed, rattlesnake |
+| Logo (the B sign) | colour flow, marquee chase, flickering neon, breathe, fireflies, heartbeat, colour steps, swinging lantern, sheriff's star glint, saloon bulbs, storm |
+| Eyes | glow and blink, look around, candle flicker, demon flare, wink, colour cycle, ping-pong, eyes in the dark, coyote eyeshine |
+| Moon | phases, glow, circling halo, eclipse, star twinkle, aurora shimmer, clouds drifting past, howling moon, storm, dust haze |
 
-32 scenes: Rainbow, Blue + White, Red + Maroon, Pink + White, Pink + Purple, Green + Blue
+47 scenes. **Old West** (the badge's theme, right after Rainbow): Skinwalker, Shapeshifter,
+Coyote Moon, Campfire, Saloon, Sheriff's Star, Wanted Poster, Dust Devil, Rattlesnake, Bone
+Orchard, Dead Man's Hand, Thunderbird, Ghost Town, Silver Mine, High Noon. The lightning in
+Thunderbird is worked out from the scene time, so the keypad, sign and moon flash together,
+and so do badges in a light show. Then Blue + White, Red + Maroon, Pink + White, Pink + Purple, Green + Blue
 (the 2025 colours), Red Rocks Sunset, Desert Night, BSides Gold, Synthwave, Neon City,
 Ocean, Ice Cave, Fire, Lava, Toxic, Aurora, Firefly Forest, Candy, Vaporwave, The Matrix,
 Halloween, Jack-O-Lantern, Blood Moon, Ghosts, Cauldron, Graveyard, Possessed, Candy Corn,
@@ -155,14 +160,16 @@ g++ -std=c++17 -O2 -I.. scene_preview.cpp ../BadgeScenes.cpp -o scene_preview
 
 The badge runs on 3 AA cells, and the battery isn't wired to the ESP32, so the firmware
 can't show a battery level. The LEDs are the biggest drain you control: Settings can dim
-them to 30% or turn them off while the screen sleeps, and night mode caps them.
+them to 30% or turn them off while the screen sleeps, and night mode caps them. The firmware
+also caps the total LED current, because a sagging supply makes the LEDs misread their data
+and flash random colours.
 
 ## What changed from the 2025 firmware
 
 - Based on Meshtastic **2.7.26** (was a copy of 2.5.12 from November 2024).
 - **Keyboard**: the old driver had no debounce, so a single press of a key often counted as
   two or three presses, and multi-tap turned that into the wrong letter. Each key now has
-  to settle for 30 ms. Multi-tap only replaces a letter it knows reached the message, `#`
+  to settle for 30 ms. Tapping a key again within a second cycles its letters (8 8 = u), `#`
   and `*` act on release so holding them can do something else, and the joystick only
   moves (UP no longer sends, DOWN no longer deletes), which matches the 2.7 menus.
   `tools/keypad_test.cpp` checks this on a PC.

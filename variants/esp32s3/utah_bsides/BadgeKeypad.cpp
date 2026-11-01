@@ -136,7 +136,9 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
         uint32_t now = millis();
         if (readKeys(keys))
             logic.update(keys, now);
-        appTick(now); // the open badge app, if any
+        // a fresh time: key handling above stamps letters with millis(), and an older 'now'
+        // here made the editor think a tapped letter was already a second old (U came out TT)
+        appTick(millis()); // the open badge app, if any
         menuPoll();   // opens badge sub-menus queued by menu callbacks
         tttPoll();    // tic-tac-toe invitations
         return 10;

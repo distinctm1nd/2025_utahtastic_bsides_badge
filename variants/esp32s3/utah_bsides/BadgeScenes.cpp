@@ -160,6 +160,19 @@ enum PalId : uint8_t {
     P_GHOST,
     P_CAULDRON,
     P_CANDYCORN,
+    P_SKINWALKER,
+    P_COYOTE,
+    P_CAMPFIRE,
+    P_SALOON,
+    P_SHERIFF,
+    P_WANTED,
+    P_DUST,
+    P_RATTLER,
+    P_BONE,
+    P_THUNDER,
+    P_GHOSTTOWN,
+    P_MINE,
+    P_NOON,
     P_COUNT
 };
 static Palette PALETTES[P_COUNT] = {
@@ -191,6 +204,20 @@ static Palette PALETTES[P_COUNT] = {
     {{0x90FFC0, 0xC0C0FF, 0xFFFFFF, 0x040810}},  // ghost
     {{0x8000FF, 0x40FF20, 0xC060FF, 0x080010}},  // cauldron
     {{0xFFD000, 0xFF6000, 0xFFFFFF, 0x140800}},  // candy corn
+    // Old West
+    {{0x801010, 0x301040, 0xFF2008, 0x060104}},  // skinwalker: dried blood, bruise, glowing eyes
+    {{0x2030A0, 0x6020A0, 0xFFF0C0, 0x02020C}},  // coyote moon: dusk indigo, pale moon
+    {{0xFF5000, 0xFF9020, 0xFFE0A0, 0x140400}},  // campfire
+    {{0xC06010, 0x900020, 0xFFC860, 0x100400}},  // saloon: whiskey, red velvet, brass bulbs
+    {{0xFFA800, 0xA0A0B8, 0xFFFFE0, 0x0C0600}},  // sheriff's star: gold, silver, glint
+    {{0xE0A050, 0x804010, 0xFFE0B0, 0x100600}},  // wanted poster: parchment, sepia
+    {{0xC08040, 0xA04010, 0xFFD090, 0x100800}},  // dust: tan, rust, sand
+    {{0x80A020, 0xA07830, 0xFFE070, 0x040600}},  // rattlesnake: olive, tan diamonds
+    {{0xE0D8C0, 0x505868, 0xFFFFFF, 0x040404}},  // bone orchard: bone, ash
+    {{0x0050C0, 0x00B0A0, 0xFFFFFF, 0x02040C}},  // thunderbird: storm blue, turquoise, lightning
+    {{0x50A080, 0x705030, 0xC0FFE0, 0x020604}},  // ghost town: haunt green, weathered wood
+    {{0xFF9020, 0x506078, 0xFFD080, 0x060406}},  // silver mine: lantern, rock, ore glint
+    {{0xFFC000, 0x40A0FF, 0xFFFFE0, 0x201000}},  // high noon: sun, sky
 };
 
 struct Pal {
@@ -668,20 +695,308 @@ static void mFull(Fx &f) // full moon: pale light with clouds drifting across it
     }
 }
 
+// ------------------------------------------------------------------------------------
+// Old West effects
+// ------------------------------------------------------------------------------------
+// A storm shared by every part, worked out from the time alone so the keypad, sign and
+// moon flash together (and badges in a light show flash together).
+static float lightning(float t, int *boltCol = nullptr)
+{
+    float slot = floorf(t / 3.2f), in = t - slot * 3.2f;
+    if (boltCol)
+        *boltCol = (int)(hash1(slot * 5.3f + 1.7f) * 3) % 3;
+    if (hash1(slot * 1.37f + 0.5f) > 0.5f)
+        return 0; // no strike this time
+    float x = in - hash1(slot * 2.11f + 3.1f) * 2.0f;
+    if (x < 0)
+        return 0;
+    float v = 0;
+    if (x < 0.07f)
+        v = 1;
+    else if (x > 0.14f && x < 0.19f)
+        v = 0.6f;
+    else if (x > 0.3f)
+        v = expf(-(x - 0.3f) * 5) * (x < 0.36f ? 1.0f : 0.45f);
+    return clamp01(v);
+}
+static int keyAt(int col, int row)
+{
+    for (int i = 0; i < KEYPAD_LEDS; i++)
+        if (LEDS[i].col == col && LEDS[i].row == row)
+            return i;
+    return -1;
+}
+
+static void kStalk(Fx &f) // the dark keypad, and a pair of eyes that opens somewhere, watches, and is gone
+{
+    static int stage = 0, ea = -1, eb = -1;
+    static float st = 0, dur = 1.5f;
+    if (f.c.reset)
+        stage = 0, st = 0, dur = 1.5f, ea = eb = -1;
+    st += f.c.dt;
+    if (st >= dur) {
+        st = 0;
+        stage = (stage + 1) % 4;
+        if (stage == 1) { // somewhere new
+            int row = (int)(frand() * 4) % 4, col = (int)(frand() * 2) % 2;
+            ea = keyAt(col, row);
+            eb = keyAt(col + 1, row);
+            dur = 0.9f;
+        } else if (stage == 2) {
+            dur = 2.0f + frand() * 2.5f;
+        } else if (stage == 3) {
+            dur = 0.12f; // gone in a blink
+        } else {
+            dur = 2.0f + frand() * 4.0f;
+        }
+    }
+    float lv = 0;
+    if (stage == 1)
+        lv = smooth(st / dur);
+    else if (stage == 2)
+        lv = fmodf(st, 1.9f) < 0.12f ? 0.04f : 1; // a blink now and then
+    else if (stage == 3)
+        lv = 1 - st / dur;
+    lv *= 0.85f + 0.15f * noise1(f.t * 4);
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        // something moving in the dark: a faint shadow drifting over the keys
+        float sh = noise1(f.t * 0.6f + LEDS[i].gx * 2 + LEDS[i].gy * 3);
+        scale(f.c.out[i], f.p.c[3], 0.6f);
+        add(f.c.out[i], f.p.c[1], 0.07f * sh * sh);
+        if (i == ea || i == eb)
+            add(f.c.out[i], f.p.c[2], lv);
+    }
+}
+static void kDust(Fx &f) // gusts of dust blowing across, and a dust devil wandering through
+{
+    float px = 0.5f + 0.55f * sinf(f.t * 0.45f) * cosf(f.t * 0.17f);
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float x = LEDS[i].gx + LEDS[i].gy * 0.3f;
+        float d = noise1(x * 2.5f - f.t * 1.8f) * 0.6f + noise1(x * 5 - f.t * 3.1f + LEDS[i].gy * 4) * 0.4f;
+        Rgb col;
+        palAt(f.p, d * 0.5f, col);
+        scale(f.c.out[i], col, 0.12f + 0.75f * d * d);
+        float dx = LEDS[i].gx - px;
+        float k = expf(-dx * dx * 14) * (0.55f + 0.45f * sinf(f.t * 7 + LEDS[i].gy * 9));
+        add(f.c.out[i], f.p.c[2], 0.6f * k);
+    }
+}
+static void kLightning(Fx &f) // storm clouds rolling, then lightning down one column
+{
+    int bolt = 0;
+    float L = lightning(f.t, &bolt);
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float cl = noise1(f.t * 0.5f + LEDS[i].gx * 1.5f + LEDS[i].gy * 0.8f);
+        scale(f.c.out[i], f.p.c[3], 0.8f);
+        add(f.c.out[i], f.p.c[0], 0.2f * cl);
+        bool inBolt = LEDS[i].col == bolt;
+        add(f.c.out[i], f.p.c[1], L * 0.45f);
+        if (inBolt)
+            add(f.c.out[i], f.p.c[2], L);
+    }
+}
+static void kEmbers(Fx &f) // a campfire on the bottom row, sparks drifting up
+{
+    static float sy[4], sc[4], sl[4];
+    if (f.c.reset)
+        for (int k = 0; k < 4; k++)
+            sl[k] = 0;
+    for (int k = 0; k < 4; k++) {
+        if (sl[k] > 0) {
+            sy[k] += f.c.dt * (1.1f + 0.4f * k / 3.0f);
+            sl[k] -= f.c.dt * 0.5f;
+        } else if (frand() < f.c.dt * 0.8f) {
+            sy[k] = 0, sl[k] = 1, sc[k] = (float)((int)(frand() * 3) % 3);
+        }
+    }
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float h = 1 - LEDS[i].gy; // 0 bottom .. 1 top
+        float n = noise1(f.t * 4 + i * 2.3f) * 0.6f + noise1(f.t * 9 + i * 5.1f) * 0.4f;
+        float heat = clamp01(0.95f - h * 1.5f + (n - 0.5f) * 0.5f);
+        Rgb a;
+        for (int j = 0; j < 3; j++)
+            a[j] = heat < 0.5f ? mixf(f.p.c[3][j], f.p.c[0][j], heat * 2) : mixf(f.p.c[0][j], f.p.c[1][j], (heat - 0.5f) * 2);
+        scale(f.c.out[i], a, 0.25f + 0.75f * heat);
+        for (int k = 0; k < 4; k++) {
+            if (sl[k] <= 0 || LEDS[i].col != (int)sc[k])
+                continue;
+            float rowUp = 3 - LEDS[i].row; // 0 bottom row .. 3 top
+            float kk = clamp01(1 - fabsf(rowUp - sy[k]) * 1.4f) * sl[k];
+            add(f.c.out[i], f.p.c[2], kk);
+        }
+    }
+}
+static void kMarquee(Fx &f) // saloon marquee: every third bulb lit, stepping round, bulbs warming and cooling
+{
+    int step = (int)floorf(f.t * 4);
+    float rate = f.c.dt * 14 > 1 ? 1 : f.c.dt * 14;
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float target = ((i + step) % 3 == 0) ? 1.0f : 0.0f;
+        mem[i] += (target - mem[i]) * rate; // a filament doesn't switch instantly
+        scale(f.c.out[i], f.p.c[1], 0.12f);
+        add(f.c.out[i], f.p.c[2], mem[i]);
+    }
+}
+static void kTumble(Fx &f) // a tumbleweed bouncing across while the wind blows
+{
+    float x = fractf(f.t * 0.22f) * 2.2f - 0.6f;
+    float y = 3 - fabsf(sinf(f.t * 2.4f)) * 1.6f; // rows from the top
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float wind = noise1(LEDS[i].gx * 3 - f.t * 2.2f + LEDS[i].gy * 7);
+        scale(f.c.out[i], f.p.c[3], 0.7f);
+        add(f.c.out[i], f.p.c[0], 0.18f * wind * wind);
+        float dx = (LEDS[i].gx - x) * 2, dy = LEDS[i].row - y;
+        float k = clamp01(1 - hypotf(dx, dy) / 1.3f);
+        add(f.c.out[i], f.p.c[1], k * (0.75f + 0.25f * sinf(f.t * 9 + i)));
+    }
+}
+static void kRattle(Fx &f) // a diamondback winding through the keys; now and then it stops and rattles
+{
+    static float head = 0, rattle = 0;
+    if (f.c.reset)
+        head = 0, rattle = 0;
+    if (rattle > 0) {
+        rattle -= f.c.dt;
+    } else {
+        head += f.c.dt * 2.4f;
+        if (head > 4 && frand() < f.c.dt * 0.25f)
+            rattle = 1.3f;
+        if (head > f.z.count + 7)
+            head = 0;
+    }
+    float shake = rattle > 0 ? 0.5f + 0.5f * sinf(f.t * TAU * 11) : 1;
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float d = head - (i - f.z.first); // 0 = head
+        scale(f.c.out[i], f.p.c[3], 0.6f);
+        if (d < 0 || d >= 6)
+            continue;
+        const Rgb &skin = ((int)floorf(d) & 1) ? f.p.c[1] : f.p.c[0];
+        float k = d < 1 ? 1 : 1 - (d - 1) / 6;
+        if (d >= 4.5f)
+            k *= shake; // the rattle
+        add(f.c.out[i], skin, k);
+        if (d < 1)
+            add(f.c.out[i], f.p.c[2], 0.35f);
+    }
+}
+
+static void lLantern(Fx &f) // a lantern swinging on a hook, its flame flickering
+{
+    float pos = 0.5f + 0.5f * sinf(f.t * 1.5f);
+    float flame = 0.75f + 0.25f * (noise1(f.t * 8) * 0.6f + noise1(f.t * 17) * 0.4f);
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float d = LEDS[i].gx - pos;
+        float k = expf(-d * d * 5) * flame;
+        scale(f.c.out[i], f.p.c[3], 1);
+        add(f.c.out[i], f.p.c[0], k);
+        add(f.c.out[i], f.p.c[2], 0.3f * k * k * k);
+    }
+}
+static void lStar(Fx &f) // a polished sheriff's star: steady gold, a glint sweeping across now and then
+{
+    float p = fmodf(f.t, 3.5f);
+    float g = p < 0.6f ? p / 0.6f * 1.4f - 0.2f : -9;
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        scale(f.c.out[i], f.p.c[0], 0.7f);
+        add(f.c.out[i], f.p.c[2], clamp01(1 - fabsf(LEDS[i].gx - g) * 4));
+    }
+}
+static void lBulbs(Fx &f) // saloon sign bulbs, trading places, warming up and cooling down
+{
+    int step = (int)floorf(f.t * 1.5f);
+    float rate = f.c.dt * 9 > 1 ? 1 : f.c.dt * 9;
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float target = ((i + step) & 1) ? 1.0f : 0.06f;
+        mem[i] += (target - mem[i]) * rate;
+        scale(f.c.out[i], f.p.c[1], 0.1f);
+        add(f.c.out[i], f.p.c[2], mem[i]);
+    }
+}
+static void lStorm(Fx &f) // the sign in a storm: dim, lit up by the lightning
+{
+    float L = lightning(f.t - 0.03f);
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        scale(f.c.out[i], f.p.c[0], 0.18f + 0.1f * noise1(f.t + i));
+        add(f.c.out[i], f.p.c[2], L);
+    }
+}
+
+static void eStalker(Fx &f) // eyes in the dark: slowly open, stare, blink, and snap shut
+{
+    float slot = floorf(f.t / 9), in = f.t - slot * 9;
+    float start = hash1(slot * 3.7f + 0.3f) * 3.5f;
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float x = in - start - (i - f.z.first) * 0.15f; // one eye opens a moment after the other
+        float lv = 0;
+        if (x > 0 && x < 1.2f)
+            lv = smooth(x / 1.2f);
+        else if (x >= 1.2f && x < 4.2f)
+            lv = (x > 2.6f && x < 2.75f) ? 0.03f : 1;
+        else if (x >= 4.2f && x < 4.3f)
+            lv = 1 - (x - 4.2f) / 0.1f;
+        lv *= 0.85f + 0.15f * sinf(f.t * 3 + i);
+        scale(f.c.out[i], f.p.c[3], 0.5f);
+        add(f.c.out[i], f.p.c[2], lv);
+    }
+}
+static void eCoyote(Fx &f) // eyeshine: a pair of eyes caught in the lantern light, then gone
+{
+    float slot = floorf(f.t / 4.5f), in = f.t - slot * 4.5f;
+    bool seen = hash1(slot * 1.9f + 7.1f) < 0.7f;
+    float x = in - hash1(slot * 4.3f + 2.2f) * 3.0f;
+    float k = (seen && x > 0 && x < 1.1f) ? sinf(x / 1.1f * 3.14159f) : 0;
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        scale(f.c.out[i], f.p.c[3], 0.4f);
+        add(f.c.out[i], f.p.c[2], k * k);
+    }
+}
+
+static void mHowl(Fx &f) // a big moon that swells brighter, as if something is howling at it
+{
+    float p = fmodf(f.t, 10) / 10;
+    float swell = p < 0.35f ? smooth(p / 0.35f) : (p < 0.6f ? 1 : 1 - smooth((p - 0.6f) / 0.4f));
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float rim = clamp01(LEDS[i].gy);
+        float b = 0.3f + 0.6f * swell * (0.6f + 0.4f * rim) + 0.06f * swell * sinf(f.t * 23 + i);
+        scale(f.c.out[i], f.p.c[2], b);
+        add(f.c.out[i], f.p.c[0], 0.15f * (1 - swell));
+    }
+}
+static void mStorm(Fx &f) // the moon behind storm clouds, the lightning lighting them up
+{
+    float L = lightning(f.t - 0.05f);
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float cl = noise1(f.t * 0.4f + moonX(i) * 2);
+        scale(f.c.out[i], f.p.c[2], 0.08f + 0.3f * cl * cl);
+        add(f.c.out[i], f.p.c[1], 0.1f);
+        add(f.c.out[i], f.p.c[2], 0.9f * L * (0.5f + 0.5f * clamp01(LEDS[i].gy)));
+    }
+}
+static void mDust(Fx &f) // a hazy moon seen through blowing dust
+{
+    for (int i = f.z.first; i < f.z.first + f.z.count; i++) {
+        float haze = noise1(f.t * 0.5f + moonX(i) * 2) * 0.6f + noise1(f.t * 1.3f + i * 2) * 0.4f;
+        scale(f.c.out[i], f.p.c[2], 0.2f + 0.3f * (1 - haze));
+        add(f.c.out[i], f.p.c[0], 0.3f * haze);
+    }
+}
+
 static void zOff(Fx &f)
 {
     for (int i = f.z.first; i < f.z.first + f.z.count; i++)
         set(f.c.out[i], 0, 0, 0);
 }
 
-enum KFx : uint8_t { K_WAVE, K_RAIN, K_SPARKLE, K_FIRE, K_SNAKE, K_RIPPLE, K_SCAN, K_BREATHE, K_PLASMA, K_CHECKER, K_SPIRAL, K_EQ, K_OFF };
-enum LFx : uint8_t { L_FLOW, L_CHASE, L_NEON, L_BREATHE, L_SPARK, L_HEART, L_STEP, L_OFF };
-enum EFx : uint8_t { E_GLOW, E_LOOK, E_FLICKER, E_DEMON, E_WINK, E_CYCLE, E_SCAN, E_OFF };
-enum MFx : uint8_t { M_PHASE, M_GLOW, M_HALO, M_ECLIPSE, M_TWINKLE, M_SHIMMER, M_FULL, M_OFF };
-static const FxFn KEYPAD_FX[] = {kWave, kRain, kSparkle, kFire, kSnake, kRipple, kScan, kBreathe, kPlasma, kChecker, kSpiral, kEq, zOff};
-static const FxFn LOGO_FX[] = {lFlow, lChase, lNeon, lBreathe, lSpark, lHeart, lStep, zOff};
-static const FxFn EYES_FX[] = {eGlow, eLook, eFlicker, eDemon, eWink, eCycle, eScan, zOff};
-static const FxFn MOON_FX[] = {mPhase, mGlow, mHalo, mEclipse, mTwinkle, mShimmer, mFull, zOff};
+enum KFx : uint8_t { K_WAVE, K_RAIN, K_SPARKLE, K_FIRE, K_SNAKE, K_RIPPLE, K_SCAN, K_BREATHE, K_PLASMA, K_CHECKER, K_SPIRAL, K_EQ,
+                     K_STALK, K_DUST, K_LIGHTNING, K_EMBERS, K_MARQUEE, K_TUMBLE, K_RATTLE, K_OFF };
+enum LFx : uint8_t { L_FLOW, L_CHASE, L_NEON, L_BREATHE, L_SPARK, L_HEART, L_STEP, L_LANTERN, L_STAR, L_BULBS, L_STORM, L_OFF };
+enum EFx : uint8_t { E_GLOW, E_LOOK, E_FLICKER, E_DEMON, E_WINK, E_CYCLE, E_SCAN, E_STALKER, E_COYOTE, E_OFF };
+enum MFx : uint8_t { M_PHASE, M_GLOW, M_HALO, M_ECLIPSE, M_TWINKLE, M_SHIMMER, M_FULL, M_HOWL, M_STORM, M_DUST, M_OFF };
+static const FxFn KEYPAD_FX[] = {kWave, kRain, kSparkle, kFire, kSnake, kRipple, kScan, kBreathe, kPlasma, kChecker, kSpiral, kEq,
+                                  kStalk, kDust, kLightning, kEmbers, kMarquee, kTumble, kRattle, zOff};
+static const FxFn LOGO_FX[] = {lFlow, lChase, lNeon, lBreathe, lSpark, lHeart, lStep, lLantern, lStar, lBulbs, lStorm, zOff};
+static const FxFn EYES_FX[] = {eGlow, eLook, eFlicker, eDemon, eWink, eCycle, eScan, eStalker, eCoyote, zOff};
+static const FxFn MOON_FX[] = {mPhase, mGlow, mHalo, mEclipse, mTwinkle, mShimmer, mFull, mHowl, mStorm, mDust, zOff};
 
 // ------------------------------------------------------------------------------------
 // Scenes: name, palette, keypad, logo, eyes, moon
@@ -689,6 +1004,22 @@ static const FxFn MOON_FX[] = {mPhase, mGlow, mHalo, mEclipse, mTwinkle, mShimme
 static const Scene SCENES[] = {
     // the 2025 colours, now with an effect on every part
     {"RAINBOW", P_RAINBOW, K_WAVE, L_FLOW, E_CYCLE, M_HALO},
+    // Old West: the badge's theme
+    {"SKINWALKER", P_SKINWALKER, K_STALK, L_NEON, E_STALKER, M_ECLIPSE},
+    {"SHAPESHIFTER", P_SKINWALKER, K_PLASMA, L_STEP, E_STALKER, M_PHASE},
+    {"COYOTE MOON", P_COYOTE, K_SPARKLE, L_BREATHE, E_COYOTE, M_HOWL},
+    {"CAMPFIRE", P_CAMPFIRE, K_EMBERS, L_LANTERN, E_FLICKER, M_FULL},
+    {"SALOON", P_SALOON, K_MARQUEE, L_BULBS, E_WINK, M_GLOW},
+    {"SHERIFF'S STAR", P_SHERIFF, K_SCAN, L_STAR, E_GLOW, M_FULL},
+    {"WANTED POSTER", P_WANTED, K_BREATHE, L_LANTERN, E_LOOK, M_PHASE},
+    {"DUST DEVIL", P_DUST, K_DUST, L_FLOW, E_FLICKER, M_DUST},
+    {"RATTLESNAKE", P_RATTLER, K_RATTLE, L_CHASE, E_COYOTE, M_SHIMMER},
+    {"BONE ORCHARD", P_BONE, K_SPARKLE, L_NEON, E_WINK, M_FULL},
+    {"DEAD MAN'S HAND", P_BONE, K_CHECKER, L_BULBS, E_DEMON, M_ECLIPSE},
+    {"THUNDERBIRD", P_THUNDER, K_LIGHTNING, L_STORM, E_GLOW, M_STORM},
+    {"GHOST TOWN", P_GHOSTTOWN, K_TUMBLE, L_NEON, E_LOOK, M_DUST},
+    {"SILVER MINE", P_MINE, K_SPARKLE, L_LANTERN, E_COYOTE, M_GLOW},
+    {"HIGH NOON", P_NOON, K_PLASMA, L_STAR, E_GLOW, M_FULL},
     {"BLUE + WHITE", P_BLUEWHITE, K_CHECKER, L_CHASE, E_GLOW, M_FULL},
     {"RED + MAROON", P_REDMAROON, K_BREATHE, L_HEART, E_DEMON, M_ECLIPSE},
     {"PINK + WHITE", P_PINKWHITE, K_SPARKLE, L_FLOW, E_WINK, M_TWINKLE},

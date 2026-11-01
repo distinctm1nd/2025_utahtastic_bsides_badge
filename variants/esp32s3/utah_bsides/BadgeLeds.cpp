@@ -13,6 +13,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <Preferences.h>
 #include <math.h>
+#include <string.h>
 
 // Meshtastic's Ambient Lighting thread (owns the moon LEDs by default); defined in main.cpp
 extern concurrency::OSThread *ambientLightingThread;
@@ -32,7 +33,9 @@ static_assert(NEOPIXEL_COUNT == MOON_LEDS, "moon LED count");
 static const char *SPEED_NAMES[] = {"Slowest", "Slow", "Normal", "Fast", "Fastest"};
 static const float SPEED_MUL[] = {0.25f, 0.5f, 1.0f, 1.6f, 2.5f};
 static const char *BRIGHT_NAMES[] = {"Dim", "Low", "Medium", "High", "Max"};
-static const float BRIGHT_LEVEL[] = {0.06f, 0.15f, 0.30f, 0.55f, 1.0f};
+// light output (after gamma) for each setting; about what the 2025 levels gave, except "Dim",
+// which used to round down to nearly off
+static const float BRIGHT_LEVEL[] = {0.02f, 0.04f, 0.08f, 0.25f, 1.0f};
 static const int NSPEED = sizeof(SPEED_MUL) / sizeof(SPEED_MUL[0]);
 static const int NBRIGHT = sizeof(BRIGHT_LEVEL) / sizeof(BRIGHT_LEVEL[0]);
 
@@ -55,25 +58,41 @@ static bool alertDm = false;
 static float pulseLeft = 0;
 static float flourishLeft = 0;
 static bool syncedScene = false; // scene came from a light show (not saved)
-static uint8_t gammaTable[256];
+static Rgb sceneBuf[NUM_LEDS];  // what the scene drew this frame
+static Rgb base[NUM_LEDS];      // the scene after the crossfade, before overlays
+static Rgb fadeFrom[NUM_LEDS];  // the last frame of the previous scene
+static float fadeLeft = 0;
+static bool fadeStart = false;
+static const float FADE_S = 0.6f; // crossfade between scenes, seconds
+static bool forceShow = true;     // resend everything (start, moon handed back)
+
+// Output stage. Gamma is applied before brightness, in floating point, so dim settings still
+// get smooth steps (the old 8-bit table turned everything at "Dim" into on/off 0/1 values
+// that blinked as the animation crossed them). Each channel only moves when the target is
+// clearly a new value (hysteresis), so a slow fade never jitters between two neighbours.
+static uint8_t outVal[NUM_LEDS][3];
+static float powerScale = 1;
+// 3 AA cells: keep the LED current modest so the supply doesn't sag (a sag makes the LEDs
+// misread their data and flash random colours). Units: one channel fully on = 1.
+static const float POWER_BUDGET = 22.0f;
 
 static const char *NVS_NS = "utah";
 
-static void buildGamma()
+static inline float gamma22(float v)
 {
-    for (int i = 0; i < 256; i++)
-        gammaTable[i] = (uint8_t)lroundf(powf(i / 255.0f, 2.2f) * 255.0f);
+    v = v < 0 ? 0 : (v > 1 ? 1 : v);
+    return powf(v, 2.2f);
 }
 
-static uint32_t toPixel(const Rgb &c, float level)
+static uint8_t settle(uint8_t prev, float target)
 {
-    uint8_t ch[3];
-    for (int j = 0; j < 3; j++) {
-        float v = c[j] * level;
-        v = v < 0 ? 0 : (v > 1 ? 1 : v);
-        ch[j] = gammaTable[(int)(v * 255.0f + 0.5f)];
-    }
-    return Adafruit_NeoPixel::Color(ch[0], ch[1], ch[2]);
+    if (target < 0.35f)
+        return 0;
+    if (target > 254.5f)
+        return 255;
+    if (fabsf(target - prev) < 0.75f)
+        return prev;
+    return (uint8_t)lroundf(target);
 }
 
 // ---- settings --------------------------------------------------------------------------
@@ -125,6 +144,7 @@ static void applyMoonOwner()
         return;
     if (moonFollows) {
         ambientLightingThread->disable();
+        forceShow = true;
     } else {
         moonStrip.clear();
         moonStrip.show();
@@ -156,7 +176,7 @@ class BadgeLedThread : public concurrency::OSThread
         c.t = sceneTime;
         c.dt = sdt;
         c.reset = sceneReset;
-        c.out = frame;
+        c.out = sceneBuf;
         c.npressed = npending;
         for (int i = 0; i < npending; i++)
             c.pressed[i] = pending[i];
@@ -166,6 +186,24 @@ class BadgeLedThread : public concurrency::OSThread
         const meshtastic_ModuleConfig_AmbientLightingConfig &al = moduleConfig.ambient_lighting;
         sceneSetAppColour(al.red / 255.0f, al.green / 255.0f, al.blue / 255.0f);
         sceneRender(curScene, c);
+
+        // crossfade from the old scene so a change never jumps
+        if (fadeStart) {
+            fadeStart = false;
+            memcpy(fadeFrom, base, sizeof(base));
+            fadeLeft = FADE_S;
+        }
+        float k = fadeLeft > 0 ? 1 - fadeLeft / FADE_S : 1;
+        k = k * k * (3 - 2 * k);
+        for (int i = 0; i < NUM_LEDS; i++)
+            for (int j = 0; j < 3; j++)
+                base[i][j] = fadeFrom[i][j] + (sceneBuf[i][j] - fadeFrom[i][j]) * k;
+        if (fadeLeft > 0)
+            fadeLeft -= dt;
+
+        // overlays go on a copy, so they never leak into the scene
+        memcpy(frame, base, sizeof(frame));
+        c.out = frame;
 
         // a badge app (game, fox hunt) can take over the keypad LEDs
         App *app = appActive();
@@ -197,15 +235,52 @@ class BadgeLedThread : public concurrency::OSThread
         float level = BRIGHT_LEVEL[nightMode ? 0 : curBright];
         if (screen && !screen->isScreenOn() && offMode)
             level = offMode == 2 ? 0 : level * 0.3f; // save the AA batteries while nobody looks
-        for (int i = 0; i < KEYPAD_LEDS; i++)
-            keypadStrip.setPixelColor(i, toPixel(frame[i], level));
-        for (int i = 0; i < LOGO_LEDS; i++)
-            logoStrip.setPixelColor(i, toPixel(frame[FIRST_LOGO + i], level));
-        keypadStrip.show();
-        logoStrip.show();
-        if (moonFollows) {
-            for (int i = 0; i < MOON_LEDS; i++)
-                moonStrip.setPixelColor(i, toPixel(frame[FIRST_MOON + i], level));
+
+        // linear light for each channel, then the power cap
+        static float lin[NUM_LEDS][3];
+        float total = 0;
+        int lastLed = moonFollows ? NUM_LEDS : FIRST_MOON;
+        for (int i = 0; i < lastLed; i++)
+            for (int j = 0; j < 3; j++)
+                total += (lin[i][j] = gamma22(frame[i][j]) * level);
+        float want = total > POWER_BUDGET ? POWER_BUDGET / total : 1;
+        // drop at once, recover slowly, so the cap itself never pumps
+        float rate = dt * 2 > 1 ? 1 : dt * 2;
+        powerScale = want < powerScale ? want : powerScale + (want - powerScale) * rate;
+
+        bool changed[3] = {false, false, false}; // keypad, logo, moon strip
+        for (int i = 0; i < lastLed; i++) {
+            int strip = i < FIRST_LOGO ? 0 : (i < FIRST_MOON ? 1 : 2);
+            for (int j = 0; j < 3; j++) {
+                uint8_t v = settle(outVal[i][j], lin[i][j] * powerScale * 255.0f);
+                if (v != outVal[i][j]) {
+                    outVal[i][j] = v;
+                    changed[strip] = true;
+                }
+            }
+        }
+        if (forceShow) {
+            forceShow = false;
+            changed[0] = changed[1] = changed[2] = true;
+        }
+        // only send data when something changed: fewer chances for a glitch on the LED line
+        if (changed[0]) {
+            for (int i = 0; i < KEYPAD_LEDS; i++)
+                keypadStrip.setPixelColor(i, outVal[i][0], outVal[i][1], outVal[i][2]);
+            keypadStrip.show();
+        }
+        if (changed[1]) {
+            for (int i = 0; i < LOGO_LEDS; i++) {
+                const uint8_t *v = outVal[FIRST_LOGO + i];
+                logoStrip.setPixelColor(i, v[0], v[1], v[2]);
+            }
+            logoStrip.show();
+        }
+        if (moonFollows && changed[2]) {
+            for (int i = 0; i < MOON_LEDS; i++) {
+                const uint8_t *v = outVal[FIRST_MOON + i];
+                moonStrip.setPixelColor(i, v[0], v[1], v[2]);
+            }
             moonStrip.show();
         }
         return 20; // 50 frames a second
@@ -220,7 +295,6 @@ static BadgeLedThread *ledThread = nullptr;
 // ---- public API ---------------------------------------------------------------------------
 void ledsEarlyInit()
 {
-    buildGamma();
     keypadStrip.begin();
     logoStrip.begin();
     keypadStrip.fill(Adafruit_NeoPixel::Color(8, 3, 0)); // dim amber while booting
@@ -247,6 +321,8 @@ void ledsSetScene(int i, bool save)
 {
     if (i < 0 || i >= sceneCount())
         i = 0;
+    if (i != curScene)
+        fadeStart = true;
     curScene = i;
     sceneTime = 0;
     sceneReset = true;
@@ -258,8 +334,10 @@ void ledsSetSceneSynced(int i, int speed, uint32_t timeMs)
 {
     if (i < 0 || i >= sceneCount())
         return;
-    if (i != curScene)
+    if (i != curScene) {
         sceneReset = true;
+        fadeStart = true;
+    }
     curScene = i;
     if (speed >= 0 && speed < NSPEED)
         curSpeed = speed;
