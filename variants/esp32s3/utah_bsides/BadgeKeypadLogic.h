@@ -223,7 +223,7 @@ class KeypadLogic
     static const char *lettersFor(int bit)
     {
         switch (bit) {
-        case 11: return ".,?!'-@:1"; // 1
+        case 11: return ".,?!'-@:+/=1"; // 1 (+ / = for channel keys)
         case 10: return "abc2";
         case 9: return "def3";
         case 8: return "ghi4";

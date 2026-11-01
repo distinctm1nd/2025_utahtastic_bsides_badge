@@ -1,4 +1,5 @@
-// Skinwalker Mine: the Doom-style shooter (engine in BadgeMine.h).
+// Skinwalker Mine: the Doom-style shooter (engine in BadgeMine.h). Five chapters, each with
+// a story card; dying restarts the chapter, and the furthest chapter is remembered.
 //
 //   joystick up/down   walk           joystick left/right   turn
 //   4 / 6              step sideways  2 / 8                 walk (while turning with the stick)
@@ -16,6 +17,7 @@
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
 #include <Arduino.h>
+#include <Preferences.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -30,10 +32,11 @@ class MineApp : public App
     bool keepAwake() const override { return true; }
     void begin() override
     {
-        game.reset(millis() | 1);
         memset(&held, 0, sizeof(held));
         lastMs = millis();
-        started = false;
+        screenState = MN_TITLE;
+        saved = loadProgress();
+        titleRow = 0;
     }
     void key(int k, KeyAction a) override
     {
@@ -46,15 +49,36 @@ class MineApp : public App
         if (a != KA_PRESS && a != KA_RELEASE)
             return;
         int dg = appKeyDigit(k);
-        if (k == AK_HASH || dg == 5) {
-            if (a == KA_PRESS) {
-                if (!started)
-                    started = true;
-                else if (game.dead || game.won)
-                    begin(), started = true;
-                else
-                    fireQueued = true;
+        bool select = (k == AK_HASH || dg == 5) && a == KA_PRESS;
+        if (screenState == MN_TITLE) {
+            int rows = saved > 0 ? 2 : 1;
+            if ((k == AK_UP || k == AK_DOWN) && a == KA_PRESS)
+                titleRow = (titleRow + 1) % rows;
+            else if (select)
+                startChapter(saved > 0 && titleRow == 0 ? saved : 0, true);
+            return;
+        }
+        if (screenState == MN_STORY) {
+            if (select) {
+                screenState = MN_PLAY;
+                memset(&held, 0, sizeof(held));
             }
+            return;
+        }
+        if (k == AK_HASH || dg == 5) {
+            if (a != KA_PRESS)
+                return;
+            if (game.dead)
+                startChapter(game.chapter, true); // try this chapter again
+            else if (game.chapterClear) {
+                game.nextChapter();
+                saveProgress(game.chapter);
+                screenState = MN_STORY;
+            } else if (game.won) {
+                saveProgress(0);
+                begin();
+            } else
+                fireQueued = true;
             return;
         }
         if (k == AK_UP)
@@ -80,28 +104,63 @@ class MineApp : public App
     {
         float dt = (now - lastMs) / 1000.0f;
         lastMs = now;
-        if (!started)
+        if (screenState != MN_PLAY)
             return;
         Mine::Input in = held;
         in.fire = fireQueued;
         in.reload = reloadQueued;
         fireQueued = reloadQueued = false;
-        bool wasDead = game.dead, wasWon = game.won;
+        bool wasWon = game.won, wasClear = game.chapterClear;
         if (game.update(dt, in))
             shotAt = now;
-        if (game.won && !wasWon)
+        if ((game.won && !wasWon) || (game.chapterClear && !wasClear))
             ledsFlourish();
-        (void)wasDead;
     }
     void draw(OLEDDisplay *d, int16_t x, int16_t y) override
     {
-        if (!started) {
+        int lh = fontHeight(FONT_SMALL);
+        if (screenState == MN_TITLE) {
             drawTitle(d, x, y, "Skinwalker Mine", "*hold quit");
-            int lh = fontHeight(FONT_SMALL);
-            const char *lines[] = {"Something is in the", "old silver mine.", "Clear it out.", "",
-                                   "stick: walk / turn", "4 6: sidestep  0: reload", "centre: shoot / start"};
-            for (int i = 0; i < 7; i++)
-                d->drawString(x + 4, y + lh + 4 + i * (lh - 2), lines[i]);
+            const char *lines[] = {"Something is in the", "old silver mine.", "5 chapters down.", "stick: walk/turn  4 6: step", "0: reload  centre: shoot"};
+            for (int i = 0; i < 5; i++)
+                d->drawString(x + 4, y + lh + 2 + i * (lh - 3), lines[i]);
+            char cont[40];
+            snprintf(cont, sizeof(cont), "Continue: chapter %d", saved + 1);
+            const char *rows[2] = {saved > 0 ? cont : "Start", "New game"};
+            int n = saved > 0 ? 2 : 1;
+            for (int i = 0; i < n; i++) {
+                int ry = y + d->height() - (n - i) * lh - 1;
+                if (i == titleRow) {
+                    d->fillRect(x + 4, ry, d->width() - 8, lh);
+                    d->setColor(BLACK);
+                }
+                drawCentered(d, x, ry, rows[i], FONT_SMALL);
+                d->setColor(WHITE);
+            }
+            return;
+        }
+        if (screenState == MN_STORY) {
+            char t[40];
+            snprintf(t, sizeof(t), "Chapter %d", game.chapter + 1);
+            drawTitle(d, x, y, t, nullptr);
+            drawCentered(d, x, y + lh + 3, Mine::chapterName(game.chapter), FONT_SMALL);
+            // the story, one line per '\n'
+            const char *s = Mine::chapterStory(game.chapter);
+            int ly = y + 2 * lh + 8;
+            char line[40];
+            while (*s) {
+                const char *e = strchr(s, '\n');
+                int n = e ? (int)(e - s) : (int)strlen(s);
+                n = n < 39 ? n : 39;
+                memcpy(line, s, (size_t)n);
+                line[n] = 0;
+                drawCentered(d, x, ly, line, FONT_SMALL);
+                ly += lh - 2;
+                s += n;
+                if (*s == '\n')
+                    s++;
+            }
+            drawFooter(d, x, y, "centre: go");
             return;
         }
         game.render(fb);
@@ -110,25 +169,22 @@ class MineApp : public App
         if (game.message && game.messageLeft > 0) {
             d->setFont(FONT_SMALL);
             int w = d->getStringWidth(game.message, (uint16_t)strlen(game.message));
-            int lh = fontHeight(FONT_SMALL);
             d->setColor(BLACK);
             d->fillRect(x + (Mine::W - w) / 2 - 3, y + 2, w + 6, lh);
             d->setColor(WHITE);
             drawCentered(d, x, y + 2, game.message, FONT_SMALL);
         }
-        if (game.dead || game.won) {
-            char b[40];
-            snprintf(b, sizeof(b), "%d/%d  %ds  centre: again", game.kills, game.total, (int)game.timeAlive);
-            int lh = fontHeight(FONT_SMALL);
+        if (game.dead || game.won || game.chapterClear) {
+            const char *what = game.dead ? "centre: try again" : game.won ? "You made it out. centre" : "centre: go deeper";
             d->setColor(BLACK);
             d->fillRect(x, y + 40, Mine::W, lh + 2);
             d->setColor(WHITE);
-            drawCentered(d, x, y + 41, b, FONT_SMALL);
+            drawCentered(d, x, y + 41, what, FONT_SMALL);
         }
     }
     bool keypadLeds(Rgb *out, uint32_t now) override
     {
-        if (!started)
+        if (screenState != MN_PLAY)
             return false;
         // keys: health, green to red, filling from the bottom row
         static const int8_t ORDER[12] = {9, 10, 11, 8, 7, 6, 3, 4, 5, 2, 1, 0}; // LED indices, bottom first
@@ -159,11 +215,41 @@ class MineApp : public App
     }
 
   private:
+    enum ScreenState { MN_TITLE, MN_STORY, MN_PLAY } screenState = MN_TITLE;
+    int saved = 0, titleRow = 0;
     Mine game;
     uint8_t fb[Mine::FB_BYTES];
     Mine::Input held;
-    bool fireQueued = false, reloadQueued = false, started = false;
+    bool fireQueued = false, reloadQueued = false;
     uint32_t lastMs = 0, shotAt = 0;
+
+    void startChapter(int c, bool story)
+    {
+        game.reset(millis() | 1, c);
+        memset(&held, 0, sizeof(held));
+        screenState = story ? MN_STORY : MN_PLAY;
+    }
+    // the furthest chapter reached, so you can carry on later (NVS "utah": "minech")
+    static int loadProgress()
+    {
+        Preferences p;
+        int c = 0;
+        if (p.begin("utah", true)) {
+            c = p.getInt("minech", 0);
+            p.end();
+        }
+        return (c >= 0 && c < Mine::CHAPTERS) ? c : 0;
+    }
+    static void saveProgress(int c)
+    {
+        if (c != 0 && c <= loadProgress())
+            return;
+        Preferences p;
+        if (p.begin("utah", false)) {
+            p.putInt("minech", c);
+            p.end();
+        }
+    }
 
     void drawHud(OLEDDisplay *d, int16_t x, int16_t y)
     {

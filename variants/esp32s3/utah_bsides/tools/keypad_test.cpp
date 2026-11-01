@@ -2,6 +2,7 @@
 //   g++ -std=c++17 -I.. keypad_test.cpp -o keypad_test && ./keypad_test
 #include "../BadgeKeypadLogic.h"
 #include "../BadgeTextEntry.h"
+#include "../BadgeBase64.h"
 #include <cstdio>
 #include <string>
 #include <cstring>
@@ -271,6 +272,22 @@ int main()
         k.update(1u << 12 | 1u << 15, t); for (int i = 1; i < 12; i++) k.update(1u << 12 | 1u << 15, t + i * 10);
         k.update(0, t + 200); k.update(0, t + 300);
         expect(fb.ups == 1, "learned map is used for menu moves");
+    }
+    {
+        // channel keys
+        uint8_t k[32];
+        char b[48];
+        expect(base64Decode("AQ==", k, 32) == 1 && k[0] == 1, "base64: the default key AQ==");
+        const uint8_t key16[16] = {0xd4, 0xf1, 0xbb, 0x3a, 0x20, 0x29, 0x07, 0x59, 0xf0, 0xbc, 0xff, 0xab, 0xcf, 0x4e, 0x69, 0x01};
+        base64Encode(key16, 16, b);
+        expect(strcmp(b, "1PG7OiApB1nwvP+rz05pAQ==") == 0, "base64: encode a 16-byte key");
+        expect(base64Decode(b, k, 32) == 16 && memcmp(k, key16, 16) == 0, "base64: round trip");
+        expect(base64Decode("1PG7OiApB1nwvP+rz05pAQ", k, 32) == 16, "base64: padding optional");
+        expect(base64Decode("not a key!", k, 32) < 0, "base64: rejects junk");
+        uint8_t k32[32];
+        for (int i = 0; i < 32; i++) k32[i] = (uint8_t)(i * 7 + 3);
+        base64Encode(k32, 32, b);
+        expect(strlen(b) == 44 && base64Decode(b, k, 32) == 32 && memcmp(k, k32, 32) == 0, "base64: 32-byte key (44 chars)");
     }
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails ? 1 : 0;

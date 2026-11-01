@@ -2,7 +2,8 @@
 //
 //   joystick   move the cursor        centre / #   pick up a piece, put it down
 //   *          put the piece back     hold *       quit
-// Pawns reaching the end become queens. White pieces are drawn hollow, Black solid.
+// Pawns reaching the end become queens. White pieces are drawn hollow, Black solid. Your
+// pieces are always at the bottom (two players: the board turns for each move).
 #include "configuration.h"
 
 #include "BadgeApp.h"
@@ -137,7 +138,9 @@ class ChessApp : public App
     ChessMove moves[Chess::MAXMOVES];
     int nmoves = 0;
 
-    bool flipped() const { return mode == 1; }
+    // your pieces are always at the bottom: Black at the bottom when you play Black, and in a
+    // two-player game the board turns to face whoever's move it is
+    bool flipped() const { return mode == 1 || (mode == 2 && game.side < 0); }
     bool cpuSide(int side) const { return mode == 0 ? side < 0 : mode == 1 ? side > 0 : false; }
 
     void menuKey(int k, KeyAction a)
@@ -213,6 +216,8 @@ class ChessApp : public App
             thinkAt = millis() + 150; // let "Thinking" reach the screen first
         } else {
             state = CH_PLAYER;
+            if (mode == 2) // pass the badge: the cursor starts on the next player's king's file
+                cursor = game.side > 0 ? 0x14 : 0x64;
         }
     }
 

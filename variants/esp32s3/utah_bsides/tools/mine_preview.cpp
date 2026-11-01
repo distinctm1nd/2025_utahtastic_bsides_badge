@@ -18,11 +18,44 @@ static void out()
 int main()
 {
     int fails = 0;
-    for (int y = 0; y < Mine::MAP_H; y++)
-        if (strlen(g.level[y]) != Mine::MAP_W) {
-            fprintf(stderr, "FAIL level row %d is %zu wide\n", y, strlen(g.level[y]));
-            fails++;
+    // every chapter: rows the right width, walls all round, enemies within limits, and every
+    // skinwalker and item reachable from the start
+    for (int c = 0; c < Mine::CHAPTERS; c++) {
+        g.reset(3, c);
+        int bad = 0, starts = 0, count = 0;
+        for (int y = 0; y < Mine::MAP_H; y++) {
+            if (strlen(g.level[y]) != Mine::MAP_W) {
+                fprintf(stderr, "FAIL chapter %d row %d is %zu wide\n", c + 1, y, strlen(g.level[y]));
+                bad++;
+                continue;
+            }
+            for (int x = 0; x < Mine::MAP_W; x++) {
+                char ch = g.level[y][x];
+                bool edge = x == 0 || y == 0 || x == Mine::MAP_W - 1 || y == Mine::MAP_H - 1;
+                if (edge && !g.wall(x, y)) { fprintf(stderr, "FAIL chapter %d open edge at %d,%d\n", c + 1, x, y); bad++; }
+                starts += ch == 'P';
+                count += ch == 'S' || ch == 'C' || ch == 'B';
+            }
         }
+        if (starts != 1 || count > Mine::MAX_ENEMIES || count != g.total) { fprintf(stderr, "FAIL chapter %d: %d starts, %d enemies\n", c + 1, starts, count); bad++; }
+        bool seen[Mine::MAP_H][Mine::MAP_W] = {};
+        int qx[400], qy[400], h = 0, t = 0;
+        qx[t] = (int)g.px; qy[t++] = (int)g.py; seen[(int)g.py][(int)g.px] = true;
+        while (h < t) {
+            int x = qx[h], y = qy[h++];
+            const int d[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
+            for (auto &k : d) { int nx = x + k[0], ny = y + k[1];
+                if (!g.wall(nx, ny) && !seen[ny][nx]) { seen[ny][nx] = true; qx[t] = nx; qy[t++] = ny; } }
+        }
+        for (int i = 0; i < g.nEnemies; i++) bad += !seen[(int)g.enemies[i].y][(int)g.enemies[i].x];
+        for (int i = 0; i < g.nItems; i++) bad += !seen[(int)g.items[i].y][(int)g.items[i].x];
+        int sk = 0, co = 0, bo = 0;
+        for (int i = 0; i < g.nEnemies; i++) { sk += g.enemies[i].kind == 'S'; co += g.enemies[i].kind == 'C'; bo += g.enemies[i].kind == 'B'; }
+        fprintf(stderr, "%s  chapter %d %-18s %d skinwalkers, %d coyotes, %d boss, %d items, all reachable\n", bad ? "FAIL" : "PASS",
+                c + 1, Mine::chapterName(c), sk, co, bo, g.nItems);
+        fails += bad != 0;
+    }
+    g.reset(7);
     g.reset(7);
     fprintf(stderr, "level: %d skinwalkers, %d items\n", g.total, g.nItems);
     Mine::Input in = {};
@@ -42,24 +75,6 @@ int main()
     for (int i = 0; i < 100; i++) g.render(fb);
     double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count() / 100;
     fprintf(stderr, "INFO render %.3f ms on this PC\n", ms);
-    // every skinwalker and item can be reached from the start (flood fill)
-    {
-        g.reset(3);
-        bool seen[Mine::MAP_H][Mine::MAP_W] = {};
-        int qx[400], qy[400], h = 0, t = 0;
-        qx[t] = (int)g.px; qy[t++] = (int)g.py; seen[(int)g.py][(int)g.px] = true;
-        while (h < t) {
-            int x = qx[h], y = qy[h++];
-            const int d[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
-            for (auto &k : d) { int nx = x + k[0], ny = y + k[1];
-                if (!g.wall(nx, ny) && !seen[ny][nx]) { seen[ny][nx] = true; qx[t] = nx; qy[t++] = ny; } }
-        }
-        int bad = 0;
-        for (int i = 0; i < g.nEnemies; i++) bad += !seen[(int)g.enemies[i].y][(int)g.enemies[i].x];
-        for (int i = 0; i < g.nItems; i++) bad += !seen[(int)g.items[i].y][(int)g.items[i].x];
-        fprintf(stderr, "%s  every skinwalker and item can be reached\n", bad ? "FAIL" : "PASS");
-        fails += bad != 0;
-    }
     // aim straight at one in the open and shoot: it dies after a few shots
     {
         g.reset(3);
@@ -85,6 +100,36 @@ int main()
         for (int i = 0; i < 15 * 30 && !g.dead; i++) { in = {}; g.update(1.0f / 15, in); }
         fprintf(stderr, "%s  standing next to one gets you killed\n", g.dead ? "PASS" : "FAIL");
         fails += !g.dead;
+    }
+    // clearing a chapter (all enemies killed) moves on; health and bullets carry over
+    {
+        g.reset(3, 0);
+        for (int i = 0; i < g.nEnemies; i++) g.enemies[i].alive = false;
+        g.kills = g.total - 1; g.enemies[0].alive = true; g.enemies[0].hp = 0.5f;
+        g.px = g.enemies[0].x - 1.5f; g.py = g.enemies[0].y;
+        if (g.wall((int)g.px, (int)g.py)) g.px = g.enemies[0].x + 1.5f;
+        g.angle = atan2f(g.enemies[0].y - g.py, g.enemies[0].x - g.px);
+        Mine::Input fire = {}; fire.fire = true;
+        g.health = 50;
+        g.update(0.05f, fire);
+        bool clear = g.chapterClear && !g.won;
+        g.nextChapter();
+        bool ok = clear && g.chapter == 1 && g.health == 80 && !g.chapterClear;
+        fprintf(stderr, "%s  chapter clear -> next chapter, health carried +30\n", ok ? "PASS" : "FAIL");
+        fails += !ok;
+        g.reset(3, 4);
+        int boss = -1;
+        for (int i = 0; i < g.nEnemies; i++) if (g.enemies[i].kind == 'B') boss = i;
+        Mine::Enemy &b = g.enemies[boss];
+        int shots = 0;
+        for (int i = 0; i < 15 * 60 && b.alive; i++) {
+            g.px = b.x - 2.0f; g.py = b.y; g.health = 100; g.ammo = 50;
+            g.angle = atan2f(b.y - g.py, b.x - g.px);
+            Mine::Input in2 = {}; in2.fire = true;
+            if (g.update(1.0f / 15, in2)) shots++;
+        }
+        fprintf(stderr, "%s  the Old One takes %d shots\n", !b.alive && shots >= 8 ? "PASS" : "FAIL", shots);
+        fails += b.alive || shots < 8;
     }
     g.reset(5);
     for (int i = 0; i < 15 * 120 && !g.dead; i++) { in = {}; g.update(1.0f / 15, in); }

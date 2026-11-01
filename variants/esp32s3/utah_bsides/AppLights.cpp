@@ -9,6 +9,7 @@
 
 #include "BadgeApp.h"
 #include "BadgeApps.h"
+#include "BadgeMeshSettings.h"
 #include "BadgeLeds.h"
 #include "BadgeMesh.h"
 #include "BadgeScenes.h"
@@ -24,7 +25,7 @@ namespace badge
 
 class LightsApp : public App
 {
-    enum Row { R_SCENE, R_SPEED, R_BRIGHT, R_MOON, R_KEYFX, R_JOIN, R_LEAD, R_SHARE, R_COUNT };
+    enum Row { R_SCENE, R_SPEED, R_BRIGHT, R_MOON, R_BRAND, R_KEYFX, R_JOIN, R_LEAD, R_SHARE, R_COUNT };
 
   public:
     const char *name() const override { return "Lights"; }
@@ -134,6 +135,7 @@ class LightsApp : public App
         case R_SPEED: snprintf(b, n, "Speed: %s", ledsSpeedName(ledsSpeed())); break;
         case R_BRIGHT: snprintf(b, n, "Bright: %s", ledsBrightName(ledsBright())); break;
         case R_MOON: snprintf(b, n, "Moon: %s", ledsMoonFollows() ? "scene" : "app"); break;
+        case R_BRAND: snprintf(b, n, "Brand colour: %s", brandColourName(brandColour())); break;
         case R_KEYFX: snprintf(b, n, "Key flash: %s", onOff(ledsKeyFlash())); break;
         case R_JOIN: snprintf(b, n, "Join shows: %s", onOff(meshJoinShows())); break;
         case R_LEAD: snprintf(b, n, "Lead show: %s", onOff(meshLeadingShow())); break;
@@ -148,6 +150,7 @@ class LightsApp : public App
         case R_SPEED: ledsSetSpeed((ledsSpeed() + dir + ledsSpeedCount()) % ledsSpeedCount()); break;
         case R_BRIGHT: ledsSetBright((ledsBright() + dir + ledsBrightCount()) % ledsBrightCount()); break;
         case R_MOON: ledsSetMoonFollows(!ledsMoonFollows()); break;
+        case R_BRAND: brandColourSet((brandColour() + 1 + brandColourCount()) % brandColourCount()); break; // Your Brand scenes
         case R_KEYFX: ledsSetKeyFlash(!ledsKeyFlash()); break;
         case R_JOIN: meshSetJoinShows(!meshJoinShows()); break;
         case R_LEAD: meshSetLeadingShow(!meshLeadingShow()); break;

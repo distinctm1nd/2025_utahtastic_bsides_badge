@@ -9,6 +9,7 @@
 
 #include "BadgeApp.h"
 #include "BadgeApps.h"
+#include "BadgeMeshSettings.h"
 #include "BadgeKeypad.h"
 #include "BadgeLeds.h"
 #include "BadgeMenu.h"
@@ -62,6 +63,7 @@ enum Step {
     S_TAGSIZE,
     S_CHESS,
     S_MINE,
+    S_MESHSET,
 };
 static volatile Step queued = S_NONE;
 static uint32_t pickedNode = 0;
@@ -171,11 +173,13 @@ static void banner(const char *title, const char **items, int count, int selecte
 // ---- main menu --------------------------------------------------------------------------------
 static void showMain()
 {
-    static const char *items[] = {"Back",   "Name tag & pictures", "New message", "Lights", "Games",
-                                  "Fox hunt", "Badges & achievements", "Minibadges", "Settings", "Key help"};
-    static const Step go[] = {S_NONE, S_NAMETAG, S_COMPOSE, S_LIGHTS, S_GAMES, S_FOX_PICK, S_BADGES, S_MINIBADGES, S_SETTINGS, S_HELP};
-    banner("BSides Badge", items, 10, 1, [](int sel) -> void {
-        if (sel > 0 && sel < 10)
+    static const char *items[] = {"Back",     "Name tag & pictures",   "New message", "Lights",        "Games",
+                                  "Fox hunt", "Badges & achievements", "Minibadges",  "Mesh settings", "Settings",
+                                  "Key help"};
+    static const Step go[] = {S_NONE,       S_NAMETAG, S_COMPOSE, S_LIGHTS,   S_GAMES, S_FOX_PICK, S_BADGES,
+                              S_MINIBADGES, S_MESHSET, S_SETTINGS, S_HELP};
+    banner("BSides Badge", items, 11, 1, [](int sel) -> void {
+        if (sel > 0 && sel < 11)
             queue(go[sel]);
     });
 }
@@ -374,6 +378,7 @@ void menuOpen()
 
 void menuPoll()
 {
+    meshSettingsPoll();
     Step s = queued;
     if (s == S_NONE || !screen)
         return;
@@ -409,6 +414,7 @@ void menuPoll()
     case S_TAGFONT: showTagFont(); break;
     case S_CHESS: openChess(); break;
     case S_MINE: openMine(); break;
+    case S_MESHSET: meshSettingsOpen(); break;
     case S_TAGSIZE: showTagSize(); break;
     default: break;
     }

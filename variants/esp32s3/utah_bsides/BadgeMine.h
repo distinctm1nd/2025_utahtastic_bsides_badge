@@ -2,7 +2,8 @@
 // into a 1-bit framebuffer (160 x VIEW_H, XBM bit order), so the same code renders on a PC
 // (tools/mine_preview.cpp) and on the badge (AppMine.cpp blits it with drawXbm).
 //
-// You have a six-shooter. Skinwalkers lurk in the old silver mine; clear them all to win.
+// You have a six-shooter. Five chapters, down through the old silver mine: skinwalkers,
+// coyotes that aren't coyotes, and the Old One at the bottom. Clear each level to go deeper.
 #pragma once
 #include <math.h>
 #include <stdint.h>
@@ -17,15 +18,18 @@ class Mine
     static const int W = 160, VIEW_H = 108;
     static const int FB_BYTES = (W / 8) * VIEW_H;
     static const int MAP_W = 20, MAP_H = 20;
-    static const int MAX_ENEMIES = 12, MAX_ITEMS = 8;
+    static const int MAX_ENEMIES = 16, MAX_ITEMS = 8;
+    static const int CHAPTERS = 5;
 
     struct Input {
         bool fwd, back, left, right, strafeL, strafeR, fire, reload;
     };
 
-    // the level: # rock, W timbered wall, L lantern on the wall, P start, S skinwalker,
-    // a ammo, h health
-    const char *const *level = LEVEL;
+    // a level: # rock, W timbered wall, L lantern on the wall, P start, S skinwalker,
+    // C coyote (fast, weak), B the Old One (boss), a ammo, h health
+    const char *const *level = LEVELS[0];
+    int chapter = 0;
+    bool chapterClear = false; // this chapter's done; won = the whole mine is done
 
     float px = 1.5f, py = 1.5f, angle = 0; // player
     int health = 100, ammo = 18, cylinder = 6, kills = 0, total = 0;
@@ -37,6 +41,7 @@ class Mine
     struct Enemy {
         float x, y, hp, hurt, attack, puff, bob;
         bool alive, awake;
+        char kind; // 'S', 'C' or 'B'
     } enemies[MAX_ENEMIES];
     int nEnemies = 0;
     struct Item {
@@ -46,29 +51,65 @@ class Mine
     } items[MAX_ITEMS];
     int nItems = 0;
 
-    void reset(uint32_t seed = 1)
+    // a new game from chapter `from` (0 = the start)
+    void reset(uint32_t seed = 1, int from = 0)
     {
         rng = seed ? seed : 1;
-        nEnemies = nItems = 0;
         health = 100;
-        ammo = 18;
+        ammo = 18 + from * 6;
+        cylinder = 6;
+        timeAlive = 0;
+        loadChapter(from);
+    }
+    // carry on to the next chapter: health and bullets come with you, plus a little extra
+    void nextChapter()
+    {
+        if (chapter + 1 >= CHAPTERS)
+            return;
+        health = health + 30 > 100 ? 100 : health + 30;
+        ammo += 12;
+        loadChapter(chapter + 1);
+    }
+    static const char *chapterName(int c)
+    {
+        static const char *const N[CHAPTERS] = {"The Old Shaft", "Flooded Drifts", "The Ore Chamber", "Collapsed Tunnels", "The Deep Vein"};
+        return N[(c >= 0 && c < CHAPTERS) ? c : 0];
+    }
+    // the story card before each chapter, lines separated by '\n'
+    static const char *chapterStory(int c)
+    {
+        static const char *const T[CHAPTERS] = {
+            "The miners went quiet\nlast week. Something\nwalks these tunnels\non two legs. It shouldn't.",
+            "Water to your boots.\nCoyotes yip in the dark,\nbut no coyote runs\nlike that.",
+            "The silver vein opens\ninto a cavern.\nThey gather here.",
+            "The way back caved in.\nSqueeze through. They're\nfaster in the narrow\nplaces.",
+            "At the bottom waits the\nOld One, wearing a dead\nminer's skin.\nEnd it.",
+        };
+        return T[(c >= 0 && c < CHAPTERS) ? c : 0];
+    }
+
+    void loadChapter(int c)
+    {
+        chapter = (c >= 0 && c < CHAPTERS) ? c : 0;
+        level = LEVELS[chapter];
+        nEnemies = nItems = 0;
         cylinder = 6;
         kills = 0;
-        reloadLeft = fireLeft = hurtLeft = timeAlive = messageLeft = 0;
-        dead = won = false;
+        reloadLeft = fireLeft = hurtLeft = messageLeft = 0;
+        dead = won = chapterClear = false;
         message = nullptr;
         for (int y = 0; y < MAP_H; y++)
             for (int x = 0; x < MAP_W; x++) {
-                char c = level[y][x];
-                if (c == 'P')
+                char ch = level[y][x];
+                if (ch == 'P')
                     px = x + 0.5f, py = y + 0.5f, angle = 0;
-                else if (c == 'S' && nEnemies < MAX_ENEMIES)
-                    enemies[nEnemies++] = {x + 0.5f, y + 0.5f, 3, 0, 0, 0, frand() * 6, true, false};
-                else if ((c == 'a' || c == 'h') && nItems < MAX_ITEMS)
-                    items[nItems++] = {x + 0.5f, y + 0.5f, c, false};
+                else if ((ch == 'S' || ch == 'C' || ch == 'B') && nEnemies < MAX_ENEMIES)
+                    enemies[nEnemies++] = {x + 0.5f, y + 0.5f, ch == 'S' ? 3.0f : ch == 'C' ? 1.0f : 14.0f, 0, 0, 0, frand() * 6, true, false, ch};
+                else if ((ch == 'a' || ch == 'h') && nItems < MAX_ITEMS)
+                    items[nItems++] = {x + 0.5f, y + 0.5f, ch, false};
             }
         total = nEnemies;
-        say("Clear the mine", 2.5f);
+        say(chapterName(chapter), 2.5f);
     }
 
     bool wall(int x, int y) const
@@ -86,7 +127,7 @@ class Mine
             dt = 0.1f;
         if (messageLeft > 0)
             messageLeft -= dt;
-        if (dead || won)
+        if (dead || won || chapterClear)
             return false;
         timeAlive += dt;
         // turning and moving, sliding along walls
@@ -159,12 +200,15 @@ class Mine
                 continue;
             }
             float ex = px - e.x, ey = py - e.y, d = sqrtf(ex * ex + ey * ey);
-            if (!e.awake && d < 9 && clearLine(e.x, e.y, px, py))
+            if (!e.awake && d < (e.kind == 'B' ? 12 : 9) && clearLine(e.x, e.y, px, py))
                 e.awake = true;
             if (!e.awake)
                 continue;
-            if (d > 0.8f) {
-                float sp = (d < 4 ? 1.7f : 1.2f) * dt / d; // faster when close
+            float reach = e.kind == 'B' ? 1.3f : 1.0f;
+            if (d > reach - 0.2f) {
+                // coyotes are quick, the Old One slow; all speed up when close
+                float base = e.kind == 'C' ? 1.9f : e.kind == 'B' ? 0.9f : 1.2f;
+                float sp = base * (d < 4 ? 1.4f : 1.0f) * dt / d;
                 float nx = e.x + ex * sp, ny = e.y + ey * sp;
                 if (!wall((int)nx, (int)e.y) && !crowded(i, nx, e.y))
                     e.x = nx;
@@ -173,9 +217,9 @@ class Mine
             }
             if (e.attack > 0)
                 e.attack -= dt;
-            if (d < 1.0f && e.attack <= 0) {
-                e.attack = 0.9f;
-                health -= 9;
+            if (d < reach && e.attack <= 0) {
+                e.attack = e.kind == 'C' ? 0.6f : e.kind == 'B' ? 1.2f : 0.9f;
+                health -= e.kind == 'C' ? 5 : e.kind == 'B' ? 18 : 9;
                 hurtLeft = 0.25f;
                 if (health <= 0) {
                     health = 0;
@@ -282,8 +326,10 @@ class Mine
             if (ty < 0.2f)
                 continue;
             int screenX = (int)(W / 2 * (1 + tx / ty));
-            const Sprite &art = spr[i].kind == 0 ? WALKER : spr[i].kind == 3 ? PUFF : spr[i].kind == 1 ? AMMO : MEDKIT;
-            float scale = spr[i].kind == 0 ? 1.0f : spr[i].kind == 3 ? 0.8f : 0.35f;
+            char ek = spr[i].kind == 0 ? enemies[spr[i].idx].kind : 0;
+            const Sprite &art = spr[i].kind == 0 ? (ek == 'C' ? COYOTE : ek == 'B' ? OLDONE : WALKER)
+                                : spr[i].kind == 3 ? PUFF : spr[i].kind == 1 ? AMMO : MEDKIT;
+            float scale = spr[i].kind == 0 ? (ek == 'C' ? 0.45f : ek == 'B' ? 1.45f : 1.0f) : spr[i].kind == 3 ? 0.8f : 0.35f;
             int h = (int)(VIEW_H / ty * scale), w = h * art.w / art.h;
             if (h < 2)
                 continue;
@@ -355,27 +401,122 @@ class Mine
         messageLeft = s;
     }
 
-    static constexpr const char *LEVEL[MAP_H] = {
-        "####################",
-        "#P...#.....W.......#",
-        "#....#..S..W..h....#",
-        "#....#.....W.......#",
-        "#..........WWW.WWWW#",
-        "###.###...........S#",
-        "#.....#....####....#",
-        "#..a..#....#..#....#",
-        "#.....W....#S.#....#",
-        "#.S...W....#..#..a.#",
-        "#.....W.........####",
-        "##.####....L.......#",
-        "#......#.......S...#",
-        "#..h...#...........#",
-        "#......####.WWWW...#",
-        "#..S...........W.S.#",
-        "#..............W...#",
-        "#L.....#####...W...#",
-        "#..........#.......#",
-        "####################",
+    static constexpr const char *LEVELS[CHAPTERS][MAP_H] = {
+        {
+            // 1 The Old Shaft
+            "####################",
+            "#P...#.....W.......#",
+            "#....#..S..W..h....#",
+            "#....#.....W.......#",
+            "#..........WWW.WWWW#",
+            "###.###...........S#",
+            "#.....#....####....#",
+            "#..a..#....#..#....#",
+            "#.....W....#S.#....#",
+            "#.S...W....#..#..a.#",
+            "#.....W.........####",
+            "##.####....L.......#",
+            "#......#.......S...#",
+            "#..h...#...........#",
+            "#......####.WWWW...#",
+            "#..S...........W.S.#",
+            "#..............W...#",
+            "#L.....#####...W...#",
+            "#..........#.......#",
+            "####################",
+        },
+        {
+            // 2 Flooded Drifts
+            "####################",
+            "#P.#.......#.......#",
+            "#..#.####..#.####..#",
+            "#..#.#..#..#....#C.#",
+            "#....#.....####.#..#",
+            "####.#S.#.......#..#",
+            "#....####.WWWWW.#..#",
+            "#.a.......W...W....#",
+            "#.........W.S.W.####",
+            "#####.###.W...W....#",
+            "#...#...#.WW.WW..h.#",
+            "#.S.#.C.#..........#",
+            "#...#...####.#######",
+            "#.#.#..........#...#",
+            "#.#.####.####..#.S.#",
+            "#.#......#..#..#...#",
+            "#.######.#a.#......#",
+            "#......#.#..####.C.#",
+            "#L.....#......S....#",
+            "####################",
+        },
+        {
+            // 3 The Ore Chamber
+            "####################",
+            "#P.....W....W......#",
+            "#......W....W......#",
+            "#..##........##..S.#",
+            "#..##..C..C..##....#",
+            "#..................#",
+            "#.S..##....##....a.#",
+            "#....##....##......#",
+            "#.........L........#",
+            "WWWW....S.....S..WWW",
+            "#..................#",
+            "#..##..h.....##....#",
+            "#..##........##..C.#",
+            "#......S...........#",
+            "#....##....##......#",
+            "#.C..##....##..S...#",
+            "#..................#",
+            "#..a.....W....W....#",
+            "#........W....W..L.#",
+            "####################",
+        },
+        {
+            // 4 Collapsed Tunnels
+            "####################",
+            "#P..#####...#####..#",
+            "#.#.#...#.#.#...#.C#",
+            "#.#...#.#.#...#.#..#",
+            "#.#####.#.#####.##.#",
+            "#.....#C#.....#..#.#",
+            "#####.#.#####.##.#.#",
+            "#a..#.#...C.#..#.#.#",
+            "#.#.#.#####.#.##.#.#",
+            "#.#...#...#.#.#..#.#",
+            "#.#####.#.#.#.#.##.#",
+            "#...C...#.#...#.S..#",
+            "###.#######.###.####",
+            "#...#.....#...#....#",
+            "#.###.###.###.#.##.#",
+            "#.....#.S...#...#h.#",
+            "#.#####.###.#####..#",
+            "#.#...C.#.#.....#..#",
+            "#...#.....#.S.#...L#",
+            "####################",
+        },
+        {
+            // 5 The Deep Vein
+            "####################",
+            "#P...#.............#",
+            "#....#..WWWWWWWW...#",
+            "#..a.#..W......W...#",
+            "#....#..W..h...W.S.#",
+            "##.###..W......W...#",
+            "#.......WWW..WWW...#",
+            "#..S...............#",
+            "#...........C......#",
+            "#######..L....######",
+            "#..................#",
+            "#.....##......##...#",
+            "#.C...##......##.C.#",
+            "#..................#",
+            "#.......B..........#",
+            "#.....##......##...#",
+            "#.a...##......##.h.#",
+            "#..................#",
+            "#L.......S.......L.#",
+            "####################",
+        },
     };
 
     struct Sprite {
@@ -389,6 +530,20 @@ class Mine
         "....####....", ".....##.....", "...######...", "..########..", ".##.####.##.", ".#..####..#.",
         ".#..####..#.", "#...####...#", "#...####...#", "#...####...#", "....####....", "....#..#....",
         "....#..#....", "....#..#....", "...##..##...", "...#....#...", "...#....#...", "..##....##..",
+    };
+    // a coyote that isn't one, side-on; e = eye
+    static constexpr const char *COYOTE_ROWS[10] = {
+        "..##............", "..###...........", ".#e###..........", "######..........", "..######.....#..",
+        "...##########.#.", "....#########...", "....##.....##...", "....#.#....#.#..", "...#..#...#..#..",
+    };
+    // the Old One: antlers, a long skull face, ragged hide
+    static constexpr const char *OLDONE_ROWS[28] = {
+        "#..#........#..#", "#.#..........#.#", ".##..#....#..##.", "..#.#......#.#..", "...###....###...",
+        ".....######.....", ".....#e##e#.....", ".....######.....", "......####......", "......#..#......",
+        "....########....", "...##########...", "..####.##.####..", ".##.#.####.#.##.", ".#..#.####.#..#.",
+        "#...#.####.#...#", "#...########...#", "#...########...#", "...#.######.#...", "....########....",
+        ".....##..##.....", ".....##..##.....", ".....#....#.....", ".....#....#.....", "....##....##....",
+        "....#......#....", "...##......##...", "..#.#......#.#..",
     };
     static constexpr const char *PUFF_ROWS[8] = {
         "..o..o..", "o..o...o", "..o.o.o.", ".o.oo.o.", "o.o..o..", ".o.o..o.", "o...o..o", "..o..o..",
@@ -433,6 +588,8 @@ class Mine
         ".############.", "...#########..", "..#..#####..#.", ".#...#..#...#.", "....#....#....",
     };
     static constexpr Sprite WALKER = {12, 24, WALKER_ROWS};
+    static constexpr Sprite COYOTE = {16, 10, COYOTE_ROWS};
+    static constexpr Sprite OLDONE = {16, 28, OLDONE_ROWS};
     static constexpr Sprite PUFF = {8, 8, PUFF_ROWS};
     static constexpr Sprite AMMO = {8, 8, AMMO_ROWS};
     static constexpr Sprite MEDKIT = {8, 8, MED_ROWS};
@@ -490,11 +647,11 @@ class Mine
 
     void move(float mx, float my)
     {
-        const float R = 0.22f;
+        const float RADIUS = 0.22f; // how close you can get to a wall
         float nx = px + mx, ny = py + my;
-        if (!wall((int)(nx + (mx > 0 ? R : -R)), (int)py))
+        if (!wall((int)(nx + (mx > 0 ? RADIUS : -RADIUS)), (int)py))
             px = nx;
-        if (!wall((int)px, (int)(ny + (my > 0 ? R : -R))))
+        if (!wall((int)px, (int)(ny + (my > 0 ? RADIUS : -RADIUS))))
             py = ny;
     }
     bool clearLine(float x0, float y0, float x1, float y1) const
@@ -553,10 +710,15 @@ class Mine
             e.puff = 0.6f;
             kills++;
             if (kills == total) {
-                won = true;
-                say("The mine is quiet", 99);
+                if (chapter + 1 >= CHAPTERS) {
+                    won = true;
+                    say("The mine is quiet", 99);
+                } else {
+                    chapterClear = true;
+                    say("Chapter clear", 99);
+                }
             } else {
-                say("Got one", 1.0f);
+                say(e.kind == 'B' ? "The Old One falls" : "Got one", 1.0f);
             }
         }
     }

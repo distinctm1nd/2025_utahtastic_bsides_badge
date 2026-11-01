@@ -6,6 +6,7 @@
 #include "BadgeApp.h"
 #include "BadgeApps.h"
 #include "BadgeKeypad.h"
+#include "BadgeMeshSettings.h"
 #include "BadgeStats.h"
 #include "BadgeTextEntry.h"
 
@@ -24,7 +25,7 @@ namespace badge
 class EditorApp : public App
 {
   public:
-    enum Purpose { ED_MESSAGE, ED_TAGLINE, ED_NAME };
+    enum Purpose { ED_MESSAGE, ED_TAGLINE, ED_NAME, ED_CUSTOM };
 
     void setup(Purpose p, int firstKey)
     {
@@ -33,12 +34,24 @@ class EditorApp : public App
             te.reset("", 200, TextEntry::CASE_SENTENCE);
         else if (p == ED_NAME)
             te.reset(nametagName(), 30, TextEntry::CASE_SENTENCE);
-        else
+        else if (p == ED_TAGLINE)
             te.reset(taglineGet(), 60, TextEntry::CASE_SENTENCE);
         first = firstKey;
     }
-    const char *name() const override { return purpose == ED_MESSAGE ? "New message" : purpose == ED_NAME ? "Name" : "Tagline"; }
-    int limit() const { return purpose == ED_MESSAGE ? 200 : purpose == ED_NAME ? 30 : 60; }
+    void setupCustom(const char *title, const char *initial, int maxLen, int caseMode, void (*done)(const char *))
+    {
+        purpose = ED_CUSTOM;
+        customTitle = title;
+        customLimit = maxLen > TextEntry::MAX ? TextEntry::MAX : maxLen;
+        customDone = done;
+        te.reset(initial ? initial : "", customLimit, (TextEntry::CaseMode)caseMode);
+        first = -1;
+    }
+    const char *name() const override
+    {
+        return purpose == ED_MESSAGE ? "New message" : purpose == ED_NAME ? "Name" : purpose == ED_CUSTOM ? customTitle : "Tagline";
+    }
+    int limit() const { return purpose == ED_MESSAGE ? 200 : purpose == ED_NAME ? 30 : purpose == ED_CUSTOM ? customLimit : 60; }
     void begin() override
     {
         if (first >= 0) { // the key that opened the editor is the first letter
@@ -69,7 +82,10 @@ class EditorApp : public App
         blink = true;
         if (r == TextEntry::TE_CANCEL) {
             appClose();
-            if (purpose != ED_MESSAGE)
+            if (purpose == ED_CUSTOM) {
+                if (customDone)
+                    customDone(nullptr);
+            } else if (purpose != ED_MESSAGE)
                 openNameTag();
         } else if (r == TextEntry::TE_DONE) {
             finish();
@@ -79,7 +95,12 @@ class EditorApp : public App
     {
         char right[16];
         snprintf(right, sizeof(right), "%s %d", te.modeName(), limit() - te.length());
-        drawTitle(d, x, y, purpose == ED_MESSAGE ? "Message (all)" : purpose == ED_NAME ? "Your name" : "Tagline", right);
+        char title[32];
+        if (purpose == ED_MESSAGE)
+            snprintf(title, sizeof(title), "To %s", meshSendChannelName());
+        else
+            snprintf(title, sizeof(title), "%s", purpose == ED_NAME ? "Your name" : purpose == ED_CUSTOM ? customTitle : "Tagline");
+        drawTitle(d, x, y, title, right);
         int lh = fontHeight(FONT_SMALL);
         int top = y + lh + 3;
         int bottom = y + d->height() - lh - 2; // strip/footer row below this
@@ -105,7 +126,7 @@ class EditorApp : public App
             }
             d->setTextAlignment(TEXT_ALIGN_LEFT);
         } else {
-            drawFooter(d, x, y, purpose == ED_MESSAGE ? "#send *del hold*quit" : "#save *del hold*quit");
+            drawFooter(d, x, y, purpose == ED_MESSAGE ? "#send *del hold*quit" : "#ok *del hold*quit");
         }
     }
 
@@ -113,11 +134,24 @@ class EditorApp : public App
     TextEntry te;
     Purpose purpose = ED_MESSAGE;
     int first = -1;
+    const char *customTitle = "";
+    int customLimit = 60;
+    void (*customDone)(const char *) = nullptr;
     uint32_t blinkAt = 0;
     bool blink = true;
 
     void finish()
     {
+        if (purpose == ED_CUSTOM) {
+            static char out[TextEntry::MAX + 1];
+            strncpy(out, te.text(), sizeof(out));
+            out[sizeof(out) - 1] = 0;
+            void (*done)(const char *) = customDone;
+            appClose();
+            if (done)
+                done(out);
+            return;
+        }
         if (purpose != ED_MESSAGE) {
             if (purpose == ED_NAME)
                 nametagSetName(te.text());
@@ -135,7 +169,8 @@ class EditorApp : public App
         strncpy(msg, te.text(), sizeof(msg));
         msg[sizeof(msg) - 1] = 0;
         appClose();
-        keypadInjectText(msg, true); // Meshtastic sends it (primary channel) and keeps it in history
+        meshSendPrepare(); // to the channel picked in Mesh settings (primary unless changed)
+        keypadInjectText(msg, true); // Meshtastic sends it and keeps it in its history
         statsMessageSent();
     }
 
@@ -195,6 +230,12 @@ void openCompose(int firstKey)
 void openNameEditor()
 {
     editor.setup(EditorApp::ED_NAME, -1);
+    appOpen(&editor);
+}
+
+void openTextEditor(const char *title, const char *initial, int maxLen, int caseMode, void (*done)(const char *text))
+{
+    editor.setupCustom(title, initial, maxLen, caseMode, done);
     appOpen(&editor);
 }
 

@@ -28,7 +28,8 @@ One rule on every screen:
 | hold `#` | next LED scene |
 
 In the editor, digits type letters (tap again for the next letter, hold for the digit) and
-`#` or the centre press sends. In games, the joystick plays and the centre/`#` starts.
+`#` or the centre press sends. `1` is punctuation: `. , ? ! ' - @ : + / =` (the last three
+are for typing channel keys). In games, the joystick plays and the centre/`#` starts.
 
 Replies from Meshtastic's own message screen use the plain multi-tap typing straight into its
 text box. New messages go through the badge editor, which shows the letters of the key you
@@ -54,6 +55,7 @@ are tapping in a strip at the bottom, the case mode, and how many characters are
 - **Badges & achievements**: badges you've met, 16 achievements, scavenger-hunt flags,
   high scores.
 - **Minibadges**: minibadges that talk I2C (button presses and text messages).
+- **Mesh settings**: everything you'd otherwise need the phone app for (below).
 - **Settings**: joystick setup, name tag name, font, size and tagline, whether the name tag keeps the
   screen on, screen colour, LEDs while the screen sleeps (stay on / dim to 30% / off; stays
   on unless you change it), night mode (red screen, dim LEDs), remote `!commands`, welcome
@@ -75,6 +77,29 @@ how your stick is mounted, whatever the angle (or even if it is mirrored):
 
 The badge waits 60 ms after the first switch closes to see whether a second one follows, so
 angled pushes count as one direction.
+
+### Mesh settings (no phone needed)
+
+Badge menu → *Mesh settings*. Every change is saved the way Meshtastic's own admin code
+saves it, so the phone app (if you use one) shows the same settings.
+
+| Item | What it does |
+|---|---|
+| Node name / Short name | the names other people see on the mesh (the name tag has its own) |
+| Channels | your channels; pick one to see its key, rename, re-key or remove it. *+ Join / new channel*: type a name, then make a random key, type a key someone gave you, use the public default key, or no key. The key is shown afterwards so friends can type it on their badge or in the app |
+| Send messages to | which channel the badge editor sends on (the editor's title shows it) |
+| Transmit power | max allowed (default), 20, 17, 14, 10 or 7 dBm; lower saves the AA cells. The badge restarts to apply it, as it does from the app |
+| Hop limit | 1–7 (3 is usual): how many times a message is passed on |
+| Quick-send messages | the canned messages (hold a digit on a Meshtastic screen to send one): edit, add, move up, delete |
+| Region, preset, role | Meshtastic's own pickers |
+| Bluetooth on/off | Meshtastic's own toggle |
+
+The main (primary) channel is view-only here: renaming it moves the badge to a different
+frequency slot and off the shared mesh. New channels are added as secondary channels.
+Keys are base64, like the app shows them: 24 characters for a random badge key, `AQ==` for
+the default key. Expert settings (custom LoRa bandwidth/spreading factor, MQTT, security
+keys, router roles) stay in the app. Lights → *Brand colour* sets the colour of the Your
+Brand scenes (the app's Ambient Lighting colour) on the badge.
 
 ### Mesh features
 
@@ -99,8 +124,13 @@ during a fox hunt).
 ### Skinwalker Mine
 
 A Doom-style shooter: a raycaster draws the old silver mine in 3D at about 15 frames a
-second. Seven skinwalkers lurk in it; clear them all. You have a six-shooter (reloads
-itself when empty, or press `0`), and there are bullets and medicine lying around.
+second. Five chapters, each with a story card: *The Old Shaft*, *Flooded Drifts*, *The Ore
+Chamber*, *Collapsed Tunnels* and *The Deep Vein*, where the Old One (antlers, takes about
+eleven shots) waits. Skinwalkers take two or three shots; coyotes that aren't coyotes are
+fast but go down in one. Clear a chapter to go deeper: your health (+30) and bullets (+12)
+come with you. Dying restarts the chapter, and the furthest chapter is remembered
+(*Continue* on the title screen). You have a six-shooter (reloads itself when empty, or
+press `0`), and there are bullets and medicine lying around.
 
 | Control | Does |
 |---|---|
@@ -119,7 +149,8 @@ game file.
 
 ### Chess
 
-Play White, Black (the board turns round) or two players passing the badge, against the
+Your pieces are always at the bottom: play White, Black (the board turns round) or two
+players passing the badge (the board turns to face whoever's move it is), against the
 badge at Easy, Normal or Hard. Move the cursor with the joystick, centre picks up a piece
 (dots show where it can go) and puts it down; `*` puts it back, hold `*` quits. Castling,
 en passant and promotion (to a queen) are all there; checkmate, stalemate and the 50-move

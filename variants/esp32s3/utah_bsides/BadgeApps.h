@@ -7,6 +7,9 @@ namespace badge
 
 void openCompose(int firstKey = -1); // AppEditor.cpp: message editor (sends via Meshtastic)
 void openTaglineEditor();            // AppEditor.cpp: edit the name tag's tagline
+// AppEditor.cpp: any short text; done(text) when saved, done(nullptr) if cancelled.
+// caseMode: 0 abc, 1 Abc, 2 ABC
+void openTextEditor(const char *title, const char *initial, int maxLen, int caseMode, void (*done)(const char *text));
 void openNameEditor();               // AppEditor.cpp: edit the name tag's name
 void openJoystickSetup();            // AppJoystick.cpp: correct for the angled joystick
 void openLightsApp();                // AppLights.cpp: LED scenes with live preview
