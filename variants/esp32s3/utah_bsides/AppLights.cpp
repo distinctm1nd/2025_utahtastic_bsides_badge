@@ -9,15 +9,14 @@
 
 #include "BadgeApp.h"
 #include "BadgeApps.h"
-#include "BadgeMeshSettings.h"
 #include "BadgeLeds.h"
 #include "BadgeMesh.h"
+#include "BadgeMeshSettings.h"
 #include "BadgeScenes.h"
 
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
 #include <stdio.h>
-
 
 namespace badge
 {
@@ -131,29 +130,63 @@ class LightsApp : public App
     void label(int r, char *b, size_t n)
     {
         switch (r) {
-        case R_SCENE: snprintf(b, n, "Scene: %s", sceneAt(ledsScene()).name); break;
-        case R_SPEED: snprintf(b, n, "Speed: %s", ledsSpeedName(ledsSpeed())); break;
-        case R_BRIGHT: snprintf(b, n, "Bright: %s", ledsBrightName(ledsBright())); break;
-        case R_MOON: snprintf(b, n, "Moon: %s", ledsMoonFollows() ? "scene" : "app"); break;
-        case R_BRAND: snprintf(b, n, "Brand colour: %s", brandColourName(brandColour())); break;
-        case R_KEYFX: snprintf(b, n, "Key flash: %s", onOff(ledsKeyFlash())); break;
-        case R_JOIN: snprintf(b, n, "Join shows: %s", onOff(meshJoinShows())); break;
-        case R_LEAD: snprintf(b, n, "Lead show: %s", onOff(meshLeadingShow())); break;
-        default: snprintf(b, n, "Share with badges"); break;
+        case R_SCENE:
+            snprintf(b, n, "Scene: %s", sceneAt(ledsScene()).name);
+            break;
+        case R_SPEED:
+            snprintf(b, n, "Speed: %s", ledsSpeedName(ledsSpeed()));
+            break;
+        case R_BRIGHT:
+            snprintf(b, n, "Bright: %s", ledsBrightName(ledsBright()));
+            break;
+        case R_MOON:
+            snprintf(b, n, "Moon: %s", ledsMoonFollows() ? "scene" : "app");
+            break;
+        case R_BRAND:
+            snprintf(b, n, "Brand colour: %s", brandColourName(brandColour()));
+            break;
+        case R_KEYFX:
+            snprintf(b, n, "Key flash: %s", onOff(ledsKeyFlash()));
+            break;
+        case R_JOIN:
+            snprintf(b, n, "Join shows: %s", onOff(meshJoinShows()));
+            break;
+        case R_LEAD:
+            snprintf(b, n, "Lead show: %s", onOff(meshLeadingShow()));
+            break;
+        default:
+            snprintf(b, n, "Share with badges");
+            break;
         }
     }
 
     void change(int dir)
     {
         switch (row) {
-        case R_SCENE: ledsSetScene((ledsScene() + dir + sceneCount()) % sceneCount()); break;
-        case R_SPEED: ledsSetSpeed((ledsSpeed() + dir + ledsSpeedCount()) % ledsSpeedCount()); break;
-        case R_BRIGHT: ledsSetBright((ledsBright() + dir + ledsBrightCount()) % ledsBrightCount()); break;
-        case R_MOON: ledsSetMoonFollows(!ledsMoonFollows()); break;
-        case R_BRAND: brandColourSet((brandColour() + 1 + brandColourCount()) % brandColourCount()); break; // Your Brand scenes
-        case R_KEYFX: ledsSetKeyFlash(!ledsKeyFlash()); break;
-        case R_JOIN: meshSetJoinShows(!meshJoinShows()); break;
-        case R_LEAD: meshSetLeadingShow(!meshLeadingShow()); break;
+        case R_SCENE:
+            ledsSetScene((ledsScene() + dir + sceneCount()) % sceneCount());
+            break;
+        case R_SPEED:
+            ledsSetSpeed((ledsSpeed() + dir + ledsSpeedCount()) % ledsSpeedCount());
+            break;
+        case R_BRIGHT:
+            ledsSetBright((ledsBright() + dir + ledsBrightCount()) % ledsBrightCount());
+            break;
+        case R_MOON:
+            ledsSetMoonFollows(!ledsMoonFollows());
+            break;
+        case R_BRAND:
+            brandColourSet((brandColour() + 1 + brandColourCount()) % brandColourCount());
+            break; // Your Brand scenes
+        case R_KEYFX:
+            ledsSetKeyFlash(!ledsKeyFlash());
+            break;
+        case R_JOIN:
+            meshSetJoinShows(!meshJoinShows());
+            break;
+        case R_LEAD:
+            meshSetLeadingShow(!meshLeadingShow());
+            break;
         case R_SHARE:
             meshShareLightShow();
             if (screen)

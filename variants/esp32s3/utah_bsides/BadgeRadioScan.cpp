@@ -39,8 +39,7 @@ static const int CAP_RING = 8;
 static CapEntry *capRing = nullptr;
 static volatile int capHead = 0, capTail = 0;
 
-static void capPush(uint8_t kind, const uint8_t *data, int len, uint8_t chan, const uint8_t mac[6], uint8_t advType,
-                    bool rnd)
+static void capPush(uint8_t kind, const uint8_t *data, int len, uint8_t chan, const uint8_t mac[6], uint8_t advType, bool rnd)
 {
     if (!capRing || len <= 0)
         return;
@@ -63,7 +62,10 @@ static void capPush(uint8_t kind, const uint8_t *data, int len, uint8_t chan, co
     portEXIT_CRITICAL(&lock);
 }
 
-static bool capWanted() { return captureWifiOn() || captureBleOn() || captureStreamKind() == STREAM_BLE; }
+static bool capWanted()
+{
+    return captureWifiOn() || captureBleOn() || captureStreamKind() == STREAM_BLE;
+}
 
 void radioScanDrainCapture()
 {
@@ -88,7 +90,7 @@ void radioScanDrainCapture()
 
 static bool running = false;
 static ScanKind active = SCAN_WIFI;
-static bool ownWifi = false; // we switched WiFi on, so we switch it off again
+static bool ownWifi = false;  // we switched WiFi on, so we switch it off again
 static bool sniffing = false; // listening to WiFi frames ourselves (needs ownWifi)
 static bool focused = false;
 static uint8_t focusMac[6];
@@ -327,7 +329,7 @@ class BleResults : public NimBLEScanCallbacks
                 x.flags |= SF_AWAY;
         }
         bool popup = (company == 0x004C && (x.mfgByte == 0x07 || x.mfgByte == 0x0F)) || // Apple pairing / nearby action
-                     (company == 0x0006 && x.mfgByte == 0x03);                         // Microsoft Swift Pair
+                     (company == 0x0006 && x.mfgByte == 0x03);                          // Microsoft Swift Pair
         for (uint8_t i = 0; i < d->getServiceUUIDCount(); i++) {
             NimBLEUUID u = d->getServiceUUID(i);
             if (x.nServices < 3 && u.bitSize() == 16)
@@ -375,8 +377,7 @@ static BleResults bleResults;
 static void nanFrame(const uint8_t *p, int len, int rssi, uint8_t chan)
 {
     static const uint8_t ODID_SERVICE[6] = {0x88, 0x69, 0x19, 0x9D, 0x92, 0x09};
-    if (len < 30 || p[24] != 0x04 || p[25] != 0x09 || p[26] != 0x50 || p[27] != 0x6F || p[28] != 0x9A ||
-        p[29] != 0x13)
+    if (len < 30 || p[24] != 0x04 || p[25] != 0x09 || p[26] != 0x50 || p[27] != 0x6F || p[28] != 0x9A || p[29] != 0x13)
         return;
     const uint8_t *src = p + 10;
     for (int i = 30; i + 3 <= len;) {

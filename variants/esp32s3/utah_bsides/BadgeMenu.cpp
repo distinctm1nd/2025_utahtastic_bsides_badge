@@ -7,19 +7,19 @@
 // carries it out on the keypad thread's next tick.
 #include "configuration.h"
 
-#include "BadgeTime.h"
-#include "BadgeLock.h"
 #include "BadgeApp.h"
 #include "BadgeApps.h"
 #include "BadgeCapture.h"
 #include "BadgeFollow.h"
 #include "BadgeHome.h"
-#include "BadgeMeshSettings.h"
 #include "BadgeKeypad.h"
 #include "BadgeLeds.h"
+#include "BadgeLock.h"
 #include "BadgeMenu.h"
 #include "BadgeMesh.h"
+#include "BadgeMeshSettings.h"
 #include "BadgeScenes.h"
+#include "BadgeTime.h"
 
 #include "NodeDB.h"
 #include "graphics/Screen.h"
@@ -288,8 +288,8 @@ static void banner(const char *title, const char **items, int count, int selecte
 // ---- main menu --------------------------------------------------------------------------------
 static void showMain()
 {
-    static const char *items[] = {"Back", "Name tag & pictures", "Lights", "Mesh settings",
-                                  "Badge WiFi (phone)", "Settings", "Key help"};
+    static const char *items[] = {"Back",    "Name tag & pictures", "Lights", "Mesh settings", "Badge WiFi (phone)", "Settings",
+                                  "Key help"};
     static const Step go[] = {S_NONE, S_NAMETAG, S_LIGHTS, S_MESHSET, S_PORTAL, S_SETTINGS, S_HELP};
     banner("Settings & setup", items, 7, mainSel, [](int sel) -> void {
         if (sel > 0 && sel < 7) {
@@ -302,11 +302,11 @@ static void showMain()
 
 static void showGames()
 {
-    static const char *items[] = {"Back",  "Skinwalker Mine (3D)", "CHIP-8 arcade", "Chess",
-                                  "Solitaire", "Mahjong", "Simon", "Whack-a-mole", "Snake", "Blocks",
-                                  "Tic-tac-toe: badge", "Tic-tac-toe: vs CPU"};
-    static const Step go[] = {S_MAIN,       S_MINE,   S_CHIP8, S_CHESS, S_SOLITAIRE, S_MAHJONG,
-                              S_SIMON,       S_WHACK,  S_SNAKE, S_BLOCKS, S_TTT_PICK,  S_TTT_CPU};
+    static const char *items[] = {
+        "Back",  "Skinwalker Mine (3D)", "CHIP-8 arcade", "Chess",  "Solitaire",          "Mahjong",
+        "Simon", "Whack-a-mole",         "Snake",         "Blocks", "Tic-tac-toe: badge", "Tic-tac-toe: vs CPU"};
+    static const Step go[] = {S_MAIN,  S_MINE,  S_CHIP8, S_CHESS,  S_SOLITAIRE, S_MAHJONG,
+                              S_SIMON, S_WHACK, S_SNAKE, S_BLOCKS, S_TTT_PICK,  S_TTT_CPU};
     banner("Games", items, 12, gamesSel, [](int sel) -> void {
         if (sel < 0 || sel >= 12)
             return;
@@ -329,17 +329,14 @@ static void showFox()
     // index 11 and fox at 12 so the toggle handling in the callback below still lines up.
     static const char *items[] = {"Back",
                                   // scanners
-                                  "LoRa node", "WiFi network", "Bluetooth device", "WiFi + Bluetooth",
-                                  "Sub-GHz scanner", "Node radar", cap,
+                                  "LoRa node", "WiFi network", "Bluetooth device", "WiFi + Bluetooth", "Sub-GHz scanner",
+                                  "Node radar", cap,
                                   // logs / watch / lists
                                   "Flagged devices", "Sightings log", "Scan stats", background,
                                   // settings
                                   fox, "Alert settings"};
-    static const Step go[] = {S_MAIN,
-                              S_NODES,      S_FOX_WIFI, S_FOX_BLE,   S_FOX_ALL,
-                              S_FOX_RF,     S_RADAR,    S_CAPTURE,
-                              S_FLAGGED,    S_FOX_LOG,  S_SCANSTATS, S_FOX_MENU,
-                              S_FOX_MENU,   S_ALERTSET};
+    static const Step go[] = {S_MAIN,    S_NODES,   S_FOX_WIFI, S_FOX_BLE,   S_FOX_ALL,  S_FOX_RF,   S_RADAR,
+                              S_CAPTURE, S_FLAGGED, S_FOX_LOG,  S_SCANSTATS, S_FOX_MENU, S_FOX_MENU, S_ALERTSET};
     banner("Fox hunt", items, 14, foxSel, [](int sel) -> void {
         if (sel < 0 || sel >= 14)
             return;
@@ -353,7 +350,28 @@ static void showFox()
     });
 }
 
-enum SetItem { SI_BACK, SI_JOYSTICK, SI_SHORTCUTS, SI_LOCK, SI_TZ, SI_NAME, SI_TAGFONT, SI_TAGSIZE, SI_TAGSCROLL, SI_TAGLINE, SI_TAGAWAKE, SI_COLOUR, SI_LEDOFF, SI_NIGHT, SI_REMOTE, SI_WELCOME, SI_HOME, SI_TILES, SI_RESET, SI_COUNT };
+enum SetItem {
+    SI_BACK,
+    SI_JOYSTICK,
+    SI_SHORTCUTS,
+    SI_LOCK,
+    SI_TZ,
+    SI_NAME,
+    SI_TAGFONT,
+    SI_TAGSIZE,
+    SI_TAGSCROLL,
+    SI_TAGLINE,
+    SI_TAGAWAKE,
+    SI_COLOUR,
+    SI_LEDOFF,
+    SI_NIGHT,
+    SI_REMOTE,
+    SI_WELCOME,
+    SI_HOME,
+    SI_TILES,
+    SI_RESET,
+    SI_COUNT
+};
 static char lbl[SI_COUNT][40];
 static const char *setItems[SI_COUNT];
 
@@ -385,9 +403,15 @@ static void showSettings()
         if (sel > 0)
             setSel = sel; // after a change it reopens on the same item
         switch (sel) {
-        case SI_BACK: queue(S_MAIN); break;
-        case SI_COLOUR: queue(S_COLOUR); break;
-        case SI_LEDOFF: queue(S_LEDOFF); break;
+        case SI_BACK:
+            queue(S_MAIN);
+            break;
+        case SI_COLOUR:
+            queue(S_COLOUR);
+            break;
+        case SI_LEDOFF:
+            queue(S_LEDOFF);
+            break;
         case SI_NIGHT:
             ledsSetNightMode(!ledsNightMode());
             applyColour(activeColour());
@@ -397,17 +421,31 @@ static void showSettings()
             setTagAwake(!tagAwake());
             queue(S_SETTINGS);
             break;
-        case SI_TAGLINE: queue(S_TAGLINE); break;
-        case SI_NAME: queue(S_NAME); break;
-        case SI_TAGFONT: queue(S_TAGFONT); break;
-        case SI_TAGSIZE: queue(S_TAGSIZE); break;
+        case SI_TAGLINE:
+            queue(S_TAGLINE);
+            break;
+        case SI_NAME:
+            queue(S_NAME);
+            break;
+        case SI_TAGFONT:
+            queue(S_TAGFONT);
+            break;
+        case SI_TAGSIZE:
+            queue(S_TAGSIZE);
+            break;
         case SI_TAGSCROLL:
             nametagSetScroll(!nametagScroll());
             queue(S_SETTINGS);
             break;
-        case SI_JOYSTICK: queue(S_JOYSTICK); break;
-        case SI_TZ: queue(S_TZ); break;
-        case SI_SHORTCUTS: queue(S_SHORTCUTS); break;
+        case SI_JOYSTICK:
+            queue(S_JOYSTICK);
+            break;
+        case SI_TZ:
+            queue(S_TZ);
+            break;
+        case SI_SHORTCUTS:
+            queue(S_SHORTCUTS);
+            break;
         case SI_LOCK:
             if (lockEnabled())
                 queue(S_LOCKMENU);
@@ -429,8 +467,11 @@ static void showSettings()
             putInt("welcome", welcomeEnabled() ? 0 : 1);
             queue(S_SETTINGS);
             break;
-        case SI_RESET: queue(S_RESET); break;
-        default: break;
+        case SI_RESET:
+            queue(S_RESET);
+            break;
+        default:
+            break;
         }
     });
 }
@@ -505,10 +546,10 @@ static void showLockPicture()
 // ---- shortcuts: hold # and tap 1-4 on Meshtastic's screens ----------------------------------
 enum ScKind { SC_STEP, SC_TOGGLE };
 struct Shortcut {
-    const char *id;    // kept in NVS ("sc1".."sc4"), so the list can be reordered safely
+    const char *id; // kept in NVS ("sc1".."sc4"), so the list can be reordered safely
     const char *label;
-    Step step;         // SC_STEP: open this
-    void (*fn)();      // SC_TOGGLE: do this (and say what happened)
+    Step step;    // SC_STEP: open this
+    void (*fn)(); // SC_TOGGLE: do this (and say what happened)
 };
 static void scSay(const char *what, bool on)
 {
@@ -535,10 +576,18 @@ static const Shortcut SHORTCUTS[] = {
          snprintf(b, sizeof(b), "Background watch:\n%s", WATCH_MODES[watchBackground() % 3]);
          screen->showSimpleBanner(b, 1500);
      }},
-    {"alerts", "Scan alerts on/off", S_NONE, [] { watchSetAlerts(!watchAlerts()); scSay("Scan alerts", watchAlerts()); }},
+    {"alerts", "Scan alerts on/off", S_NONE,
+     [] {
+         watchSetAlerts(!watchAlerts());
+         scSay("Scan alerts", watchAlerts());
+     }},
     {"cap", "Packet capture", S_CAPTURE, nullptr},
     {"stats", "Scan stats", S_SCANSTATS, nullptr},
-    {"befox", "Be the fox on/off", S_NONE, [] { meshSetBeingFox(!meshBeingFox()); scSay("Be the fox", meshBeingFox()); }},
+    {"befox", "Be the fox on/off", S_NONE,
+     [] {
+         meshSetBeingFox(!meshBeingFox());
+         scSay("Be the fox", meshBeingFox());
+     }},
     {"msgs", "Messages", S_MESSAGES, nullptr},
     {"msg", "New message", S_COMPOSE, nullptr},
     {"tag", "Name tag", S_NAMETAG, nullptr},
@@ -671,8 +720,8 @@ static void showAlertSettings()
     static const struct {
         int bit;
         const char *name;
-    } CATS[] = {{AC_TRACKERS, "Trackers"},     {AC_CAMERAS, "Cameras"}, {AC_SURVEILLANCE, "Surveillance"},
-                {AC_POLICE, "Police gear"},    {AC_SKIMMERS, "Skimmers"}, {AC_DRONES, "Drones"},
+    } CATS[] = {{AC_TRACKERS, "Trackers"},  {AC_CAMERAS, "Cameras"},   {AC_SURVEILLANCE, "Surveillance"},
+                {AC_POLICE, "Police gear"}, {AC_SKIMMERS, "Skimmers"}, {AC_DRONES, "Drones"},
                 {AC_ATTACKS, "Attacks"}};
     static const int NCATS = sizeof(CATS) / sizeof(CATS[0]);
     static char l[6 + NCATS][44];
@@ -941,7 +990,8 @@ static bool isAppStep(Step s)
 static bool stepOpensApp(Step s)
 {
     return isAppStep(s) || s == S_FOX_WIFI || s == S_FOX_BLE || s == S_FOX_RF || s == S_FOX_LOG || s == S_PORTAL ||
-           s == S_CHIP8 || s == S_RADAR || s == S_FLASHLIGHT || s == S_MESSAGES || s == S_FLAGGED || s == S_FOX_ALL || s == S_REMOTE || s == S_QR || s == S_TIMER || s == S_CAPTURE || s == S_SCANSTATS || s == S_HOME;
+           s == S_CHIP8 || s == S_RADAR || s == S_FLASHLIGHT || s == S_MESSAGES || s == S_FLAGGED || s == S_FOX_ALL ||
+           s == S_REMOTE || s == S_QR || s == S_TIMER || s == S_CAPTURE || s == S_SCANSTATS || s == S_HOME;
 }
 
 bool menuBusy()
@@ -973,66 +1023,185 @@ void menuPoll()
             lastMenu = s;
     }
     switch (s) {
-    case S_MAIN: showMain(); break;
-    case S_GAMES: showGames(); break;
-    case S_SETTINGS: showSettings(); break;
-    case S_COLOUR: showColours(); break;
-    case S_LEDOFF: showLedOff(); break;
-    case S_RESET: showReset(); break;
-    case S_HELP: showHelp(); break;
-    case S_QUICK: showQuick(); break;
-    case S_FOX_MENU: showFox(); break;
-    case S_FOX_PICK: pickNode("Fox: pick a node", S_FOX); break;
-    case S_FOX_WIFI: openRadioHunt(false); break;
-    case S_FOX_BLE: openRadioHunt(true); break;
-    case S_FOX_ALL: openEverythingHunt(); break;
-    case S_FOX_RF: openRfScanner(); break;
-    case S_FOX_LOG: openSightingsLog(); break;
-    case S_PORTAL: openBadgeWifi(); break;
-    case S_CHIP8: openChip8(); break;
-    case S_RADAR: openRadar(); break;
-    case S_FLASHLIGHT: openFlashlight(); break;
-    case S_REMOTE: openBleRemote(); break;
-    case S_QR: openQrCode(); break;
-    case S_TIMER: openTimer(); break;
-    case S_CAPTURE: openCaptureApp(); break;
-    case S_SCANSTATS: openScanStats(); break;
-    case S_PAGES: openPagesMenu(); break;
-    case S_HOME: homeGo(); break;
-    case S_MESSAGES: openMessages(); break;
-    case S_FLAGGED: openFlagged(); break;
-    case S_ALERTSET: showAlertSettings(); break;
-    case S_LOCKMENU: showLockMenu(); break;
-    case S_LOCKPIC: showLockPicture(); break;
-    case S_TZ: showTimeZones(); break;
-    case S_SHORTCUTS: showShortcuts(); break;
-    case S_SHORTCUT_PICK: showShortcutPick(); break;
-    case S_TTT_PICK: pickNode("Play who?", S_TTT_MESH); break;
-    case S_NAMETAG: openNameTag(); break;
-    case S_COMPOSE: openCompose(-1); break;
-    case S_LIGHTS: openLightsApp(); break;
-    case S_SIMON: openSimon(); break;
-    case S_WHACK: openWhack(); break;
-    case S_SNAKE: openSnake(); break;
-    case S_BLOCKS: openTetris(); break;
-    case S_TTT_CPU: openTicTacToeCpu(); break;
-    case S_TTT_MESH: openTicTacToeMesh(pickedNode, true); break;
-    case S_FOX: openFoxHunt(pickedNode); break;
-    case S_NODES: openNodeList(); break;
-    case S_BADGES: openBadgesApp(); break;
-    case S_MINIBADGES: openMinibadgesApp(); break;
-    case S_TAGLINE: openTaglineEditor(); break;
-    case S_NAME: openNameEditor(); break;
-    case S_JOYSTICK: openJoystickSetup(); break;
-    case S_TAGFONT: showTagFont(); break;
-    case S_CHESS: openChess(); break;
-    case S_SOLITAIRE: openSolitaire(); break;
-    case S_MAHJONG: openMahjong(); break;
-    case S_MINE: openMine(); break;
-    case S_PET: openSkinwalkerPet(); break;
-    case S_MESHSET: meshSettingsOpen(); break;
-    case S_TAGSIZE: showTagSize(); break;
-    default: break;
+    case S_MAIN:
+        showMain();
+        break;
+    case S_GAMES:
+        showGames();
+        break;
+    case S_SETTINGS:
+        showSettings();
+        break;
+    case S_COLOUR:
+        showColours();
+        break;
+    case S_LEDOFF:
+        showLedOff();
+        break;
+    case S_RESET:
+        showReset();
+        break;
+    case S_HELP:
+        showHelp();
+        break;
+    case S_QUICK:
+        showQuick();
+        break;
+    case S_FOX_MENU:
+        showFox();
+        break;
+    case S_FOX_PICK:
+        pickNode("Fox: pick a node", S_FOX);
+        break;
+    case S_FOX_WIFI:
+        openRadioHunt(false);
+        break;
+    case S_FOX_BLE:
+        openRadioHunt(true);
+        break;
+    case S_FOX_ALL:
+        openEverythingHunt();
+        break;
+    case S_FOX_RF:
+        openRfScanner();
+        break;
+    case S_FOX_LOG:
+        openSightingsLog();
+        break;
+    case S_PORTAL:
+        openBadgeWifi();
+        break;
+    case S_CHIP8:
+        openChip8();
+        break;
+    case S_RADAR:
+        openRadar();
+        break;
+    case S_FLASHLIGHT:
+        openFlashlight();
+        break;
+    case S_REMOTE:
+        openBleRemote();
+        break;
+    case S_QR:
+        openQrCode();
+        break;
+    case S_TIMER:
+        openTimer();
+        break;
+    case S_CAPTURE:
+        openCaptureApp();
+        break;
+    case S_SCANSTATS:
+        openScanStats();
+        break;
+    case S_PAGES:
+        openPagesMenu();
+        break;
+    case S_HOME:
+        homeGo();
+        break;
+    case S_MESSAGES:
+        openMessages();
+        break;
+    case S_FLAGGED:
+        openFlagged();
+        break;
+    case S_ALERTSET:
+        showAlertSettings();
+        break;
+    case S_LOCKMENU:
+        showLockMenu();
+        break;
+    case S_LOCKPIC:
+        showLockPicture();
+        break;
+    case S_TZ:
+        showTimeZones();
+        break;
+    case S_SHORTCUTS:
+        showShortcuts();
+        break;
+    case S_SHORTCUT_PICK:
+        showShortcutPick();
+        break;
+    case S_TTT_PICK:
+        pickNode("Play who?", S_TTT_MESH);
+        break;
+    case S_NAMETAG:
+        openNameTag();
+        break;
+    case S_COMPOSE:
+        openCompose(-1);
+        break;
+    case S_LIGHTS:
+        openLightsApp();
+        break;
+    case S_SIMON:
+        openSimon();
+        break;
+    case S_WHACK:
+        openWhack();
+        break;
+    case S_SNAKE:
+        openSnake();
+        break;
+    case S_BLOCKS:
+        openTetris();
+        break;
+    case S_TTT_CPU:
+        openTicTacToeCpu();
+        break;
+    case S_TTT_MESH:
+        openTicTacToeMesh(pickedNode, true);
+        break;
+    case S_FOX:
+        openFoxHunt(pickedNode);
+        break;
+    case S_NODES:
+        openNodeList();
+        break;
+    case S_BADGES:
+        openBadgesApp();
+        break;
+    case S_MINIBADGES:
+        openMinibadgesApp();
+        break;
+    case S_TAGLINE:
+        openTaglineEditor();
+        break;
+    case S_NAME:
+        openNameEditor();
+        break;
+    case S_JOYSTICK:
+        openJoystickSetup();
+        break;
+    case S_TAGFONT:
+        showTagFont();
+        break;
+    case S_CHESS:
+        openChess();
+        break;
+    case S_SOLITAIRE:
+        openSolitaire();
+        break;
+    case S_MAHJONG:
+        openMahjong();
+        break;
+    case S_MINE:
+        openMine();
+        break;
+    case S_PET:
+        openSkinwalkerPet();
+        break;
+    case S_MESHSET:
+        meshSettingsOpen();
+        break;
+    case S_TAGSIZE:
+        showTagSize();
+        break;
+    default:
+        break;
     }
 }
 
@@ -1051,9 +1220,8 @@ static void drawWelcome(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t
 {
     (void)state;
     static const char *lines[] = {
-        "Welcome to BSides!",   "Joystick: move",      "Centre press: select", "* = back",
-        "Hold centre: menu",    "Tap a digit: message", "Hold #: next lights",  "Hold a number: shortcut",
-        "(press any key)",
+        "Welcome to BSides!",   "Joystick: move",      "Centre press: select",    "* = back",        "Hold centre: menu",
+        "Tap a digit: message", "Hold #: next lights", "Hold a number: shortcut", "(press any key)",
     };
     display->setTextAlignment(TEXT_ALIGN_LEFT);
     display->setFont(FONT_SMALL);
@@ -1087,10 +1255,22 @@ void welcomeClose()
 }
 
 // ---- shortcut registry exposed for the Badge WiFi page ------------------------------------
-int shortcutOptionCount() { return NSHORTCUTS; }
-const char *shortcutOptionId(int i) { return (i >= 0 && i < NSHORTCUTS) ? SHORTCUTS[i].id : ""; }
-const char *shortcutOptionLabel(int i) { return (i >= 0 && i < NSHORTCUTS) ? SHORTCUTS[i].label : ""; }
-const char *shortcutSlotId(int n) { return (n >= 0 && n <= 9) ? SHORTCUTS[shortcutAt(n)].id : ""; }
+int shortcutOptionCount()
+{
+    return NSHORTCUTS;
+}
+const char *shortcutOptionId(int i)
+{
+    return (i >= 0 && i < NSHORTCUTS) ? SHORTCUTS[i].id : "";
+}
+const char *shortcutOptionLabel(int i)
+{
+    return (i >= 0 && i < NSHORTCUTS) ? SHORTCUTS[i].label : "";
+}
+const char *shortcutSlotId(int n)
+{
+    return (n >= 0 && n <= 9) ? SHORTCUTS[shortcutAt(n)].id : "";
+}
 void shortcutSetSlot(int n, const char *id)
 {
     if (n < 0 || n > 9)

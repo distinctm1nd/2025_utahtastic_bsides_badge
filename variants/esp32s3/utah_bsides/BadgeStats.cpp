@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <string.h>
 
-
 namespace badge
 {
 
@@ -27,9 +26,8 @@ static int nbadges = 0;
 static bool loaded = false;
 
 static const char *NAMES[ACH_COUNT] = {
-    "First words", "Social",       "Networker",   "Mesh legend", "Konami",    "Simon says",
-    "Whack master", "Snake charmer", "Block stacker", "Tic-tac-pro", "Fox hunter", "Light show",
-    "Far away",    "Minibadge",    "Treasure hunter", "Show off",
+    "First words",   "Social",      "Networker",  "Mesh legend", "Konami",   "Simon says", "Whack master",    "Snake charmer",
+    "Block stacker", "Tic-tac-pro", "Fox hunter", "Light show",  "Far away", "Minibadge",  "Treasure hunter", "Show off",
 };
 static const char *HINTS[ACH_COUNT] = {
     "Send a message from the badge",

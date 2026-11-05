@@ -2,22 +2,22 @@
 // admin code saves it (AdminModule.cpp), so the phone app sees the same settings.
 #include "configuration.h"
 
-#include "BadgeMeshSettings.h"
 #include "BadgeApp.h"
 #include "BadgeApps.h"
 #include "BadgeBase64.h"
 #include "BadgeHome.h"
 #include "BadgeMenu.h"
+#include "BadgeMeshSettings.h"
 
 #include "MeshService.h"
 #include "NodeDB.h"
-#include "mesh/Channels.h"
-#include "mesh/MeshTypes.h"
-#include "mesh/generated/meshtastic/cannedmessages.pb.h"
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
 #include "graphics/draw/MenuHandler.h"
 #include "main.h"
+#include "mesh/Channels.h"
+#include "mesh/MeshTypes.h"
+#include "mesh/generated/meshtastic/cannedmessages.pb.h"
 #include "modules/CannedMessageModule.h"
 #include <Arduino.h>
 #include <Preferences.h>
@@ -33,10 +33,23 @@ namespace badge
 // where each menu reopens: the item last chosen, so changing a setting doesn't jump to the top
 static int mainSel = 1, chListSel = 1, chItemSel = 1, cannedListSel = 1;
 
-enum MsStep { MS_NONE, MS_MAIN, MS_CHANNELS, MS_CHANNEL, MS_JOIN_KEY, MS_SENDTO, MS_TXPOWER, MS_HOPS, MS_CANNED, MS_CANNED_ITEM, MS_LORA, MS_BT };
+enum MsStep {
+    MS_NONE,
+    MS_MAIN,
+    MS_CHANNELS,
+    MS_CHANNEL,
+    MS_JOIN_KEY,
+    MS_SENDTO,
+    MS_TXPOWER,
+    MS_HOPS,
+    MS_CANNED,
+    MS_CANNED_ITEM,
+    MS_LORA,
+    MS_BT
+};
 static volatile MsStep queued = MS_NONE;
-static int chSel = 0;      // channel being looked at
-static int cannedSel = 0;  // quick-send message being looked at
+static int chSel = 0;     // channel being looked at
+static int cannedSel = 0; // quick-send message being looked at
 static char pendingName[12];
 static const int MAX_CH = 8;
 
@@ -205,13 +218,19 @@ static void applyKey(int choice, const uint8_t *typed, int typedLen)
     }
     ch.index = (int8_t)idx;
     switch (choice) {
-    case 0: setKeyRandom(ch.settings); break;
+    case 0:
+        setKeyRandom(ch.settings);
+        break;
     case 1:
         ch.settings.psk.size = (pb_size_t)typedLen;
         memcpy(ch.settings.psk.bytes, typed, (size_t)typedLen);
         break;
-    case 2: ch.settings.psk.size = 1, ch.settings.psk.bytes[0] = 1; break; // the default key
-    default: ch.settings.psk.size = 0; break;                              // not encrypted
+    case 2:
+        ch.settings.psk.size = 1, ch.settings.psk.bytes[0] = 1;
+        break; // the default key
+    default:
+        ch.settings.psk.size = 0;
+        break; // not encrypted
     }
     saveChannel(ch);
     pendingName[0] = 0;
@@ -404,8 +423,12 @@ static void showChannel()
         if (sel > 0)
             chItemSel = sel;
         switch (sel) {
-        case 1: showKey(chSel); break;
-        case 2: openTextEditor("Rename channel", channels.getName((size_t)chSel), 11, 1, renameDone); break;
+        case 1:
+            showKey(chSel);
+            break;
+        case 2:
+            openTextEditor("Rename channel", channels.getName((size_t)chSel), 11, 1, renameDone);
+            break;
         case 3:
             pendingName[0] = 0; // re-key this one
             queue(MS_JOIN_KEY);
@@ -420,7 +443,9 @@ static void showChannel()
             queue(MS_CHANNELS);
             break;
         }
-        default: queue(MS_CHANNELS); break;
+        default:
+            queue(MS_CHANNELS);
+            break;
         }
     });
 }
@@ -428,13 +453,22 @@ static void showKeyChoice()
 {
     static char title[40];
     snprintf(title, sizeof(title), "Key for %s", pendingName[0] ? pendingName : channels.getName((size_t)chSel));
-    static const char *items[] = {"Back", "Make a new random key", "Type the key", "Default key (public)", "No key (not encrypted)"};
+    static const char *items[] = {"Back", "Make a new random key", "Type the key", "Default key (public)",
+                                  "No key (not encrypted)"};
     banner(title, items, 5, 1, [](int sel) -> void {
         switch (sel) {
-        case 1: applyKey(0, nullptr, 0); break;
-        case 2: openTextEditor("Channel key", "", 44, 0, typedKeyDone); break;
-        case 3: applyKey(2, nullptr, 0); break;
-        case 4: applyKey(3, nullptr, 0); break;
+        case 1:
+            applyKey(0, nullptr, 0);
+            break;
+        case 2:
+            openTextEditor("Channel key", "", 44, 0, typedKeyDone);
+            break;
+        case 3:
+            applyKey(2, nullptr, 0);
+            break;
+        case 4:
+            applyKey(3, nullptr, 0);
+            break;
         default:
             if (pendingName[0]) {
                 pendingName[0] = 0;
@@ -630,20 +664,21 @@ static void showCanned()
     count = n;
     if (cannedListSel >= n)
         cannedListSel = n - 1;
-    banner("Quick messages\n(Settings > Shortcuts\nputs them on a number)", items, n, cannedListSel > 0 ? cannedListSel : 1, [](int sel) -> void {
-        if (sel > 0 && sel < count)
-            cannedListSel = sel;
-        if (sel <= 0 || sel >= count) {
-            queue(MS_MAIN);
-        } else if (sel - 1 == nCanned) {
-            cannedSel = nCanned;
-            int room = (int)sizeof(cannedBuf) - 2 - cannedUsed(-1);
-            openTextEditor("New message", "", room, 1, cannedDone);
-        } else {
-            cannedSel = sel - 1;
-            queue(MS_CANNED_ITEM);
-        }
-    });
+    banner("Quick messages\n(Settings > Shortcuts\nputs them on a number)", items, n, cannedListSel > 0 ? cannedListSel : 1,
+           [](int sel) -> void {
+               if (sel > 0 && sel < count)
+                   cannedListSel = sel;
+               if (sel <= 0 || sel >= count) {
+                   queue(MS_MAIN);
+               } else if (sel - 1 == nCanned) {
+                   cannedSel = nCanned;
+                   int room = (int)sizeof(cannedBuf) - 2 - cannedUsed(-1);
+                   openTextEditor("New message", "", room, 1, cannedDone);
+               } else {
+                   cannedSel = sel - 1;
+                   queue(MS_CANNED_ITEM);
+               }
+           });
 }
 static void showCannedItem()
 {
@@ -701,22 +736,38 @@ static void showMain()
         if (sel > 0)
             mainSel = sel;
         switch (sel) {
-        case I_LONG: openTextEditor("Node name", owner.long_name, sizeof(owner.long_name) - 1, 1, longNameDone); break;
-        case I_SHORT: openTextEditor("Short name (4)", owner.short_name, sizeof(owner.short_name) - 1, 2, shortNameDone); break;
+        case I_LONG:
+            openTextEditor("Node name", owner.long_name, sizeof(owner.long_name) - 1, 1, longNameDone);
+            break;
+        case I_SHORT:
+            openTextEditor("Short name (4)", owner.short_name, sizeof(owner.short_name) - 1, 2, shortNameDone);
+            break;
         case I_CHANNELS:
             chListSel = 1;
             queue(MS_CHANNELS);
             break;
-        case I_SENDTO: queue(MS_SENDTO); break;
-        case I_TX: queue(MS_TXPOWER); break;
-        case I_HOPS: queue(MS_HOPS); break;
+        case I_SENDTO:
+            queue(MS_SENDTO);
+            break;
+        case I_TX:
+            queue(MS_TXPOWER);
+            break;
+        case I_HOPS:
+            queue(MS_HOPS);
+            break;
         case I_CANNED:
             cannedListSel = 1;
             queue(MS_CANNED);
             break;
-        case I_LORA: queue(MS_LORA); break;
-        case I_BT: queue(MS_BT); break;
-        default: menuOpen(); break; // back to the badge menu
+        case I_LORA:
+            queue(MS_LORA);
+            break;
+        case I_BT:
+            queue(MS_BT);
+            break;
+        default:
+            menuOpen();
+            break; // back to the badge menu
         }
     });
 }
@@ -727,7 +778,10 @@ void meshSettingsOpen()
     queue(MS_MAIN);
 }
 
-bool meshSettingsBusy() { return queued != MS_NONE; }
+bool meshSettingsBusy()
+{
+    return queued != MS_NONE;
+}
 
 void meshSettingsPoll()
 {
@@ -736,21 +790,42 @@ void meshSettingsPoll()
         return;
     queued = MS_NONE;
     switch (s) {
-    case MS_MAIN: showMain(); break;
-    case MS_CHANNELS: showChannels(); break;
-    case MS_CHANNEL: showChannel(); break;
-    case MS_JOIN_KEY: showKeyChoice(); break;
-    case MS_SENDTO: showSendTo(); break;
-    case MS_TXPOWER: showTxPower(); break;
-    case MS_HOPS: showHops(); break;
-    case MS_CANNED: showCanned(); break;
-    case MS_CANNED_ITEM: showCannedItem(); break;
-    case MS_LORA: graphics::menuHandler::loraMenu(); break; // Meshtastic's own pickers
+    case MS_MAIN:
+        showMain();
+        break;
+    case MS_CHANNELS:
+        showChannels();
+        break;
+    case MS_CHANNEL:
+        showChannel();
+        break;
+    case MS_JOIN_KEY:
+        showKeyChoice();
+        break;
+    case MS_SENDTO:
+        showSendTo();
+        break;
+    case MS_TXPOWER:
+        showTxPower();
+        break;
+    case MS_HOPS:
+        showHops();
+        break;
+    case MS_CANNED:
+        showCanned();
+        break;
+    case MS_CANNED_ITEM:
+        showCannedItem();
+        break;
+    case MS_LORA:
+        graphics::menuHandler::loraMenu();
+        break;  // Meshtastic's own pickers
     case MS_BT: // Meshtastic's own toggle, opened through its menu queue (as its System menu does)
         graphics::menuHandler::menuQueue = graphics::menuHandler::BluetoothToggleMenu;
         screen->runNow();
         break;
-    default: break;
+    default:
+        break;
     }
 }
 
@@ -760,9 +835,8 @@ struct Brand {
     uint8_t r, g, b;
 };
 static const Brand BRANDS[] = {
-    {"Orange", 255, 96, 0},     {"Red", 255, 0, 0},       {"Gold", 255, 170, 0},   {"Green", 0, 255, 40},
-    {"Turquoise", 0, 200, 180}, {"Blue", 0, 60, 255},     {"Purple", 150, 0, 255}, {"Pink", 255, 40, 160},
-    {"White", 255, 255, 255},
+    {"Orange", 255, 96, 0}, {"Red", 255, 0, 0},      {"Gold", 255, 170, 0},  {"Green", 0, 255, 40},    {"Turquoise", 0, 200, 180},
+    {"Blue", 0, 60, 255},   {"Purple", 150, 0, 255}, {"Pink", 255, 40, 160}, {"White", 255, 255, 255},
 };
 static const int NBRANDS = sizeof(BRANDS) / sizeof(BRANDS[0]);
 int brandColourCount()

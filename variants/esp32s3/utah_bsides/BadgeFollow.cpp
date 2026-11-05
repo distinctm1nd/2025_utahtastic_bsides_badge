@@ -4,12 +4,12 @@
 
 #include "BadgeApp.h"
 #include "BadgeDevices.h"
-#include "BadgeTime.h"
 #include "BadgeKeypad.h"
 #include "BadgeLeds.h"
 #include "BadgeLog.h"
 #include "BadgeMesh.h"
 #include "BadgeRules.h"
+#include "BadgeTime.h"
 
 #include "concurrency/OSThread.h"
 #include "gps/RTC.h"
@@ -21,16 +21,15 @@
 #include <stdio.h>
 #include <string.h>
 
-
 namespace badge
 {
 
 static const uint32_t GAP_MS = 5 * 60 * 1000;      // longer out of range: it starts over
-static uint32_t followMs(); // in range this long: with you (Alert settings, 10 min by default)
+static uint32_t followMs();                        // in range this long: with you (Alert settings, 10 min by default)
 static const uint32_t LANDMARK_MS = 2 * 60 * 1000; // a landmark heard this recently is still around
 static const uint32_t ALERT_GAP_MS = 15 * 1000;    // at most one alert message per this
 static const uint32_t ATTACK_REPEAT_MS = 2 * 60 * 1000;
-static const uint32_t SHARE_GAP_MS = 10 * 1000; // at most one shared sighting per this
+static const uint32_t SHARE_GAP_MS = 10 * 1000;       // at most one shared sighting per this
 static const int DEAUTH_ALERT = 30, POPUP_ALERT = 20; // in 10 s
 static const int MAX_TRACKED = 16, MAX_REFS = 16, MAX_LANDMARKS = 64;
 

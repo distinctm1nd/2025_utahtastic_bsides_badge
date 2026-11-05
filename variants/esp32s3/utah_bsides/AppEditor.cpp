@@ -17,7 +17,6 @@
 #include <Preferences.h>
 #include <string.h>
 
-
 namespace badge
 {
 
@@ -55,7 +54,10 @@ class EditorApp : public App
     }
     const char *name() const override
     {
-        return purpose == ED_MESSAGE ? "New message" : purpose == ED_NAME ? "Name" : purpose == ED_CUSTOM ? customTitle : "Tagline";
+        return purpose == ED_MESSAGE  ? "New message"
+               : purpose == ED_NAME   ? "Name"
+               : purpose == ED_CUSTOM ? customTitle
+                                      : "Tagline";
     }
     int limit() const { return purpose == ED_MESSAGE ? 200 : purpose == ED_NAME ? 30 : purpose == ED_CUSTOM ? customLimit : 60; }
     void begin() override
@@ -105,7 +107,10 @@ class EditorApp : public App
         if (purpose == ED_MESSAGE)
             snprintf(title, sizeof(title), "To %s", replying ? replyName : meshSendChannelName());
         else
-            snprintf(title, sizeof(title), "%s", purpose == ED_NAME ? "Your name" : purpose == ED_CUSTOM ? customTitle : "Tagline");
+            snprintf(title, sizeof(title), "%s",
+                     purpose == ED_NAME     ? "Your name"
+                     : purpose == ED_CUSTOM ? customTitle
+                                            : "Tagline");
         drawTitle(d, x, y, title, right);
         int lh = fontHeight(FONT_SMALL);
         int top = y + lh + 3;
@@ -178,7 +183,7 @@ class EditorApp : public App
         if (replying)
             meshSendPrepareTo(replyDest, replyCh);
         else
-            meshSendPrepare(); // to the channel picked in Mesh settings (primary unless changed)
+            meshSendPrepare();       // to the channel picked in Mesh settings (primary unless changed)
         keypadInjectText(msg, true); // Meshtastic sends it and keeps it in its history
         statsMessageSent();
     }

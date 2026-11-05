@@ -15,7 +15,6 @@
 #include <OLEDDisplayUi.h>
 #include <stdio.h>
 
-
 // reach Screen's private ui + framesetInfo the same way the Messages page does
 namespace
 {
@@ -68,26 +67,46 @@ static uint8_t posOf(PageId id)
         return 255;
     const auto &p = ((*screen).*pgFrames(PgFrames{})).positions;
     switch (id) {
-    case P_HOME: return p.home;
-    case P_DEVICE: return p.deviceFocused;
-    case P_MESSAGES: return p.textMessage;
-    case P_NODES: return p.nodelist_nodes;
-    case P_NODES_LOC: return p.nodelist_location;
-    case P_NODES_HEARD: return p.nodelist_lastheard;
-    case P_NODES_SIGNAL: return p.nodelist_hopsignal;
-    case P_NODES_DIST: return p.nodelist_distance;
-    case P_NODES_BEARING: return p.nodelist_bearings;
-    case P_CLOCK: return p.clock;
-    case P_GPS: return p.gps;
-    case P_LORA: return p.lora;
-    case P_WIFI: return p.wifi;
-    case P_SETTINGS: return p.settings;
-    case P_SYSTEM: return p.system;
-    case P_MODULE: return p.focusedModule;
-    case P_LOG: return p.log;
-    case P_WAYPOINT: return p.waypoint;
-    case P_CHIRPY: return p.chirpy;
-    case P_FAULT: return p.fault;
+    case P_HOME:
+        return p.home;
+    case P_DEVICE:
+        return p.deviceFocused;
+    case P_MESSAGES:
+        return p.textMessage;
+    case P_NODES:
+        return p.nodelist_nodes;
+    case P_NODES_LOC:
+        return p.nodelist_location;
+    case P_NODES_HEARD:
+        return p.nodelist_lastheard;
+    case P_NODES_SIGNAL:
+        return p.nodelist_hopsignal;
+    case P_NODES_DIST:
+        return p.nodelist_distance;
+    case P_NODES_BEARING:
+        return p.nodelist_bearings;
+    case P_CLOCK:
+        return p.clock;
+    case P_GPS:
+        return p.gps;
+    case P_LORA:
+        return p.lora;
+    case P_WIFI:
+        return p.wifi;
+    case P_SETTINGS:
+        return p.settings;
+    case P_SYSTEM:
+        return p.system;
+    case P_MODULE:
+        return p.focusedModule;
+    case P_LOG:
+        return p.log;
+    case P_WAYPOINT:
+        return p.waypoint;
+    case P_CHIRPY:
+        return p.chirpy;
+    case P_FAULT:
+        return p.fault;
     }
     return 255;
 }
@@ -142,8 +161,8 @@ static void doJump(PageId id)
 {
     if (!screen)
         return;
-    homeYield();       // the user wants a Meshtastic page now: stop home reclaiming the screen
-    menuClearReturn(); // ...and don't bounce back into the badge menu on close
+    homeYield();                                         // the user wants a Meshtastic page now: stop home reclaiming the screen
+    menuClearReturn();                                   // ...and don't bounce back into the badge menu on close
     screen->setFrames(graphics::Screen::FOCUS_PRESERVE); // rebuild so the switch sticks
     uint8_t idx = posOf(id);                             // re-read: indices may have shifted
     if (idx != 255) {
@@ -172,7 +191,7 @@ void openPagesMenu()
     o.durationMs = 60UL * 60 * 1000;
     o.bannerCallback = [](int sel) -> void {
         if (sel > 0 && sel <= nPages) {
-            homeYield();           // keep home from redrawing before the jump lands
+            homeYield();            // keep home from redrawing before the jump lands
             pending = ids[sel - 1]; // the jump itself runs on the keypad thread (pagesPoll)
         }
     };

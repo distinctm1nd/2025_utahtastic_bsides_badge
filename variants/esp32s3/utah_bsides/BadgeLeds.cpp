@@ -3,11 +3,11 @@
 // and the keypad/logo animations no longer stop when Ambient Lighting is turned off.
 #include "configuration.h"
 
-#include "BadgeLeds.h"
-#include "BadgeScenes.h"
 #include "BadgeApp.h"
 #include "BadgeKeypad.h"
 #include "BadgeLedOut.h"
+#include "BadgeLeds.h"
+#include "BadgeScenes.h"
 
 #include "NodeDB.h"
 #include "concurrency/OSThread.h"
@@ -21,7 +21,6 @@ extern concurrency::OSThread *ambientLightingThread;
 
 namespace badge
 {
-
 
 static_assert(BUTTON_LED_COUNT == KEYPAD_LEDS, "keypad LED count");
 static_assert(LOGO_EYE_LED_COUNT == LOGO_LEDS, "logo LED count");
@@ -49,16 +48,16 @@ static int8_t pending[4];
 static uint8_t npending = 0;
 static float celebrateLeft = 0;
 static Rgb frame[NUM_LEDS];
-static int offMode = 0;      // LEDs while the screen is asleep: 0 stay on (default), 1 dim, 2 off
+static int offMode = 0;        // LEDs while the screen is asleep: 0 stay on (default), 1 dim, 2 off
 static bool nightMode = false; // caps brightness at "Dim"
 static float alertLeft = 0, alertLen = 0;
 static bool alertDm = false;
 static float pulseLeft = 0;
 static float flourishLeft = 0;
 static bool syncedScene = false; // scene came from a light show (not saved)
-static Rgb sceneBuf[NUM_LEDS];  // what the scene drew this frame
-static Rgb base[NUM_LEDS];      // the scene after the crossfade, before overlays
-static Rgb fadeFrom[NUM_LEDS];  // the last frame of the previous scene
+static Rgb sceneBuf[NUM_LEDS];   // what the scene drew this frame
+static Rgb base[NUM_LEDS];       // the scene after the crossfade, before overlays
+static Rgb fadeFrom[NUM_LEDS];   // the last frame of the previous scene
 static float fadeLeft = 0;
 static bool fadeStart = false;
 static const float FADE_S = 0.6f; // crossfade between scenes, seconds

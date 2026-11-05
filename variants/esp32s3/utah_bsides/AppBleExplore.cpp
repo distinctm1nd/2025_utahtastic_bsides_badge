@@ -44,42 +44,78 @@ static void addLine(const char *fmt, ...)
 static const char *service16(uint16_t u)
 {
     switch (u) {
-    case 0x1800: return "Generic access";
-    case 0x1801: return "Generic attribute";
-    case 0x1802: return "Immediate alert (find me)";
-    case 0x1803: return "Link loss alarm";
-    case 0x1804: return "Transmit power";
-    case 0x1805: return "Current time";
-    case 0x1808: return "Glucose";
-    case 0x1809: return "Thermometer";
-    case 0x180A: return "Device information";
-    case 0x180D: return "Heart rate";
-    case 0x180E: return "Phone alerts";
-    case 0x180F: return "Battery";
-    case 0x1810: return "Blood pressure";
-    case 0x1812: return "Keyboard / mouse (HID)";
-    case 0x1814: return "Running speed";
-    case 0x1816: return "Cycling speed";
-    case 0x1818: return "Cycling power";
-    case 0x1819: return "Location and navigation";
-    case 0x181A: return "Environment sensor";
-    case 0x181C: return "User data";
-    case 0x181D: return "Weight scale";
-    case 0x181E: return "Bond management";
-    case 0x1822: return "Pulse oximeter";
-    case 0x1826: return "Fitness machine";
-    case 0x183B: return "Binary sensor";
-    case 0x1843: return "Audio input";
-    case 0x1844: return "Volume control";
-    case 0x184E: return "Audio stream (LE Audio)";
-    case 0xFD6F: return "Exposure notification";
-    case 0xFE2C: return "Google Fast Pair";
-    case 0xFE95: return "Xiaomi";
-    case 0xFEAA: return "Eddystone beacon";
-    case 0xFEED: return "Tile tracker";
-    case 0xFE9F: return "Google";
-    case 0xFD5A: return "Samsung SmartTag";
-    default: return nullptr;
+    case 0x1800:
+        return "Generic access";
+    case 0x1801:
+        return "Generic attribute";
+    case 0x1802:
+        return "Immediate alert (find me)";
+    case 0x1803:
+        return "Link loss alarm";
+    case 0x1804:
+        return "Transmit power";
+    case 0x1805:
+        return "Current time";
+    case 0x1808:
+        return "Glucose";
+    case 0x1809:
+        return "Thermometer";
+    case 0x180A:
+        return "Device information";
+    case 0x180D:
+        return "Heart rate";
+    case 0x180E:
+        return "Phone alerts";
+    case 0x180F:
+        return "Battery";
+    case 0x1810:
+        return "Blood pressure";
+    case 0x1812:
+        return "Keyboard / mouse (HID)";
+    case 0x1814:
+        return "Running speed";
+    case 0x1816:
+        return "Cycling speed";
+    case 0x1818:
+        return "Cycling power";
+    case 0x1819:
+        return "Location and navigation";
+    case 0x181A:
+        return "Environment sensor";
+    case 0x181C:
+        return "User data";
+    case 0x181D:
+        return "Weight scale";
+    case 0x181E:
+        return "Bond management";
+    case 0x1822:
+        return "Pulse oximeter";
+    case 0x1826:
+        return "Fitness machine";
+    case 0x183B:
+        return "Binary sensor";
+    case 0x1843:
+        return "Audio input";
+    case 0x1844:
+        return "Volume control";
+    case 0x184E:
+        return "Audio stream (LE Audio)";
+    case 0xFD6F:
+        return "Exposure notification";
+    case 0xFE2C:
+        return "Google Fast Pair";
+    case 0xFE95:
+        return "Xiaomi";
+    case 0xFEAA:
+        return "Eddystone beacon";
+    case 0xFEED:
+        return "Tile tracker";
+    case 0xFE9F:
+        return "Google";
+    case 0xFD5A:
+        return "Samsung SmartTag";
+    default:
+        return nullptr;
     }
 }
 
@@ -106,15 +142,50 @@ static const char *service128(const NimBLEUUID &u)
 
 static const char *appearanceName(uint16_t v)
 {
-    static const char *CAT[] = {"unknown",        "phone",          "computer",        "watch",          "clock",
-                                "display",        "remote control", "glasses",         "tag",            "keyring",
-                                "media player",   "barcode scanner", "thermometer",    "heart rate sensor", "blood pressure",
-                                "keyboard / mouse", "glucose meter", "running sensor", "cycling sensor", "control device",
-                                "network device", "sensor",         "light",           "fan",            "heating / cooling",
-                                "air conditioner", "humidifier",    "heater",          "door / access",  "motorized device",
-                                "power device",   "light source",   "window blind",    "speaker",        "audio source",
-                                "vehicle",        "appliance",      "headphones / earbuds", "aircraft", "AV equipment",
-                                "display equipment", "hearing aid", "game controller", "signage"};
+    static const char *CAT[] = {"unknown",
+                                "phone",
+                                "computer",
+                                "watch",
+                                "clock",
+                                "display",
+                                "remote control",
+                                "glasses",
+                                "tag",
+                                "keyring",
+                                "media player",
+                                "barcode scanner",
+                                "thermometer",
+                                "heart rate sensor",
+                                "blood pressure",
+                                "keyboard / mouse",
+                                "glucose meter",
+                                "running sensor",
+                                "cycling sensor",
+                                "control device",
+                                "network device",
+                                "sensor",
+                                "light",
+                                "fan",
+                                "heating / cooling",
+                                "air conditioner",
+                                "humidifier",
+                                "heater",
+                                "door / access",
+                                "motorized device",
+                                "power device",
+                                "light source",
+                                "window blind",
+                                "speaker",
+                                "audio source",
+                                "vehicle",
+                                "appliance",
+                                "headphones / earbuds",
+                                "aircraft",
+                                "AV equipment",
+                                "display equipment",
+                                "hearing aid",
+                                "game controller",
+                                "signage"};
     unsigned c = v >> 6;
     return c < sizeof(CAT) / sizeof(CAT[0]) ? CAT[c] : "other";
 }
@@ -183,9 +254,9 @@ static void readInfo(NimBLEClient *c)
         uint16_t uuid;
         const char *label;
     };
-    static const Field FIELDS[] = {{0x2A00, "Name"},     {0x2A29, "Maker"},   {0x2A24, "Model"},   {0x2A25, "Serial"},
-                                   {0x2A27, "Hardware"}, {0x2A26, "Firmware"}, {0x2A28, "Software"}, {0x2A19, "Battery"},
-                                   {0x2A01, "Looks like"}};
+    static const Field FIELDS[] = {{0x2A00, "Name"},     {0x2A29, "Maker"},    {0x2A24, "Model"},
+                                   {0x2A25, "Serial"},   {0x2A27, "Hardware"}, {0x2A26, "Firmware"},
+                                   {0x2A28, "Software"}, {0x2A19, "Battery"},  {0x2A01, "Looks like"}};
     const std::vector<NimBLERemoteService *> &svcs = c->getServices(true);
     int locked = 0;
     for (const Field &f : FIELDS)
@@ -221,12 +292,18 @@ static const char *secLabel(int st)
         return "open - NO pairing";
     int att = (st >= 0x0100 && st < 0x0200) ? (st & 0xFF) : -1;
     switch (att) {
-    case 0x0F: return "needs encryption";
-    case 0x05: return "needs auth pairing (MITM)";
-    case 0x08: return "needs authorization";
-    case 0x0C: return "needs bigger key";
-    case 0x02: return "not readable";
-    default: return st < 0 ? "no answer" : "protected";
+    case 0x0F:
+        return "needs encryption";
+    case 0x05:
+        return "needs auth pairing (MITM)";
+    case 0x08:
+        return "needs authorization";
+    case 0x0C:
+        return "needs bigger key";
+    case 0x02:
+        return "not readable";
+    default:
+        return st < 0 ? "no answer" : "protected";
     }
 }
 

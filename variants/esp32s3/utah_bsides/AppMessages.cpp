@@ -15,25 +15,25 @@
 
 #include "BadgeApp.h"
 #include "BadgeApps.h"
+#include "BadgeBase64.h"
 #include "BadgeKeypad.h"
 #include "BadgeLock.h"
-#include "BadgeMeshSettings.h"
-#include "BadgeStats.h"
-#include "BadgeBase64.h"
-#include "BadgeTextEntry.h"
-#include "qrcodegen.h"
 #include "BadgeMenu.h"
 #include "BadgeMesh.h"
+#include "BadgeMeshSettings.h"
+#include "BadgeStats.h"
+#include "BadgeTextEntry.h"
 #include "BadgeTime.h"
+#include "qrcodegen.h"
 
 #include "MessageStore.h"
-#include "mesh/generated/meshtastic/apponly.pb.h"
-#include "mesh/mesh-pb-constants.h"
 #include "NodeDB.h"
 #include "gps/RTC.h"
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
 #include "mesh/Channels.h"
+#include "mesh/generated/meshtastic/apponly.pb.h"
+#include "mesh/mesh-pb-constants.h"
 #include <Arduino.h>
 #include <Preferences.h>
 #include <string.h>
@@ -74,7 +74,7 @@ template struct StealFrames<&graphics::Screen::framesetInfo>;
 template struct StealNormal<&graphics::Screen::showingNormalScreen>;
 
 struct PageInfo {
-    bool normal = false; // Meshtastic's pages are up (not a badge screen or other alert)
+    bool normal = false;  // Meshtastic's pages are up (not a badge screen or other alert)
     bool settled = false; // not mid page-turn
     uint8_t current = 255, messages = 255, count = 0;
 };
@@ -156,10 +156,14 @@ static Privacy chatPrivacy(const Chat &c)
 static const char *privacyLabel(const Chat &c) // for the title bar
 {
     switch (chatPrivacy(c)) {
-    case P_PRIVATE: return c.dm ? "private" : "private group";
-    case P_PUBLIC: return "public group";
-    case P_NONE: return "NO encryption";
-    default: return "no key: can't DM";
+    case P_PRIVATE:
+        return c.dm ? "private" : "private group";
+    case P_PUBLIC:
+        return "public group";
+    case P_NONE:
+        return "NO encryption";
+    default:
+        return "no key: can't DM";
     }
 }
 
@@ -780,7 +784,8 @@ class MessagesApp : public App
     // a highlighted-row list
     // icon for a row: -1 none, else bit 0 = group, bit 1 = locked
     int rowIcon = -1;
-    void drawRows(OLEDDisplay *d, int16_t x, int16_t y, int n, int sel, void (*row)(MessagesApp *, int, char *, size_t, char *, size_t))
+    void drawRows(OLEDDisplay *d, int16_t x, int16_t y, int n, int sel,
+                  void (*row)(MessagesApp *, int, char *, size_t, char *, size_t))
     {
         int lh = fontHeight(FONT_SMALL), top = y + lh + 2, W = d->width();
         int rows = (d->height() - lh - 2) / lh;
@@ -871,8 +876,13 @@ class MessagesApp : public App
             uint32_t now = getValidTime(RTCQualityFromNet);
             if (nd && nd->last_heard && now > nd->last_heard) {
                 uint32_t s = now - nd->last_heard;
-                snprintf(r, rn, s < 3600 ? "%um" : s < 86400 ? "%uh" : "%ud",
-                         (unsigned)(s < 3600 ? s / 60 : s < 86400 ? s / 3600 : s / 86400));
+                snprintf(r, rn,
+                         s < 3600    ? "%um"
+                         : s < 86400 ? "%uh"
+                                     : "%ud",
+                         (unsigned)(s < 3600    ? s / 60
+                                    : s < 86400 ? s / 3600
+                                                : s / 86400));
             }
         });
     }
@@ -987,7 +997,7 @@ class MessagesApp : public App
         strncpy(msg, te.text(), sizeof(msg));
         msg[sizeof(msg) - 1] = 0;
         meshSendPrepareTo(chat.dm ? chat.peer : NODENUM_BROADCAST, chat.ch); // only ever to this chat
-        keypadInjectText(msg, true); // Meshtastic sends it and adds it to the messages
+        keypadInjectText(msg, true);                                         // Meshtastic sends it and adds it to the messages
         statsMessageSent();
         fromBottom = 0;
         appRedraw();
@@ -1023,7 +1033,9 @@ class MessagesApp : public App
                 snprintf(b, sizeof(b), pv == P_PRIVATE ? "To %s only" : "To %s: no key yet, can't send", who);
             else
                 snprintf(b, sizeof(b),
-                         pv == P_PRIVATE ? "To all in %s" : pv == P_NONE ? "To ALL in %s (no encryption)" : "To ALL in %s (public)",
+                         pv == P_PRIVATE ? "To all in %s"
+                         : pv == P_NONE  ? "To ALL in %s (no encryption)"
+                                         : "To ALL in %s (public)",
                          who);
             snprintf(r, sizeof(r), "%s %d", te.modeName(), 200 - te.length());
             int n = strlen(b), rw = d->getStringWidth(r);

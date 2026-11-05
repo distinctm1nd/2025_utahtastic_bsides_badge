@@ -18,7 +18,6 @@
 #include <Arduino.h>
 #include <stdio.h>
 
-
 namespace badge
 {
 

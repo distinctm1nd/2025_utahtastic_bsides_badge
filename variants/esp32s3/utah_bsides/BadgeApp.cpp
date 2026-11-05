@@ -10,7 +10,6 @@
 #include "graphics/ScreenFonts.h"
 #include <string.h>
 
-
 namespace badge
 {
 
@@ -102,8 +101,8 @@ void appTick(uint32_t now)
     // back at once so the stock page only flickers, instead of waiting ~0.6 s for homePoll. (Keying
     // off "forced but not painted" is frame-rate independent, so slow-frame apps don't false-trip.)
     // Skip while a banner/menu is up, since that legitimately draws over us.
-    if (active->reclaimScreen() && screen && lastForce && (int32_t)(lastPaint - lastForce) < 0 &&
-        now - lastForce > 150 && screen->isScreenOn() && !screen->isOverlayBannerShowing() && !menuBusy()) {
+    if (active->reclaimScreen() && screen && lastForce && (int32_t)(lastPaint - lastForce) < 0 && now - lastForce > 150 &&
+        screen->isScreenOn() && !screen->isOverlayBannerShowing() && !menuBusy()) {
         screen->startAlert(drawActive);
         lastForce = now;
         redrawSoon = true;

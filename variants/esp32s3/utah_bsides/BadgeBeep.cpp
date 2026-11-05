@@ -43,17 +43,16 @@ static void beepTask(void *)
             static const uint8_t dult[] = {0x00, 0x03}; // Sound_Start, little-endian
             ok = writeTo(c, "7DFC9000-7D1C-4951-86AA-8D9728F8D66C", "7DFC9001-7D1C-4951-86AA-8D9728F8D66C", airtag,
                          sizeof(airtag)) ||
-                 writeTo(c, "15190001-12F4-C226-88ED-2AC5579F2A85", "8E0C0001-1D68-FB92-BF61-48377421680E", dult,
-                         sizeof(dult));
+                 writeTo(c, "15190001-12F4-C226-88ED-2AC5579F2A85", "8E0C0001-1D68-FB92-BF61-48377421680E", dult, sizeof(dult));
             c->disconnect();
         }
         NimBLEDevice::deleteClient(c);
     }
     radioScanHold(false);
     snprintf(message, sizeof(message), "%s",
-             ok ? "Asked it to beep: listen!"
-                : connected ? "It didn't take the request (only trackers away from their owner beep)"
-                            : "Couldn't connect (out of range, or it changed address)");
+             ok          ? "Asked it to beep: listen!"
+             : connected ? "It didn't take the request (only trackers away from their owner beep)"
+                         : "Couldn't connect (out of range, or it changed address)");
     state = ok ? BEEP_DONE : BEEP_FAILED;
     vTaskDelete(nullptr);
 }

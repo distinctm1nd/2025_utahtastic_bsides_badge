@@ -3,13 +3,13 @@
 #include "BadgeLock.h"
 
 #include "BadgeApp.h"
-#include "BadgePortal.h"
 #include "BadgeApps.h"
 #include "BadgeHome.h"
-#include "BadgeTime.h"
 #include "BadgeMenu.h"
-#include "gps/RTC.h"
+#include "BadgePortal.h"
+#include "BadgeTime.h"
 #include "NodeDB.h"
+#include "gps/RTC.h"
 #include <time.h>
 
 #include "graphics/Screen.h"
@@ -28,7 +28,7 @@ namespace graphics
 {
 extern uint32_t logo_timeout;
 extern bool hasUnreadMessage;
-}
+} // namespace graphics
 namespace badge
 {
 
@@ -39,8 +39,8 @@ static const int MIN_PIN = 4, MAX_PIN = 8;
 static int pinLen = -1; // -1 not read yet, 0 no PIN
 static uint8_t salt[16], hash[32];
 static uint8_t fails = 0;
-static bool locked = false; // only the right PIN clears it
-static bool attract = false; // no PIN: the lock screen is just an attract loop, any key -> home
+static bool locked = false;      // only the right PIN clears it
+static bool attract = false;     // no PIN: the lock screen is just an attract loop, any key -> home
 static bool bootLockHeld = true; // hold off the auto-lock until the boot intro has played once
 class App;
 static App *beforeLock = nullptr; // the screen up when we locked, to return to on unlock
@@ -369,7 +369,7 @@ void lockNow()
         return;
     App *a = appActive();
     beforeLock = (a && a != &lockApp) ? a : nullptr; // remember where to come back to
-    graphics::NotificationRenderer::resetBanner(); // no menu or pop-up left over the lock screen
+    graphics::NotificationRenderer::resetBanner();   // no menu or pop-up left over the lock screen
     appOpen(&lockApp);
 }
 

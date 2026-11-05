@@ -9,7 +9,7 @@
 #define HAS_WIFI 1
 #define HAS_BLUETOOTH 1
 #define HAS_RADIO 1
-#define HAS_GPS 1             // no GPS fitted (no GPS pins, so none starts); lets the home screen say "No GPS"
+#define HAS_GPS 1 // no GPS fitted (no GPS pins, so none starts); lets the home screen say "No GPS"
 #define GPS_DEFAULT_NOT_PRESENT 1
 #define CANNED_MESSAGE_MODULE_ENABLE 1
 

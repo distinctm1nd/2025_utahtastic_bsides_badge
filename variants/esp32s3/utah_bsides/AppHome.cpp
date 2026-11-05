@@ -23,7 +23,6 @@
 #include <string.h>
 #include <time.h>
 
-
 namespace badge
 {
 
@@ -55,12 +54,18 @@ struct Tile {
     void (*open)();
 };
 static const Tile TILES[] = {
-    {"messages", "Messages", G_MSG, openMessages},   {"games", "Games", G_GAME, menuOpenGames},
-    {"fox", "Fox hunt", G_SIGNAL, menuOpenFox},      {"badges", "Badges", G_STAR, openBadgesApp},
-    {"minibadges", "Minibadges", G_CHIP, openMinibadgesApp}, {"remote", "BT remote", G_REMOTE, openBleRemote},
-    {"qr", "QR code", G_QR, openQrCode},             {"timer", "Timer", G_TIMER, openTimer},
-    {"flashlight", "Flashlight", G_LIGHT, openFlashlight}, {"nodes", "Nodes", G_DOTS, openNodeList},
-    {"pages", "Mesh pages", G_GRID, openPagesMenu},  {"clock", "Clock", G_CLOCK, openClock},
+    {"messages", "Messages", G_MSG, openMessages},
+    {"games", "Games", G_GAME, menuOpenGames},
+    {"fox", "Fox hunt", G_SIGNAL, menuOpenFox},
+    {"badges", "Badges", G_STAR, openBadgesApp},
+    {"minibadges", "Minibadges", G_CHIP, openMinibadgesApp},
+    {"remote", "BT remote", G_REMOTE, openBleRemote},
+    {"qr", "QR code", G_QR, openQrCode},
+    {"timer", "Timer", G_TIMER, openTimer},
+    {"flashlight", "Flashlight", G_LIGHT, openFlashlight},
+    {"nodes", "Nodes", G_DOTS, openNodeList},
+    {"pages", "Mesh pages", G_GRID, openPagesMenu},
+    {"clock", "Clock", G_CLOCK, openClock},
     {"settings", "Settings", G_GEAR, menuOpen},
 };
 static const int NTILES = sizeof(TILES) / sizeof(TILES[0]);
@@ -206,8 +211,7 @@ class HomeApp : public App
                 while (sel + COLS < nVis)
                     sel += COLS;
             }
-        }
-        else if (a == KA_PRESS && k == AK_0) // long-press 0 is the shortcut; a tap enters edit
+        } else if (a == KA_PRESS && k == AK_0) // long-press 0 is the shortcut; a tap enters edit
             startEdit();
         appRedraw();
     }
@@ -480,7 +484,10 @@ class ClockApp : public App
     }
 };
 static ClockApp clockApp;
-void openClock() { appOpen(&clockApp); }
+void openClock()
+{
+    appOpen(&clockApp);
+}
 
 // ---- home lifecycle -----------------------------------------------------------------------
 void openHomeNow()
@@ -500,8 +507,14 @@ void homeGo()
     if (homeOn)
         openHomeNow();
 }
-void homeYield() { homeWanted = false; }
-bool homeActive() { return appActive() == &homeApp; }
+void homeYield()
+{
+    homeWanted = false;
+}
+bool homeActive()
+{
+    return appActive() == &homeApp;
+}
 bool homeEnabled()
 {
     loadPref();

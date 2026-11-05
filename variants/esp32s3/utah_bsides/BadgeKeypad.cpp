@@ -1,14 +1,14 @@
 // Meshtastic glue for the badge keypad: polls the TCA9535 and feeds BadgeKeypadLogic.
 #include "configuration.h"
 
-#include "BadgeKeypad.h"
-#include "BadgeKeypadLogic.h"
-#include "BadgeLock.h"
-#include "BadgeLeds.h"
-#include "BadgeMenu.h"
 #include "BadgeApp.h"
 #include "BadgeApps.h"
 #include "BadgeHome.h"
+#include "BadgeKeypad.h"
+#include "BadgeKeypadLogic.h"
+#include "BadgeLeds.h"
+#include "BadgeLock.h"
+#include "BadgeMenu.h"
 #include "BadgePortal.h"
 #include "BadgeStats.h"
 
@@ -22,7 +22,6 @@
 
 // The joystick is mounted at an angle; its correction is set on the badge (badge menu >
 // Settings > Joystick) and kept in NVS ("utah": "joy", "joylean").
-
 
 // The joystick sits about 45 degrees round on every badge: straight up closes the UP and RIGHT
 // switches, straight down DOWN and LEFT. Angle 8 in Joystick setup (7 steps) reads those as up
@@ -82,7 +81,7 @@ static bool readKeys(uint32_t &pressed)
     uint8_t port0 = Wire.read(); // read one byte at a time: the order matters
     uint8_t port1 = Wire.read();
     pressed = (uint16_t)~(port0 | (port1 << 8)); // keys pull the pins low
-    if (digitalRead(BADGE_CENTER_PIN) == LOW)      // 100k pull-up, press = low
+    if (digitalRead(BADGE_CENTER_PIN) == LOW)    // 100k pull-up, press = low
         pressed |= 1u << CENTER_BIT;
     return true;
 }
@@ -204,11 +203,11 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
         // here made the editor think a tapped letter was already a second old (U came out TT)
         appTick(millis()); // the open badge app, if any
         messagesPoll(millis());
-        portalPoll(); // Badge WiFi keeps serving even under the lock screen (it owns its idle time-out)
+        portalPoll();       // Badge WiFi keeps serving even under the lock screen (it owns its idle time-out)
         homePoll(millis()); // the pet-home is the default screen
-        menuPoll();   // opens badge sub-menus queued by menu callbacks
-        pagesPoll();  // carries out a Meshtastic-page jump picked in the Pages overlay
-        tttPoll();    // tic-tac-toe invitations
+        menuPoll();         // opens badge sub-menus queued by menu callbacks
+        pagesPoll();        // carries out a Meshtastic-page jump picked in the Pages overlay
+        tttPoll();          // tic-tac-toe invitations
         return 10;
     }
 

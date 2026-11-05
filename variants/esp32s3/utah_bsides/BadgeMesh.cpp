@@ -2,33 +2,32 @@
 #include "configuration.h"
 
 #include "BadgeApp.h"
+#include "BadgeCapture.h"
 #include "BadgeHunt.h"
 #include "BadgeLeds.h"
 #include "BadgeMesh.h"
-#include "BadgeCapture.h"
-#include "mesh/Throttle.h"
 #include "BadgeScenes.h"
 #include "BadgeStats.h"
 #include "BadgeTime.h"
+#include "mesh/Throttle.h"
 
 #include "DisplayFormatters.h"
+#include "MeshModule.h"
 #include "MeshService.h"
 #include "MeshTypes.h"
 #include "NodeDB.h"
-#include "mesh/Channels.h"
-#include "mesh/RadioLibInterface.h"
 #include "Router.h"
+#include "airtime.h"
 #include "concurrency/OSThread.h"
 #include "graphics/Screen.h"
-#include "MeshModule.h"
-#include "airtime.h"
+#include "mesh/Channels.h"
+#include "mesh/RadioLibInterface.h"
 #include "modules/NodeInfoModule.h"
 #include <Preferences.h>
 #include <ctype.h>
-#include <strings.h>
 #include <stdio.h>
 #include <string.h>
-
+#include <strings.h>
 
 namespace graphics
 {
@@ -421,10 +420,10 @@ void meshRestorePreset()
 
 // the presets worth sweeping, in range order (skips deprecated / niche ones)
 static const int SWEEP_PRESETS[] = {
-    meshtastic_Config_LoRaConfig_ModemPreset_LONG_SLOW,     meshtastic_Config_LoRaConfig_ModemPreset_LONG_MODERATE,
-    meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST,     meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_SLOW,
-    meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_FAST,   meshtastic_Config_LoRaConfig_ModemPreset_SHORT_SLOW,
-    meshtastic_Config_LoRaConfig_ModemPreset_SHORT_FAST,    meshtastic_Config_LoRaConfig_ModemPreset_SHORT_TURBO};
+    meshtastic_Config_LoRaConfig_ModemPreset_LONG_SLOW,   meshtastic_Config_LoRaConfig_ModemPreset_LONG_MODERATE,
+    meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST,   meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_SLOW,
+    meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_FAST, meshtastic_Config_LoRaConfig_ModemPreset_SHORT_SLOW,
+    meshtastic_Config_LoRaConfig_ModemPreset_SHORT_FAST,  meshtastic_Config_LoRaConfig_ModemPreset_SHORT_TURBO};
 
 int meshPresetCount()
 {
@@ -640,8 +639,8 @@ class BadgeMeshModule : public MeshModule, private concurrency::OSThread
                 } else if (f >= 0 && !statsHasFlag(f) && direct) {
                     statsSetFlag(f);
                     static char msg[160];
-                    snprintf(msg, sizeof(msg), "Hunt flag %d/%d: %s\n%s", statsFlagCount(), huntFlagCount(),
-                             huntFlag(f).name, huntFlag(f).clue);
+                    snprintf(msg, sizeof(msg), "Hunt flag %d/%d: %s\n%s", statsFlagCount(), huntFlagCount(), huntFlag(f).name,
+                             huntFlag(f).clue);
                     ledsFlourish();
                     if (screen && !appActive())
                         screen->showSimpleBanner(msg, 8000);

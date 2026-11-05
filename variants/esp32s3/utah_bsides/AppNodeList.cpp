@@ -32,10 +32,10 @@ struct NodeRow {
     uint32_t num;
     uint32_t ageSecs; // how long since heard (unified across RF / NodeDB)
     float snr;
-    int hops;  // -1 unknown
+    int hops; // -1 unknown
     bool mqtt;
     bool favorite;
-    bool other; // heard on a channel we can't decode
+    bool other;      // heard on a channel we can't decode
     uint16_t chHash; // channel-hash byte from the clear header (other-channel nodes)
     uint8_t preset;  // modem preset it was heard on (0xFF unknown)
     char name[24];
@@ -127,7 +127,7 @@ class NodeListApp : public App
                 const NodeRow &r = rows[vis[sel]];
                 if (r.preset != 0xFF && r.preset != meshCurrentPreset())
                     meshListenPreset(r.preset); // hunt it on the preset it was heard on
-                handoff = true; // the fox hunt owns the radio now; it restores our preset on exit
+                handoff = true;                 // the fox hunt owns the radio now; it restores our preset on exit
                 uint32_t node = r.num;
                 appClose();
                 openFoxHunt(node);
@@ -229,15 +229,24 @@ class NodeListApp : public App
     static const char *shortPreset(uint8_t p)
     {
         switch (p) {
-        case meshtastic_Config_LoRaConfig_ModemPreset_LONG_SLOW: return "LS";
-        case meshtastic_Config_LoRaConfig_ModemPreset_LONG_MODERATE: return "LM";
-        case meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST: return "LF";
-        case meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_SLOW: return "MS";
-        case meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_FAST: return "MF";
-        case meshtastic_Config_LoRaConfig_ModemPreset_SHORT_SLOW: return "SS";
-        case meshtastic_Config_LoRaConfig_ModemPreset_SHORT_FAST: return "SF";
-        case meshtastic_Config_LoRaConfig_ModemPreset_SHORT_TURBO: return "ST";
-        default: return "";
+        case meshtastic_Config_LoRaConfig_ModemPreset_LONG_SLOW:
+            return "LS";
+        case meshtastic_Config_LoRaConfig_ModemPreset_LONG_MODERATE:
+            return "LM";
+        case meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST:
+            return "LF";
+        case meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_SLOW:
+            return "MS";
+        case meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_FAST:
+            return "MF";
+        case meshtastic_Config_LoRaConfig_ModemPreset_SHORT_SLOW:
+            return "SS";
+        case meshtastic_Config_LoRaConfig_ModemPreset_SHORT_FAST:
+            return "SF";
+        case meshtastic_Config_LoRaConfig_ModemPreset_SHORT_TURBO:
+            return "ST";
+        default:
+            return "";
         }
     }
 
@@ -296,9 +305,8 @@ class NodeListApp : public App
                     continue;
                 NodeRow &r = rows[count++];
                 r.num = info->num;
-                r.ageSecs = (nowSecs() && info->last_heard && nowSecs() > info->last_heard)
-                                ? nowSecs() - info->last_heard
-                                : 999999;
+                r.ageSecs =
+                    (nowSecs() && info->last_heard && nowSecs() > info->last_heard) ? nowSecs() - info->last_heard : 999999;
                 r.snr = info->snr;
                 r.hops = info->has_hops_away ? (int)info->hops_away : -1;
                 r.mqtt = nodeInfoLiteViaMqtt(info);

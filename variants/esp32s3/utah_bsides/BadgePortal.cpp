@@ -7,18 +7,18 @@
 #include "BadgeCapture.h"
 #include "BadgeDeviceMenu.h"
 #include "BadgeFollow.h"
-#include "BadgeLeds.h"
 #include "BadgeHome.h"
+#include "BadgeLeds.h"
 #include "BadgeLock.h"
 #include "BadgeMenu.h"
 #include "BadgeMesh.h"
 #include "BadgeOta.h"
 #include "BadgePictures.h"
 #include "BadgePositions.h"
-#include "BadgeTime.h"
 #include "BadgeRadioScan.h"
 #include "BadgeRules.h"
 #include "BadgeScenes.h"
+#include "BadgeTime.h"
 #include "BadgeVendors.h"
 #include "generated/BadgePortalPage.h"
 
@@ -59,7 +59,7 @@ static size_t picLen = 0;
 static const char *picError = nullptr;
 static bool scanning = false;
 static char curSsid[24] = "", curPass[12] = "", curAddr[32] = ""; // kept so the app can show them again
-static uint32_t portalLastActive = 0; // millis() of the last connected phone; drives the idle time-out
+static uint32_t portalLastActive = 0;                 // millis() of the last connected phone; drives the idle time-out
 static const uint32_t PORTAL_IDLE_MS = 5 * 60 * 1000; // no phone connected this long -> stop sharing
 
 static void note(const char *what)
@@ -156,8 +156,8 @@ static void picList()
 {
     String o = "{\"free\":" + String((unsigned)picFreeSpace()) + ",\"pics\":[";
     for (int i = 0; i < BADGE_IMAGE_COUNT; i++)
-        o += String(i ? "," : "") + "{\"name\":" + js(BADGE_IMAGES[i].name) + ",\"builtin\":true,\"fav\":" +
-             (nametagIsFavorite(BADGE_IMAGES[i].name) ? "true" : "false") + "}";
+        o += String(i ? "," : "") + "{\"name\":" + js(BADGE_IMAGES[i].name) +
+             ",\"builtin\":true,\"fav\":" + (nametagIsFavorite(BADGE_IMAGES[i].name) ? "true" : "false") + "}";
     for (int i = 0; i < picCount(); i++)
         o += String(BADGE_IMAGE_COUNT || i ? "," : "") + "{\"i\":" + String(i) + ",\"name\":" + js(picName(i)) +
              ",\"fav\":" + (nametagIsFavorite(picName(i)) ? "true" : "false") + "}";
@@ -267,7 +267,8 @@ static void settingsGet()
     static char macs[1024];
     macrosGet(macs, sizeof(macs));
     o += ",\"macros\":" + js(macs);
-    o += ",\"startup\":" + js(picStartup()) + ",\"startups\":[{\"v\":\"\",\"n\":\"Animated raven intro\"},{\"v\":\"@tag\",\"n\":\"Name tag\"}";
+    o += ",\"startup\":" + js(picStartup()) +
+         ",\"startups\":[{\"v\":\"\",\"n\":\"Animated raven intro\"},{\"v\":\"@tag\",\"n\":\"Name tag\"}";
     for (int i = 0; i < BADGE_IMAGE_COUNT; i++)
         o += ",{\"v\":" + js(BADGE_IMAGES[i].name) + ",\"n\":" + js(BADGE_IMAGES[i].name) + "}";
     for (int i = 0; i < picCount(); i++)
@@ -407,8 +408,8 @@ static void rulesList()
     String o = "[";
     for (int i = 0; i < customRuleCount(); i++) {
         const CustomRule &r = customRuleAt(i);
-        o += String(i ? "," : "") + "{\"kind\":\"" + K[r.kind] + "\",\"pattern\":" + js(r.pattern) + ",\"title\":" +
-             js(r.title) + ",\"code\":" + js(r.code) + "}";
+        o += String(i ? "," : "") + "{\"kind\":\"" + K[r.kind] + "\",\"pattern\":" + js(r.pattern) + ",\"title\":" + js(r.title) +
+             ",\"code\":" + js(r.code) + "}";
     }
     sendJson(o + "]");
 }
@@ -443,9 +444,10 @@ static void positions()
     o += ",\"nodes\":[";
     for (int i = 0; i < n; i++) {
         const NodePos &p = list[i];
-        o += String(i ? "," : "") + "{\"name\":" + js(p.name) + ",\"lat\":" + String(p.lat * 1e-7, 7) + ",\"lon\":" +
-             String(p.lon * 1e-7, 7) + ",\"dist\":" + String((int)p.distM) + ",\"bearing\":" + String((int)p.bearing) +
-             ",\"age\":" + String((unsigned)p.ageS) + ",\"hops\":" + String(p.hops) + "}";
+        o += String(i ? "," : "") + "{\"name\":" + js(p.name) + ",\"lat\":" + String(p.lat * 1e-7, 7) +
+             ",\"lon\":" + String(p.lon * 1e-7, 7) + ",\"dist\":" + String((int)p.distM) +
+             ",\"bearing\":" + String((int)p.bearing) + ",\"age\":" + String((unsigned)p.ageS) + ",\"hops\":" + String(p.hops) +
+             "}";
     }
     sendJson(o + "]}");
 }
@@ -475,7 +477,8 @@ static void hunt()
             if (!maker && e.publicAddr)
                 maker = vendorFromAddress(e.mac);
             char addr[24];
-            snprintf(addr, sizeof(addr), "%02X:%02X:%02X:%02X:%02X:%02X", e.mac[0], e.mac[1], e.mac[2], e.mac[3], e.mac[4], e.mac[5]);
+            snprintf(addr, sizeof(addr), "%02X:%02X:%02X:%02X:%02X:%02X", e.mac[0], e.mac[1], e.mac[2], e.mac[3], e.mac[4],
+                     e.mac[5]);
             FollowInfo f;
             unsigned mins = alert && followGet(e.mac, f) ? f.withYouMs / 60000 : 0;
             if (o.length() > 1)
@@ -589,7 +592,7 @@ const char *portalStart(char *ssid, size_t ns, char *pass, size_t np, char *addr
     portalStop();
     watchPause(true); // the background watch's scans would clash
     radioScanStop();
-    const char *why = WiFi.getMode() != WIFI_OFF                                ? "WiFi is in use\n(Meshtastic WiFi on?)"
+    const char *why = WiFi.getMode() != WIFI_OFF                             ? "WiFi is in use\n(Meshtastic WiFi on?)"
                       : heap_caps_get_free_size(MALLOC_CAP_INTERNAL) < 60000 ? "Not enough memory\nfor WiFi"
                                                                              : nullptr;
     if (why) {
@@ -597,7 +600,7 @@ const char *portalStart(char *ssid, size_t ns, char *pass, size_t np, char *addr
         return why;
     }
     static const char ALPHA[] = "abcdefghjkmnpqrstuvwxyz23456789"; // no look-alikes
-    size_t len = np > 9 ? 8 : np - 1; // WPA2's minimum
+    size_t len = np > 9 ? 8 : np - 1;                              // WPA2's minimum
     for (size_t i = 0; i < len; i++)
         pass[i] = ALPHA[esp_random() % (sizeof(ALPHA) - 1)];
     pass[len] = 0;
