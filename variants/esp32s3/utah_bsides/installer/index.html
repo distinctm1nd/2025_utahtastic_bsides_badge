@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Badge Installer</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+:root{--bg:#101418;--fg:#e8eef2;--mut:#93a1ad;--acc:#67ea94;--card:#1a2027;--line:#2a333c;--warn:#ffb000}
+@media (prefers-color-scheme: light){:root{--bg:#f6f8fa;--fg:#14181c;--mut:#5b6670;--acc:#16833e;--card:#fff;--line:#d8dee4;--warn:#9a6700}}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.5 system-ui,sans-serif}
+main{max-width:640px;margin:auto;padding:24px 16px 48px}h1{font-size:1.5em;margin:0 0 4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:14px 0}
+.warn{border-color:var(--warn)}.mut{color:var(--mut)}li{margin:6px 0}
+esp-web-install-button button{background:var(--acc);color:#000;border:0;border-radius:8px;padding:12px 20px;font:inherit;font-weight:700}
+</style>
+</head>
+<body>
+<main>
+<h1>Utah BSides badge installer</h1>
+<p class="mut" id="ver">Install the latest badge firmware from this page.</p>
+
+<div class="card warn">
+<b>This big update resets the badge.</b> It changes how the badge's memory is laid out (for WiFi
+updates later), so the badge's Meshtastic settings, keys, channels and messages start fresh. Note
+any channel settings you want to keep first. After this one, updates happen over WiFi from the
+badge itself and keep your settings.
+</div>
+
+<div class="card">
+<ol>
+<li>Use <b>Chrome or Edge</b> on a computer (not a phone; Firefox and Safari can't do this).</li>
+<li>Plug the badge in with a USB <b>data</b> cable.</li>
+<li>Press the button, pick the badge's port (often "USB JTAG/serial debug unit"), and choose
+<b>Install</b>. When asked, choose to <b>erase</b> the device.</li>
+<li>Wait about two minutes until it says it's done. The badge restarts by itself.</li>
+</ol>
+<esp-web-install-button manifest="manifest.json">
+  <span slot="unsupported">This browser can't install firmware. Use Chrome or Edge on a computer.</span>
+  <span slot="not-allowed">This page has to be opened over https.</span>
+</esp-web-install-button>
+<p class="mut">If the badge isn't found: hold its BOOT button, tap RESET, let go of BOOT, then try again.</p>
+</div>
+
+<div class="card">
+<b>Later updates (no computer needed)</b>
+<ol>
+<li>Download <code>firmware-utah_bsides-…update.bin</code> from the latest badge release to your phone.</li>
+<li>On the badge: hold <b>*</b> for the menu, choose <b>Badge WiFi (phone)</b>.</li>
+<li>Join the WiFi network shown on the badge with the password shown, open the address shown,
+go to <b>Update</b> and send the file.</li>
+<li>Press <b>#</b> on the badge to install. It only accepts updates signed by the badge team.</li>
+</ol>
+</div>
+</main>
+<script>
+fetch("manifest.json").then(r=>r.json()).then(m=>{document.getElementById("ver").textContent="Latest firmware: "+m.version}).catch(()=>{});
+</script>
+</body>
+</html>

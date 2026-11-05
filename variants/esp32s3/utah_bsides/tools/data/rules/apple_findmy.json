@@ -1,0 +1,15 @@
+{
+  "name": "Apple Find My",
+  "title": "Find My tracker (AirTag etc.)",
+  "type": "ble",
+  "tag": [
+    "Tracker"
+  ],
+  "criteria": [
+    {
+      "mfg_data": [
+        "004C:12"
+      ]
+    }
+  ]
+}

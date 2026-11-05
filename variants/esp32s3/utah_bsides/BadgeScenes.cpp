@@ -1224,13 +1224,13 @@ void overlayAlert(SceneCtx &c, bool dm, float in)
                 c.out[i][j] = mixf(c.out[i][j], j == 1 ? 0.8f : 0.1f, k * 0.7f);
     }
 }
-void overlayPulse(SceneCtx &c, float level, bool moon)
+void overlayPulse(SceneCtx &c, float level, bool moon, const Rgb &col)
 {
     float k = clamp01(level);
     for (int i = FIRST_LOGO; i < NUM_LEDS; i++) {
         if (LEDS[i].group == GROUP_EYES || (moon && LEDS[i].group == GROUP_MOON))
             for (int j = 0; j < 3; j++)
-                c.out[i][j] = mixf(c.out[i][j], 1.0f, k * 0.8f);
+                c.out[i][j] = mixf(c.out[i][j], col[j], k * 0.7f);
     }
 }
 

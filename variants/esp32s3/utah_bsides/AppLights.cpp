@@ -28,6 +28,7 @@ class LightsApp : public App
     enum Row { R_SCENE, R_SPEED, R_BRIGHT, R_MOON, R_BRAND, R_KEYFX, R_JOIN, R_LEAD, R_SHARE, R_COUNT };
 
   public:
+    bool numberShortcuts() const override { return true; }
     const char *name() const override { return "Lights"; }
     uint32_t frameMs() const override { return 150; } // keep the LED map moving
     void begin() override

@@ -1,0 +1,78 @@
+{
+  "name": "Hidden camera name",
+  "title": "Hidden / cheap WiFi camera",
+  "type": "auto",
+  "tag": [
+    "Camera"
+  ],
+  "criteria": [
+    {
+      "ssid": [
+        "MV\\d\\d\\d\\d\\d\\d.*",
+        ".*ipcam.*",
+        ".*ipc_.*",
+        ".*ipc-.*",
+        ".*wificam.*",
+        ".*wifi_cam.*",
+        ".*wifi-cam.*",
+        ".*spycam.*",
+        ".*spy_cam.*",
+        ".*minicam.*",
+        ".*mini_cam.*",
+        ".*hdwificam.*",
+        ".*lookcam.*",
+        ".*icsee.*",
+        ".*camhi.*",
+        ".*ycc365.*",
+        ".*v380.*",
+        ".*xmeye.*",
+        ".*yoosee.*",
+        "ezviz_.*",
+        "gw_ap_.*",
+        ".*nannycam.*",
+        ".*cloudcam.*",
+        ".*dvr.*",
+        ".*nvr.*",
+        "cam",
+        "cam\\d.*",
+        "cam_.*",
+        "cam-.*",
+        "cam .*",
+        ".* cam",
+        ".*_cam",
+        ".*-cam",
+        ".* cam .*",
+        ".* cam\\d.*",
+        "camera.*",
+        ".* camera.*",
+        ".*_camera.*",
+        ".*-camera.*"
+      ]
+    },
+    {
+      "name": [
+        ".*ipcam.*",
+        ".*wificam.*",
+        ".*spycam.*",
+        ".*minicam.*",
+        ".*lookcam.*",
+        ".*v380.*",
+        ".*yoosee.*",
+        "cam",
+        "cam\\d.*",
+        "cam_.*",
+        "cam-.*",
+        "cam .*",
+        ".* cam",
+        ".*_cam",
+        ".*-cam",
+        ".* cam .*",
+        ".* cam\\d.*",
+        "camera.*",
+        ".* camera.*",
+        ".*_camera.*",
+        ".*-camera.*"
+      ]
+    }
+  ]
+}

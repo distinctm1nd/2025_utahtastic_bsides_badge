@@ -13,6 +13,13 @@
 //   BadgeMinibadge        minibadges on the I2C pins of the minibadge slots
 #include "configuration.h"
 
+#include "BadgeApp.h"
+#include "BadgePictures.h"
+#include "BadgeTime.h"
+#include "BadgeHome.h"
+#include "BadgeLock.h"
+#include "BadgeApps.h"
+#include "BadgeFollow.h"
 #include "BadgeKeypad.h"
 #include "BadgeLeds.h"
 #include "BadgeMenu.h"
@@ -20,6 +27,8 @@
 #include "BadgeMinibadge.h"
 #include "BadgeStats.h"
 
+#include "concurrency/OSThread.h"
+#include "main.h"
 #include <Arduino.h>
 
 // Minibadge clock: MB_CLOCK_H/L toggled in antiphase once a second, as on the 2025 firmware.
@@ -43,13 +52,66 @@ void earlyInitVariant()
     xTaskCreatePinnedToCore(minibadgeClockTask, "mbclk", 2048, nullptr, 1, nullptr, ARDUINO_RUNNING_CORE);
 }
 
+// Meshtastic shows its logo and then the badge's still raven (userPrefs.jsonc) as boot screens.
+// As they end, BadgeStartup settles on the cycling lock screen (or a chosen startup picture first).
+namespace graphics
+{
+extern uint32_t logo_timeout; // src/graphics/Screen.cpp
+}
+class BadgeStartup : public concurrency::OSThread
+{
+  public:
+    BadgeStartup() : concurrency::OSThread("BadgeStartup") {}
+
+  protected:
+    int32_t runOnce() override
+    {
+        if (first) { // runs after Meshtastic's setup(), which sets the boot screen time
+            first = false;
+            graphics::logo_timeout = 6400; // ~3.2 s Meshtastic logo, then ~2.9 s on the still raven
+        }
+        switch (stage) {
+        case 0: // let Meshtastic's boot screens play (logo, then the static raven), then take over
+            if (!badge::lockBootReady())
+                return 20;
+            // only when the wearer has explicitly chosen a startup picture does one play here;
+            // by default we go straight to the cycling lock screen (no separate raven intro)
+            if (badge::picStartup()[0] && badge::nametagShowStartup()) {
+                stage = 1;
+                return 50;
+            }
+            badge::lockAttract(); // the cycling lock (PIN if set, else attract until a key)
+            disable();
+            return INT32_MAX;
+        case 1: // a chosen startup picture is up; once it closes, settle on the cycling lock
+            if (badge::appActive())
+                return 50;
+            badge::lockAttract();
+            disable();
+            return INT32_MAX;
+        }
+        disable();
+        return INT32_MAX;
+    }
+
+  private:
+    bool first = true;
+    int stage = 0;
+};
+static BadgeStartup *startupThread = nullptr;
+
 void lateInitVariant()
 {
+    badge::timeZoneDefault();
+    badge::lockBoot();
+    badge::homeBoot();
     badge::statsLoad();
     badge::ledsStart();
     badge::keypadStart();
     badge::meshStart();
     badge::minibadgeStart();
+    badge::watchStart();
+    startupThread = new BadgeStartup();
     badge::menuInit();
-    badge::welcomeShowIfEnabled();
+
 }

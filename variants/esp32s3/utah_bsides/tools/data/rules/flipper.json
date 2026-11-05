@@ -1,0 +1,15 @@
+{
+  "name": "Flipper Zero",
+  "title": "Flipper Zero",
+  "type": "ble",
+  "tag": [
+    "Hacking tool"
+  ],
+  "criteria": [
+    {
+      "name": [
+        "flipper .*"
+      ]
+    }
+  ]
+}

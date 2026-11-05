@@ -1,0 +1,29 @@
+{
+  "name": "Bluetooth serial module",
+  "title": "Bluetooth serial module (card skimmers use these)",
+  "description": "Cheap Bluetooth Low Energy serial modules that keep their factory name. Gas pump and ATM skimmers often have one inside so the thief can download card numbers from nearby. Hobby electronics use the same modules, so a hit isn't proof; one at a gas pump or ATM is worth a look. The older HC-05 / HC-06 modules are Classic Bluetooth, which the badge's chip can't hear.",
+  "type": "ble",
+  "tag": [
+    "Skimmer"
+  ],
+  "criteria": [
+    {
+      "name": [
+        "hc-08.*",
+        "hc-02.*",
+        "hc-42.*",
+        "jdy-\\d\\d.*",
+        "bt05.*",
+        "mlt-bt05.*",
+        "at-09.*",
+        "hmsoft.*",
+        "cc41-a.*",
+        "spp-ca.*",
+        "bt04-a.*",
+        "ble-spp.*",
+        "linvor.*",
+        "rnbt-.*"
+      ]
+    }
+  ]
+}

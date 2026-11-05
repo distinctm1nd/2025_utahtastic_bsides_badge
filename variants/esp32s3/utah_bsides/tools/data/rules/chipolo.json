@@ -1,0 +1,21 @@
+{
+  "name": "Chipolo",
+  "title": "Chipolo tracker",
+  "type": "ble",
+  "tag": [
+    "Tracker"
+  ],
+  "criteria": [
+    {
+      "mfg": [
+        "0x08C3"
+      ]
+    },
+    {
+      "service": [
+        "FE33",
+        "FE65"
+      ]
+    }
+  ]
+}

@@ -27,9 +27,16 @@ class EditorApp : public App
   public:
     enum Purpose { ED_MESSAGE, ED_TAGLINE, ED_NAME, ED_CUSTOM };
 
+    // replies go to one person or channel instead of the "Send messages to" channel
+    bool replying = false;
+    uint32_t replyDest = 0;
+    uint8_t replyCh = 0;
+    char replyName[24] = {};
+
     void setup(Purpose p, int firstKey)
     {
         purpose = p;
+        replying = false;
         if (p == ED_MESSAGE)
             te.reset("", 200, TextEntry::CASE_SENTENCE);
         else if (p == ED_NAME)
@@ -97,7 +104,7 @@ class EditorApp : public App
         snprintf(right, sizeof(right), "%s %d", te.modeName(), limit() - te.length());
         char title[32];
         if (purpose == ED_MESSAGE)
-            snprintf(title, sizeof(title), "To %s", meshSendChannelName());
+            snprintf(title, sizeof(title), "To %s", replying ? replyName : meshSendChannelName());
         else
             snprintf(title, sizeof(title), "%s", purpose == ED_NAME ? "Your name" : purpose == ED_CUSTOM ? customTitle : "Tagline");
         drawTitle(d, x, y, title, right);
@@ -126,7 +133,7 @@ class EditorApp : public App
             }
             d->setTextAlignment(TEXT_ALIGN_LEFT);
         } else {
-            drawFooter(d, x, y, purpose == ED_MESSAGE ? "#send *del hold*quit" : "#ok *del hold*quit");
+            drawFooter(d, x, y, purpose == ED_MESSAGE ? "#send *del hold:*#" : "#ok *del hold:*#");
         }
     }
 
@@ -169,7 +176,10 @@ class EditorApp : public App
         strncpy(msg, te.text(), sizeof(msg));
         msg[sizeof(msg) - 1] = 0;
         appClose();
-        meshSendPrepare(); // to the channel picked in Mesh settings (primary unless changed)
+        if (replying)
+            meshSendPrepareTo(replyDest, replyCh);
+        else
+            meshSendPrepare(); // to the channel picked in Mesh settings (primary unless changed)
         keypadInjectText(msg, true); // Meshtastic sends it and keeps it in its history
         statsMessageSent();
     }
@@ -223,7 +233,16 @@ static EditorApp editor;
 
 void openCompose(int firstKey)
 {
-    editor.setup(EditorApp::ED_MESSAGE, firstKey);
+    openMessagesCompose(firstKey); // written under the conversation, like a phone
+}
+
+void openReply(uint32_t dest, uint8_t channel, const char *name)
+{
+    editor.setup(EditorApp::ED_MESSAGE, -1);
+    editor.replying = true;
+    editor.replyDest = dest;
+    editor.replyCh = channel;
+    snprintf(editor.replyName, sizeof(editor.replyName), "%s", name ? name : "?");
     appOpen(&editor);
 }
 
@@ -298,6 +317,13 @@ const char *nametagName()
     }
     // not typed in yet: follow the Meshtastic name (it may change in the phone app)
     return tagName[0] ? tagName : owner.long_name;
+}
+
+// has the wearer given the badge its own name? (vs. the untouched Meshtastic default)
+bool nametagNameSet()
+{
+    nametagName(); // make sure tagName is loaded
+    return tagName[0] != 0;
 }
 
 void nametagSetName(const char *text)

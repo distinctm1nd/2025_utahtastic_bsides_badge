@@ -1,0 +1,54 @@
+{
+  "name": "Smart home maker",
+  "title": "Smart home device",
+  "description": "Everyday smart-home brands (speakers, displays, lights, plugs, thermostats, locks, garage openers, robot vacuums, TV sticks), so they can be told apart from the things worth a closer look. Shown only: no alerts, not logged. Google only by its registered address ranges: its Bluetooth company IDs are also used by ordinary phones and fitness bands. Apple and Anker are left out for the same reason, and TP-Link and Xiaomi altogether (most of their address ranges are routers and phones; their devices still show the maker; Xiaomi's smart-home line is Aqara, which is in). Tuya has its own rule.",
+  "type": "auto",
+  "tag": [
+    "Smart Home"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^Amazon Technologies",
+        "^Google, Inc",
+        "^Nest Labs",
+        "^Signify",
+        "^Philips Lighting",
+        "^SONOS",
+        "^ecobee",
+        "^Shelly Europe",
+        "Meross",
+        "Intellirocks",
+        "^LIFI LABS",
+        "^Lumi United",
+        "^Belkin",
+        "^Lutron",
+        "^iRobot",
+        "^SmartThings",
+        "^Roku",
+        "Chamberlain",
+        "^August Home",
+        "^ASSA ABLOY"
+      ]
+    },
+    {
+      "mfg_org": [
+        "^Amazon\\.com Services",
+        "^Nest Labs",
+        "^Signify",
+        "^Sonos",
+        "^ecobee",
+        "^Allterco Robotics",
+        "^Lumi United",
+        "^Belkin",
+        "^Lutron",
+        "^iRobot",
+        "^Roku",
+        "Chamberlain",
+        "^August Home",
+        "^ASSA ABLOY",
+        "^Allegion"
+      ]
+    }
+  ]
+}

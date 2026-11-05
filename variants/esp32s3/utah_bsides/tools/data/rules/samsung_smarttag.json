@@ -1,0 +1,15 @@
+{
+  "name": "Samsung SmartTag",
+  "title": "Samsung SmartTag",
+  "type": "ble",
+  "tag": [
+    "Tracker"
+  ],
+  "criteria": [
+    {
+      "service": [
+        "FD5A"
+      ]
+    }
+  ]
+}

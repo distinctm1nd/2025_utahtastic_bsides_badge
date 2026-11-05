@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Utah BSides Badge</title>
+<style>
+:root{--bg:#111110;--card:#1b1a17;--fg:#f2ecde;--mut:#a39d8f;--acc:#d9a843;--gold2:#a97c26;--warn:#e8a33a;--bad:#e0573f;--line:#38332b;
+  --slab:Rockwell,"Rockwell Nova","Roboto Slab","American Typewriter","Courier New",serif;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif;min-height:100vh;
+  background-image:radial-gradient(1px 1px at 12% 18%,#fff8 50%,#0000),radial-gradient(1px 1px at 72% 9%,#fff7 50%,#0000),radial-gradient(1.5px 1.5px at 41% 33%,#fff6 50%,#0000),
+  radial-gradient(1px 1px at 88% 41%,#fff6 50%,#0000),radial-gradient(1px 1px at 27% 61%,#fff4 50%,#0000),radial-gradient(1px 1px at 63% 74%,#fff4 50%,#0000),radial-gradient(1px 1px at 6% 86%,#fff3 50%,#0000);
+  background-size:340px 340px;background-attachment:fixed}
+a{color:var(--acc)}code{color:var(--acc);font-size:.9em}
+header{position:relative;overflow:hidden;text-align:center;padding:18px 16px 0;background:linear-gradient(#0b0b0b,#1a1916)}
+header .moon{position:absolute;right:12%;top:16px;width:46px;height:46px;border-radius:50%;box-shadow:-9px 5px 0 0 var(--fg);transform:rotate(-20deg)}
+header .stars{position:absolute;inset:0;background-image:radial-gradient(1.5px 1.5px at 8% 20%,#fff 50%,#0000),radial-gradient(1px 1px at 22% 48%,#fffc 50%,#0000),radial-gradient(2px 2px at 64% 14%,#fff 50%,#0000),radial-gradient(1px 1px at 78% 60%,#fffa 50%,#0000),radial-gradient(1px 1px at 93% 34%,#fffc 50%,#0000),radial-gradient(1px 1px at 47% 70%,#fff8 50%,#0000),radial-gradient(1.5px 1.5px at 35% 12%,#fffa 50%,#0000)}
+header .raven{position:relative;display:block;width:150px;height:auto;margin:0 auto -4px;left:-18px}
+.sign{position:relative;display:inline-block;background:var(--fg);color:#14120f;font:900 1.55em/1 var(--slab);letter-spacing:.06em;padding:9px 26px 8px;
+  transform:rotate(-2deg);clip-path:polygon(1% 4%,99% 0,100% 92%,0 100%);text-transform:uppercase}
+.sign::before,.sign::after{content:"";position:absolute;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:#14120f}
+.sign::before{left:9px}.sign::after{right:9px}
+header p{position:relative;margin:10px 0 0;color:var(--mut);font-size:.85em}
+header svg{display:block;width:calc(100% + 32px);height:40px;margin:6px -16px 0}
+nav{display:flex;overflow-x:auto;gap:8px;padding:10px 12px;background:#1a1916;border-bottom:1px solid var(--line);scrollbar-width:none}
+nav button{flex:none;background:none;border:1.5px solid var(--gold2);color:var(--acc);border-radius:999px;padding:5px 14px;font:700 .92em var(--slab);letter-spacing:.03em}
+nav button.on{background:var(--acc);border-color:var(--acc);color:#14120f}
+main{padding:8px 16px 32px;max-width:720px;margin:auto}section{display:none}section.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin:14px 0;box-shadow:0 2px 0 #0006}
+.card>b:first-child{display:block;font:900 1.08em var(--slab);color:var(--acc);letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+label{display:block;margin:12px 0 4px;color:var(--mut);font-size:.9em}
+input[type=text],select,textarea{width:100%;padding:9px;border-radius:6px;border:1px solid var(--line);background:#0e0e0d;color:var(--fg);font:inherit}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--gold2);outline-offset:0}
+input[type=checkbox]{accent-color:var(--acc)}
+textarea{min-height:110px}
+button.go{background:var(--acc);color:#14120f;border:0;border-radius:999px;padding:9px 22px;font:900 1em var(--slab);letter-spacing:.04em;margin-top:12px;box-shadow:inset 0 -3px 0 var(--gold2)}
+button.go:active{box-shadow:none;transform:translateY(1px)}button.go:disabled{opacity:.4}
+button.sm{background:none;border:1px solid var(--gold2);color:var(--acc);border-radius:999px;padding:2px 10px;font:inherit}
+.warn{border-color:var(--warn);background:linear-gradient(#e8a33a14,#0000)}.warn>b:first-child{color:var(--warn)}
+.mut{color:var(--mut);font-size:.9em}.err{color:var(--bad)}.ok{color:var(--acc)}
+table{width:100%;border-collapse:collapse;font-size:.9em}td,th{text-align:left;padding:7px 4px;border-bottom:1px solid var(--line)}
+th{font:700 .85em var(--slab);color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.tag{display:inline-block;font:700 .75em var(--slab);padding:1px 7px;border-radius:999px;background:var(--acc);color:#14120f}
+.alert td{background:#e0573f22}
+.pics{display:flex;flex-wrap:wrap;gap:10px}.pic{background:#0e0e0d;border:1px solid var(--line);border-radius:6px;padding:6px;width:176px}
+.pic canvas{display:block;background:#000;width:160px;height:128px;image-rendering:pixelated}.pic div{font-size:.85em;margin-top:4px;word-break:break-all}
+progress{width:100%;accent-color:var(--acc)}
+#map{display:block;width:100%;aspect-ratio:1;background:#0e0e0d;border:1px solid var(--line);border-radius:50%;touch-action:none}
+footer{text-align:center;color:var(--mut);font:.8em var(--slab);letter-spacing:.08em;padding:0 16px 28px;text-transform:uppercase}
+footer svg{width:22px;height:22px;vertical-align:-5px;margin-right:6px}
+.live-row{cursor:pointer}.live-row:hover td{background:#ffffff14}
+input.search{width:100%;box-sizing:border-box;background:#0e0e0d;border:1px solid var(--line);color:var(--fg);border-radius:8px;padding:9px 12px;font:inherit;margin:4px 0 10px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#6a6;vertical-align:middle;margin-right:5px;box-shadow:0 0 6px #6a6}
+.dot.off{background:var(--bad);box-shadow:0 0 6px var(--bad)}
+#modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
+#modal.on{display:flex}
+#modal .box{background:#15140f;border:1px solid var(--gold2);border-radius:12px;max-width:440px;width:100%;max-height:85vh;overflow:auto;padding:16px}
+#modal h3{margin:0 0 4px;font-family:var(--slab)}
+#modal ul{margin:10px 0 0;padding:0;list-style:none}#modal li{padding:4px 0;border-bottom:1px solid var(--line);word-break:break-word}
+#offline{position:fixed;inset:0;background:#0b0b0bf2;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;z-index:30}
+#offline.on{display:flex}
+#offline h2{font-family:var(--slab);color:var(--bad);margin:0 0 8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="stars"></div><div class="moon"></div>
+  <img class="raven" src="raven.png" alt="">
+  <h1 class="sign">Utah BSides</h1>
+  <p><span class="dot" id="dot"></span><span id="info">connecting...</span></p>
+  <svg viewBox="0 0 400 46" preserveAspectRatio="none" aria-hidden="true"><path fill="#f2ecde" d="M0 46V34l30-14 18 8 34-22 20 12 14-6 40 26 26-16 22 9 38-25 24 15 16-6 30 20 22-10 28 12 18-4 20 9V46z"/></svg>
+</header>
+<nav id="tabs"></nav>
+<main>
+<section id="t-log">
+  <div class="card"><b>Sightings log and packet capture</b><p class="mut">Marked devices the fox hunt saw, plus packet captures (Fox hunt &rarr; Packet capture): <code>capture.pcap</code> (mesh LoRa), <code>wifi.pcap</code> (802.11) and <code>ble.pcap</code> (BLE adverts). Kept on the badge only. The mesh capture holds decrypted messages, including direct messages to you: treat it as private. Open them in Wireshark (the mesh one needs the <a href="https://github.com/exploiteers/Exploiteers-Wireshark-LoRa">Exploiteers Meshtastic plugin</a>, key set to empty).</p><div id="logfiles"></div></div>
+</section>
+
+<section id="t-pics">
+  <div class="card">
+    <b>Add pictures or GIFs</b>
+    <p class="mut">Converted here in your browser to the badge's 160 x 128 black-and-white screen. They show on the name tag after the built-in pictures.</p>
+    <input type="file" id="picfile" accept="image/*" multiple>
+    <label><input type="checkbox" id="picinv"> Invert (for pictures with light backgrounds)</label>
+    <div id="picprev" class="pics"></div>
+    <button class="go" id="picsend" disabled>Upload to the badge</button>
+    <p id="picmsg"></p>
+  </div>
+  <div class="card"><b>On the badge</b><p class="mut" id="picfree"></p><div id="piclist"></div></div>
+</section>
+
+<section id="t-set">
+  <div class="card" id="setform">
+    <label>Name on the name tag</label><input type="text" id="s-name" maxlength="40">
+    <label>Tagline (second line, optional)</label><input type="text" id="s-tagline" maxlength="60">
+    <label>Name font</label><select id="s-font"></select>
+    <label>Name size</label><select id="s-size"></select>
+    <label><input type="checkbox" id="s-scroll"> Scroll long names on one line (off = two lines)</label>
+    <label>Show at startup</label><select id="s-startup"></select>
+    <label>Lock screen shows</label><select id="s-lockpic"></select>
+    <label>Lights</label><select id="s-scene"></select>
+    <label>Light speed</label><select id="s-speed"></select>
+    <label>Brightness</label><select id="s-bright"></select>
+    <label>LEDs while the screen sleeps</label><select id="s-ledoff"></select>
+    <label>Screen colour</label><select id="s-colour"></select>
+    <label>Time zone</label><select id="s-tz"></select>
+    <label><input type="checkbox" id="s-night"> Night mode (red screen, dim lights)</label>
+    <label><input type="checkbox" id="s-tagawake"> Name tag and lock screen keep the screen on</label>
+    <label><input type="checkbox" id="s-welcome"> Welcome tips at startup</label>
+    <label><input type="checkbox" id="s-home"> Home screen: badge tiles (off = Meshtastic pages)</label>
+    <label><input type="checkbox" id="s-remote"> Accept <code>!commands</code> by direct message</label>
+    <label>Canned messages (one per line; hold a digit on the badge to send)</label><textarea id="s-canned" spellcheck="false"></textarea>
+    <label>QR code: Link (the "Link" card in QR code)</label><input type="text" id="s-qrlink" maxlength="199" placeholder="https://...">
+    <label>QR code: Text (the "Text" card)</label><input type="text" id="s-qrtext" maxlength="199">
+    <label>Bluetooth remote macros (one per line, <code>name: body</code>; in the body \n=Enter \t=Tab \d=pause)</label><textarea id="s-macros" spellcheck="false" placeholder="wifi: Join SSID BSides\nhello: Hi from my badge\n"></textarea>
+    <button class="go" id="setsave">Save to the badge</button><p id="setmsg"></p>
+  </div>
+</section>
+
+<section id="t-msg">
+  <div class="card warn">
+    <b>Before you type</b>
+    <p>Your phone's keyboard app may keep or upload what you type (suggestions, cloud sync); the badge can't stop that.</p>
+    <p>A message to everyone on the channel can be read by anyone with a Meshtastic radio (the default channel key is public). A direct message is encrypted to that person. Don't send anything you'd mind others seeing.</p>
+  </div>
+  <div class="card">
+    <label>To</label><select id="m-to"></select>
+    <label>Message</label>
+    <textarea id="m-text" maxlength="200" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-gramm="false" data-lpignore="true"></textarea>
+    <p class="mut"><span id="m-len">0</span> / 200 bytes</p>
+    <button class="go" id="m-send">Send from the badge</button><p id="m-msg"></p>
+  </div>
+</section>
+
+<section id="t-live">
+  <div class="card"><b>Bluetooth around the badge</b><p class="mut">Live from the badge (WiFi can't be scanned while the badge is this network). Marked ones first. Tap a device to explore it.</p>
+  <input class="search" id="livefind" placeholder="Search name, maker, address or mark...">
+  <table><thead><tr><th>Device</th><th>dBm</th><th>Mark</th></tr></thead><tbody id="live"></tbody></table></div>
+</section>
+
+<section id="t-home">
+  <div class="card"><b>Home tiles</b><p class="mut">The order the app tiles appear on the badge's home screen. Move them with the arrows, then Save.</p>
+  <div id="tiles"></div>
+  <button class="go" id="tilesave">Save tile order</button><p id="tilemsg"></p></div>
+  <div class="card"><b>Shortcuts (hold a number)</b><p class="mut">What each number key does when you hold it on the badge.</p>
+  <div id="scuts"></div>
+  <button class="go" id="scutsave">Save shortcuts</button><p id="scutmsg"></p></div>
+</section>
+
+<section id="t-rules">
+  <div class="card"><b>Your scan rules</b><p class="mut">Mark devices in the badge's WiFi and Bluetooth scans with your own rules. They work straight away, no update needed, and come before the built-in rules. The pattern matches anywhere in the name, ignoring capitals (an address must start with it).</p>
+  <table><thead><tr><th>Match</th><th>Mark</th><th></th></tr></thead><tbody id="rules"></tbody></table></div>
+  <div class="card"><b>Add a rule</b>
+    <label>Match</label><select id="r-kind"><option value="btname">Bluetooth device name contains</option><option value="wifiname">WiFi network name contains</option><option value="maker">Maker name contains</option><option value="address">Address starts with (AA:BB:CC)</option></select>
+    <label>Pattern</label><input type="text" id="r-pattern" maxlength="40" autocomplete="off" spellcheck="false">
+    <label>What it is (shown on the badge)</label><input type="text" id="r-title" maxlength="40" autocomplete="off">
+    <label>Mark</label><select id="r-code"><option value="SURV">SURV surveillance (alerts)</option><option value="POL">POL police gear (alerts)</option><option value="CAM">CAM camera (alerts)</option><option value="TAG">TAG tracker (alerts)</option><option value="SKIM">SKIM skimmer (alerts)</option><option value="ATK">ATK attack (alerts)</option><option value="DRON">DRON drone (alerts)</option><option value="HOME">HOME smart home (label only)</option><option value="NOTE">NOTE a note (label only)</option></select>
+    <button class="go" id="r-add">Add to the badge</button><p id="r-msg"></p>
+  </div>
+</section>
+
+<section id="t-map">
+  <div class="card"><b>Nodes around the badge</b><p class="mut">Positions the nodes share over the mesh, north up, badge in the middle. No map tiles: your phone has no internet while it's on the badge's WiFi. Tap a dot for its name.</p>
+  <canvas id="map" width="600" height="600"></canvas><p id="mapmsg" class="mut"></p>
+  <table><thead><tr><th>Node</th><th>Distance</th><th>Heard</th></tr></thead><tbody id="maplist"></tbody></table></div>
+</section>
+
+<section id="t-bak">
+  <div class="card"><b>Backup</b><p class="mut">Badge settings (name tag, lights, screen, canned messages). Meshtastic's own settings and keys are not included.</p>
+  <button class="go" id="bakget">Download settings</button></div>
+  <div class="card"><b>Restore</b><input type="file" id="bakfile" accept=".json,application/json"><button class="go" id="bakput" disabled>Restore to the badge</button><p id="bakmsg"></p></div>
+</section>
+
+<section id="t-upd">
+  <div class="card"><b>Firmware update</b>
+  <p class="mut">Choose the <code>firmware-utah_bsides-....update.bin</code> file from a badge release. The badge only installs updates signed by the badge team, and asks you to press <b>#</b> on the badge before switching.</p>
+  <p id="u-ver"></p>
+  <input type="file" id="u-file" accept=".bin"><button class="go" id="u-send" disabled>Send to the badge</button>
+  <progress id="u-prog" max="100" value="0" hidden></progress><p id="u-msg"></p></div>
+</section>
+</main>
+<footer><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#a39d8f" d="M12 2C6.5 2 3 5.6 3 10.2c0 2.7 1.3 4.6 3 5.7V19c0 .6.4 1 1 1h1.5v-2h1.5v2h4v-2h1.5v2H17c.6 0 1-.4 1-1v-3.1c1.7-1.1 3-3 3-5.7C21 5.6 17.5 2 12 2zm-3.5 12a2.3 2.3 0 110-4.6 2.3 2.3 0 010 4.6zm3.5 2.5l-1.2-2h2.4zm3.5-2.5a2.3 2.3 0 110-4.6 2.3 2.3 0 010 4.6z"/></svg>Utah BSides &middot; the mesh is watching</footer>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const TABS=[["home","Home"],["log","Sightings"],["pics","Pictures"],["set","Settings"],["msg","Message"],["live","Live"],["map","Map"],["rules","Rules"],["bak","Backup"],["upd","Update"]];
+let info={},liveTimer=0;
+function show(t){for(const[k]of TABS){$("t-"+k).classList.toggle("on",k===t);$("b-"+k).classList.toggle("on",k===t)}$("b-"+t).scrollIntoView({block:"nearest",inline:"nearest"});
+  clearInterval(liveTimer);if(t==="live"){live();liveTimer=setInterval(live,2000)}if(t==="map"){loadMap();liveTimer=setInterval(loadMap,15000)}if(t==="pics")loadPics();if(t==="rules")loadRules();if(t==="home")loadHome();if(t==="set")loadSettings();if(t==="msg")loadNodes();if(t==="log")loadLog()}
+for(const[k,n]of TABS){const b=document.createElement("button");b.id="b-"+k;b.textContent=n;b.onclick=()=>show(k);$("tabs").appendChild(b)}
+const api=(u,o)=>fetch(u,o).then(r=>r.ok?r.json():r.text().then(t=>{throw new Error(t||r.statusText)}));
+const post=(u,fields)=>api(u,{method:"POST",body:new URLSearchParams(fields)});
+// the browser's time zone as a POSIX TZ string (with its daylight-saving rule), for the badge
+function posixTZ(){const y=new Date().getFullYear(),off=t=>new Date(t).getTimezoneOffset();
+  const jan=off(new Date(y,0,1)),jul=off(new Date(y,6,1)),std=Math.max(jan,jul),dst=Math.min(jan,jul);
+  const hm=m=>{const s=m<0?"-":"",a=Math.abs(m);return s+Math.floor(a/60)+(a%60?":"+String(a%60).padStart(2,"0"):"")};
+  const nm=m=>{const a=Math.abs(m);return "<"+(m>0?"-":"+")+String(Math.floor(a/60)).padStart(2,"0")+(a%60?String(a%60).padStart(2,"0"):"")+">"};
+  if(jan===jul)return nm(std)+hm(std);
+  const rule=t=>{const before=off(t-60000),d=new Date(t-before*60000),dd=d.getUTCDate(),mdays=new Date(Date.UTC(y,d.getUTCMonth()+1,0)).getUTCDate();
+    const wk=dd+7>mdays?5:Math.ceil(dd/7);return "M"+(d.getUTCMonth()+1)+"."+wk+"."+d.getUTCDay()+"/"+d.getUTCHours()+(d.getUTCMinutes()?":"+String(d.getUTCMinutes()).padStart(2,"0"):"")};
+  const changes=[];let t=new Date(y,0,1).getTime(),o=off(t);
+  for(let i=0;i<366&&changes.length<2;i++){const n=t+86400000;if(off(n)!==o){let a=t,b=n;while(b-a>60000){const m=Math.floor((a+b)/2/60000)*60000;if(off(m)===o)a=m;else b=m}changes.push([b,off(b)]);o=off(n)}t=n}
+  if(changes.length<2)return nm(std)+hm(std);
+  const on=changes.find(c=>c[1]===dst),offc=changes.find(c=>c[1]===std);
+  return "LST"+hm(std)+"LDT"+(std-dst===60?"":hm(dst))+","+rule(on[0])+","+rule(offc[0])}
+let tz="";try{tz=posixTZ()}catch(e){}
+post("/api/time",tz?{t:Math.floor(Date.now()/1000),tz}:{t:Math.floor(Date.now()/1000)}).catch(()=>{}); // the badge has no clock of its own
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function say(id,text,bad){$(id).textContent=text;$(id).className=bad?"err":"ok"}
+
+api("/api/info").then(i=>{info=i;$("info").textContent=`${i.node} - firmware ${i.version}`;
+  $("u-ver").textContent=i.ota?`Running ${i.version}.`:"WiFi updates aren't set up in this firmware; update over USB.";show("log")}).catch(e=>$("info").textContent="Can't reach the badge: "+e.message);
+
+// ---- heartbeat: show clearly when the badge stops serving this page ----
+let misses=0;
+function ping(){const c=new AbortController(),t=setTimeout(()=>c.abort(),3500);
+  fetch("/api/info",{signal:c.signal}).then(r=>{clearTimeout(t);if(!r.ok)throw 0;misses=0;$("dot").classList.remove("off");$("offline").classList.remove("on")})
+    .catch(()=>{clearTimeout(t);if(++misses>=2){$("dot").classList.add("off");$("offline").classList.add("on")}})}
+setInterval(ping,4000);
+
+// ---- sightings ----
+function loadLog(){api("/api/log").then(l=>{$("logfiles").innerHTML=l.files.length?l.files.map(f=>`<p><a href="/${f.name}" download>${f.name}</a> <span class="mut">${Math.ceil(f.size/1024)} KB</span></p>`).join(""):"<p class='mut'>Nothing logged yet.</p>"})}
+
+// ---- pictures: GIF decoding and conversion to the badge format ----
+function lzw(data,minCode,n){const out=new Uint8Array(n),clear=1<<minCode,eoi=clear+1,prefix=new Int16Array(4096),suffix=new Uint8Array(4096),first=new Uint8Array(4096),stack=new Uint8Array(4097);
+  for(let i=0;i<clear;i++){prefix[i]=-1;suffix[i]=i;first[i]=i}
+  let size=minCode+1,mask=(1<<size)-1,next=eoi+1,prev=-1,bits=0,acc=0,op=0,pos=0;
+  while(op<n){while(bits<size){if(pos>=data.length)return out;acc|=data[pos++]<<bits;bits+=8}
+    const code=acc&mask;acc>>>=size;bits-=size;
+    if(code===clear){size=minCode+1;mask=(1<<size)-1;next=eoi+1;prev=-1;continue}
+    if(code===eoi)break;
+    if(prev<0){out[op++]=suffix[code];prev=code;continue}
+    if(code>next)break;
+    const fc=code<next?first[code]:first[prev];
+    if(next<4096){prefix[next]=prev;suffix[next]=fc;first[next]=first[prev];next++;if(next>mask&&size<12){size++;mask=(1<<size)-1}}
+    let c=code,sp=0;while(c>=0&&sp<4096){stack[sp++]=suffix[c];c=prefix[c]}
+    while(sp>0&&op<n)out[op++]=stack[--sp];prev=code}
+  return out}
+function decodeGif(b){let p=6;const u8=()=>b[p++],u16=()=>{const v=b[p]|b[p+1]<<8;p+=2;return v};
+  const W=u16(),H=u16(),f=u8();p+=2;let gct=null;if(f&128){const n=3*(1<<((f&7)+1));gct=b.subarray(p,p+n);p+=n}
+  const cv=new Uint8ClampedArray(W*H*4),frames=[],delays=[];let g={disp:0,trans:-1,delay:100},firstDelay=0;
+  while(p<b.length){const t=u8();if(t===0x3B)break;
+    if(t===0x21){const label=u8();if(label===0xF9){u8();const pf=u8(),d=u16(),ti=u8();u8();g={disp:pf>>2&7,trans:pf&1?ti:-1,delay:d*10||100}}else{let s;while((s=u8()))p+=s}continue}
+    if(t!==0x2C)break;
+    const x=u16(),y=u16(),w=u16(),h=u16(),ff=u8();let ct=gct;if(ff&128){const n=3*(1<<((ff&7)+1));ct=b.subarray(p,p+n);p+=n}
+    const minCode=u8(),parts=[];let s,total=0;while((s=u8())){parts.push(b.subarray(p,p+s));p+=s;total+=s}
+    const data=new Uint8Array(total);let o=0;for(const q of parts){data.set(q,o);o+=q.length}
+    const idx=lzw(data,minCode,w*h),saved=g.disp===3?cv.slice():null;
+    const rows=[];if(ff&64){for(const[st,stp]of[[0,8],[4,8],[2,4],[1,2]])for(let r=st;r<h;r+=stp)rows.push(r)}else for(let r=0;r<h;r++)rows.push(r);
+    for(let i=0;i<w*h;i++){const ci=idx[i];if(ci===g.trans||!ct)continue;const px=x+i%w,py=y+rows[(i/w)|0];if(px>=W||py>=H)continue;const q=(py*W+px)*4;cv[q]=ct[ci*3];cv[q+1]=ct[ci*3+1];cv[q+2]=ct[ci*3+2];cv[q+3]=255}
+    frames.push(new ImageData(cv.slice(),W,H));delays.push(g.delay);if(!firstDelay)firstDelay=g.delay;
+    if(g.disp===2)for(let r=y;r<y+h&&r<H;r++)for(let c=x;c<x+w&&c<W;c++)cv.fill(0,(r*W+c)*4,(r*W+c)*4+4);
+    else if(saved)cv.set(saved);
+    g={disp:0,trans:-1,delay:100}}
+  return{frames,delays,delay:firstDelay||100}}
+function loadImage(file){return new Promise((ok,bad)=>{const im=new Image();im.onload=()=>{const c=document.createElement("canvas");c.width=im.naturalWidth;c.height=im.naturalHeight;const x=c.getContext("2d");x.drawImage(im,0,0);ok(x.getImageData(0,0,c.width,c.height))};im.onerror=()=>bad(new Error("can't read "+file.name));im.src=URL.createObjectURL(file)})}
+function toBits(frame,invert){const src=document.createElement("canvas");src.width=frame.width;src.height=frame.height;src.getContext("2d").putImageData(frame,0,0);
+  const sc=Math.min(160/frame.width,128/frame.height),w=Math.max(1,Math.floor(frame.width*sc)),h=Math.max(1,Math.floor(frame.height*sc));
+  const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.fillStyle="#000";x.fillRect(0,0,w,h);x.imageSmoothingQuality="high";x.drawImage(src,0,0,w,h);
+  const px=x.getImageData(0,0,w,h).data,g=new Float32Array(w*h),hist=new Uint32Array(256);
+  for(let i=0;i<w*h;i++){const v=Math.round(px[i*4]*.299+px[i*4+1]*.587+px[i*4+2]*.114);g[i]=v;hist[v]++}
+  let lo=0,hi=255,cut=w*h*.01,acc=0;for(;lo<255&&(acc+=hist[lo])<=cut;lo++);acc=0;for(;hi>0&&(acc+=hist[hi])<=cut;hi--);
+  for(let i=0;i<w*h;i++){let v=hi>lo?(g[i]-lo)*255/(hi-lo):g[i];v=Math.min(255,Math.max(0,v));g[i]=invert?255-v:v}
+  const stride=(w+7)>>3,out=new Uint8Array(stride*h);
+  for(let yy=0;yy<h;yy++)for(let xx=0;xx<w;xx++){const i=yy*w+xx,old=g[i],nv=old<128?0:255,e=old-nv;if(nv)out[yy*stride+(xx>>3)]|=1<<(xx&7);
+    if(xx+1<w)g[i+1]+=e*7/16;if(yy+1<h){if(xx>0)g[i+w-1]+=e*3/16;g[i+w]+=e*5/16;if(xx+1<w)g[i+w+1]+=e/16}}
+  return{w,h,bits:out}}
+function packbits(d){const out=[];let i=0;const n=d.length;
+  while(i<n){let run=1;while(i+run<n&&run<128&&d[i+run]===d[i])run++;
+    if(run>=3){out.push(257-run,d[i]);i+=run;continue}
+    let j=i;while(j<n&&j-i<128){if(j+2<n&&d[j]===d[j+1]&&d[j]===d[j+2])break;j++}
+    out.push(j-i-1);for(let k=i;k<j;k++)out.push(d[k]);i=j}
+  return out}
+async function convert(file,invert){const buf=new Uint8Array(await file.arrayBuffer());let frames,delays=[100];
+  if(buf[0]===71&&buf[1]===73&&buf[2]===70)({frames,delays}=decodeGif(buf));else frames=[await loadImage(file)];
+  if(!frames.length)throw new Error("no pictures in "+file.name);
+  const step=Math.max(1,Math.ceil(frames.length/24)),times=[];
+  for(let i=0;i<frames.length;i+=step)times.push(delays.slice(i,i+step).reduce((a,b)=>a+(b||100),0));
+  frames=frames.filter((_,i)=>i%step===0).slice(0,24);
+  // the badge shows every frame for the same time: repeat slow frames so pauses keep their timing
+  let delay=Math.max(40,Math.min(...times));while(times.reduce((a,t)=>a+Math.max(1,Math.round(t/delay)),0)>96)delay+=10;
+  frames=frames.flatMap((f,i)=>Array(Math.max(1,Math.round(times[i]/delay))).fill(f));
+  let prev=null,w=0,h=0;const data=[],shown=[];
+  for(const f of frames){const r=toBits(f,invert);w=r.w;h=r.h;shown.push(r.bits);const delta=prev?r.bits.map((v,i)=>v^prev[i]):r.bits;data.push(...packbits(delta));prev=r.bits}
+  const name=file.name.replace(/\.[^.]*$/,"").replace(/[^\x20-\x7e]/g,"_").slice(0,24),ms=Math.max(40,Math.min(5000,delay));
+  const head=new Uint8Array(36);head.set([66,80,73,49]);const dv=new DataView(head.buffer);dv.setUint16(4,w,true);dv.setUint16(6,h,true);dv.setUint16(8,frames.length,true);dv.setUint16(10,ms,true);
+  for(let i=0;i<name.length;i++)head[12+i]=name.charCodeAt(i);
+  const file2=new Uint8Array(36+data.length);file2.set(head);file2.set(data,36);
+  return{name,w,h,frames:frames.length,ms,bytes:file2,first:shown[0]}}
+function preview(r){const d=document.createElement("div");d.className="pic";const c=document.createElement("canvas");c.width=160;c.height=128;const x=c.getContext("2d"),im=x.createImageData(160,128),ox=(160-r.w)>>1,oy=(128-r.h)>>1,st=(r.w+7)>>3;
+  for(let y=0;y<r.h;y++)for(let xx=0;xx<r.w;xx++)if(r.first[y*st+(xx>>3)]>>(xx&7)&1){const q=((y+oy)*160+xx+ox)*4;im.data[q]=im.data[q+1]=im.data[q+2]=255;im.data[q+3]=255}
+  for(let q=3;q<im.data.length;q+=4)if(!im.data[q])im.data[q]=255;x.putImageData(im,0,0);d.appendChild(c);
+  const t=document.createElement("div");t.textContent=`${r.name} - ${r.frames} frame${r.frames>1?"s":""}, ${Math.ceil(r.bytes.length/1024)} KB`;d.appendChild(t);return d}
+let converted=[];
+async function reconvert(){const files=[...$("picfile").files];$("picprev").innerHTML="";converted=[];$("picsend").disabled=true;
+  for(const f of files){try{const r=await convert(f,$("picinv").checked);converted.push(r);$("picprev").appendChild(preview(r))}catch(e){say("picmsg",e.message,1)}}
+  $("picsend").disabled=!converted.length}
+$("picfile").onchange=reconvert;$("picinv").onchange=reconvert;
+$("picsend").onclick=async()=>{$("picsend").disabled=true;for(const r of converted){const fd=new FormData();fd.append("f",new Blob([r.bytes]),"p.bpi");
+  try{await api("/api/pics",{method:"POST",body:fd});say("picmsg","Uploaded "+r.name)}catch(e){say("picmsg",r.name+": "+e.message,1);break}}
+  converted=[];$("picprev").innerHTML="";$("picfile").value="";loadPics()};
+function loadPics(){api("/api/pics").then(l=>{$("picfree").textContent=`${Math.floor(l.free/1024)} KB free on the badge`;
+  const nf=l.pics.filter(p=>p.fav).length;
+  $("piclist").innerHTML=`<p class="mut">&#9733; favorite: the lock screen's "Cycle: favorites" shows only these (${nf} marked${nf?"":", so it cycles them all"}).</p>`+l.pics.map(p=>`<p><button class="sm" title="Favorite" onclick='picFav(${JSON.stringify(p.name).replace(/'/g,"&#39;")},${p.fav?0:1})'>${p.fav?"&#9733;":"&#9734;"}</button> ${esc(p.name)} ${p.builtin?"<span class='mut'>(built in)</span>":`<button class="sm" onclick="picOp('move',${p.i},-1)">&#9650;</button> <button class="sm" onclick="picOp('move',${p.i},1)">&#9660;</button> <button class="sm" onclick="picOp('delete',${p.i})">Delete</button>`}</p>`).join("")||"<p class='mut'>None yet.</p>"})}
+window.picFav=(name,on)=>post("/api/pics/fav",{name,on}).then(loadPics).catch(e=>say("picmsg",e.message,1));
+window.picOp=(op,i,d)=>{if(op==="delete"&&!confirm("Delete this picture from the badge?"))return;post("/api/pics/"+op,{i,d:d||0}).then(loadPics).catch(e=>say("picmsg",e.message,1))};
+
+// ---- settings / backup ----
+const FIELDS=["name","tagline","font","size","startup","lockpic","scene","speed","bright","ledoff","colour","tz","scroll","night","tagawake","welcome","home","remote","canned","qrlink","qrtext","macros"];
+function fill(sel,list,val){$(sel).innerHTML=list.map((n,i)=>`<option value="${typeof n==="object"?esc(n.v):i}">${esc(typeof n==="object"?n.n:n)}</option>`).join("");$(sel).value=val}
+function loadSettings(){api("/api/settings").then(s=>{$("s-name").value=s.name;$("s-tagline").value=s.tagline;fill("s-font",s.fonts,s.font);fill("s-size",s.sizes,s.size);
+  fill("s-startup",s.startups,s.startup);fill("s-lockpic",s.lockpics,s.lockpic);fill("s-scene",s.scenes,s.scene);fill("s-speed",s.speeds,s.speed);fill("s-bright",s.brights,s.bright);fill("s-ledoff",s.ledoffs,s.ledoff);fill("s-colour",s.colours,s.colour);fill("s-tz",s.tzs,s.tz);
+  $("s-scroll").checked=s.scroll;$("s-night").checked=s.night;$("s-tagawake").checked=s.tagawake;$("s-welcome").checked=s.welcome;$("s-home").checked=s.home;$("s-remote").checked=s.remote;$("s-canned").value=s.canned.split("|").join("\n");$("s-qrlink").value=s.qrlink||"";$("s-qrtext").value=s.qrtext||"";$("s-macros").value=s.macros||""})}
+function formValues(){const v={};for(const f of FIELDS){const e=$("s-"+f);v[f]=e.type==="checkbox"?(e.checked?1:0):e.value}v.canned=v.canned.split("\n").map(s=>s.trim()).filter(Boolean).join("|");return v}
+$("setsave").onclick=()=>post("/api/settings",formValues()).then(()=>say("setmsg","Saved")).catch(e=>say("setmsg",e.message,1));
+$("bakget").onclick=()=>api("/api/settings").then(s=>{const keep={};for(const f of FIELDS)keep[f]=s[f];const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(keep,null,1)],{type:"application/json"}));a.download="badge-settings.json";a.click()});
+$("bakfile").onchange=()=>$("bakput").disabled=!$("bakfile").files.length;
+$("bakput").onclick=async()=>{try{const s=JSON.parse(await $("bakfile").files[0].text()),v={};for(const f of FIELDS)if(f in s)v[f]=typeof s[f]==="boolean"?(s[f]?1:0):s[f];await post("/api/settings",v);say("bakmsg","Restored")}catch(e){say("bakmsg",e.message,1)}};
+
+// ---- message ----
+function loadNodes(){api("/api/nodes").then(l=>{$("m-to").innerHTML=`<option value="all">Everyone on the channel (not private)</option>`+l.map(n=>`<option value="${n.num}">${esc(n.name)} (direct, encrypted)</option>`).join("")})}
+$("m-text").oninput=()=>{$("m-len").textContent=new TextEncoder().encode($("m-text").value).length};
+$("m-send").onclick=()=>{const t=$("m-text").value.trim();if(!t)return;if(new TextEncoder().encode(t).length>200)return say("m-msg","Too long (200 bytes at most)",1);
+  post("/api/message",{to:$("m-to").value,text:t}).then(()=>{say("m-msg","Sent");$("m-text").value="";$("m-len").textContent=0}).catch(e=>say("m-msg",e.message,1))};
+
+// ---- live ----
+let liveList=[];
+function renderLive(){const q=$("livefind").value.trim().toLowerCase();
+  const rows=liveList.filter(d=>!q||[d.name,d.maker,d.addr,d.code,d.title].some(s=>String(s||"").toLowerCase().includes(q)));
+  $("live").innerHTML=rows.map(d=>`<tr class="live-row ${d.alert?"alert":""}" onclick="explore('${d.addr}',${d.pub?1:0})"><td>${esc(d.name||"(no name)")}<br><span class="mut">${esc(d.maker)} ${esc(d.addr)}</span></td><td>${d.rssi}</td><td>${d.code?`<span class="tag">${esc(d.code)}</span> ${esc(d.title)}${d.min?` (${d.min} min)`:""}`:""}</td></tr>`).join("")
+    ||`<tr><td colspan=3 class='mut'>${liveList.length?"No match.":"Listening..."}</td></tr>`}
+function live(){api("/api/hunt").then(l=>{liveList=l;renderLive()}).catch(e=>{$("live").innerHTML=`<tr><td colspan=3 class="err">${esc(e.message)}</td></tr>`})}
+$("livefind").oninput=renderLive;
+
+// ---- explore one Bluetooth device from the page (read only; same as the badge's "Explore") ----
+let exTimer=0;
+window.explore=(addr,pub)=>{clearInterval(exTimer);
+  const d=liveList.find(x=>x.addr===addr)||{};
+  $("mx-title").textContent=d.name||d.maker||addr;$("mx-status").textContent="Connecting...";$("mx-lines").innerHTML="";$("modal").classList.add("on");
+  post("/api/explore",{addr,pub}).then(()=>{exTimer=setInterval(()=>{
+    api("/api/explore").then(r=>{$("mx-status").textContent=r.status||(r.state==="busy"?"Reading...":"");
+      $("mx-lines").innerHTML=r.lines.map(x=>`<li>${esc(x)}</li>`).join("");
+      if(r.state!=="busy")clearInterval(exTimer)}).catch(()=>{})},700)})
+    .catch(e=>{$("mx-status").textContent=e.message})};
+$("mx-close").onclick=()=>{clearInterval(exTimer);$("modal").classList.remove("on")};
+$("modal").onclick=e=>{if(e.target.id==="modal"){clearInterval(exTimer);$("modal").classList.remove("on")}};
+
+// ---- rules ----
+function loadRules(){api("/api/rules").then(l=>{$("rules").innerHTML=l.map((r,i)=>`<tr><td>${esc({btname:"BT name",wifiname:"WiFi name",maker:"Maker",address:"Address"}[r.kind])}: <b>${esc(r.pattern)}</b><br><span class="mut">${esc(r.title)}</span></td><td><span class="tag">${esc(r.code)}</span></td><td><button class="sm" onclick="delRule(${i})">Delete</button></td></tr>`).join("")||"<tr><td colspan=3 class='mut'>None yet.</td></tr>"}).catch(e=>say("r-msg",e.message,1))}
+function delRule(i){post("/api/rules/delete",{i}).then(loadRules).catch(e=>say("r-msg",e.message,1))}
+let tileOrder=[],scOpts=[];
+function loadHome(){
+  api("/api/tiles").then(d=>{tileOrder=d.tiles;drawTiles()});
+  api("/api/shortcuts").then(d=>{scOpts=d.options;drawScuts(d.slots)});
+}
+function drawTiles(){
+  $("tiles").innerHTML=tileOrder.map((t,i)=>`<p>${esc(t.label)} <button class="sm" onclick="moveTile(${i},-1)">&#9650;</button> <button class="sm" onclick="moveTile(${i},1)">&#9660;</button></p>`).join("");
+}
+window.moveTile=(i,d)=>{const j=i+d;if(j<0||j>=tileOrder.length)return;const t=tileOrder[i];tileOrder[i]=tileOrder[j];tileOrder[j]=t;drawTiles()};
+$("tilesave").onclick=()=>post("/api/tiles",{ids:tileOrder.map(t=>t.id).join(" ")}).then(()=>say("tilemsg","Saved")).catch(e=>say("tilemsg",e.message,1));
+function drawScuts(slots){
+  const opt=sel=>scOpts.map(o=>`<option value="${o.id}"${o.id===sel?" selected":""}>${esc(o.label)}</option>`).join("");
+  let h="";
+  for(let n=0;n<10;n++){const key=n===9?"0":String(n+1);h+=`<p>Hold ${key}: <select id="sc${n}">${opt(slots[n])}</select></p>`}
+  $("scuts").innerHTML=h;
+}
+$("scutsave").onclick=async()=>{try{for(let n=0;n<10;n++)await post("/api/shortcuts",{n,id:$("sc"+n).value});say("scutmsg","Saved")}catch(e){say("scutmsg",e.message,1)}};
+$("r-add").onclick=()=>post("/api/rules",{kind:$("r-kind").value,pattern:$("r-pattern").value.trim(),title:$("r-title").value.trim(),code:$("r-code").value}).then(()=>{say("r-msg","Added");$("r-pattern").value="";$("r-title").value="";loadRules()}).catch(e=>say("r-msg",e.message,1));
+
+// ---- map ----
+let mapData=null,mapPick=-1,mapDots=[];
+const dist=m=>m<0?"?":m<1000?m+" m":m<10000?(m/1000).toFixed(1)+" km":Math.round(m/1000)+" km";
+const ago=s=>!s?"?":s<3600?Math.round(s/60)+" min ago":Math.round(s/3600)+" h ago";
+const DIRS=["N","NE","E","SE","S","SW","W","NW"];
+function loadMap(){api("/api/positions").then(d=>{mapData=d;drawMap()}).catch(e=>say("mapmsg",e.message,1))}
+function drawMap(){const d=mapData,c=$("map"),g=c.getContext("2d"),W=c.width,cx=W/2,R=W/2-28,css=getComputedStyle(document.body);
+  const fg=css.getPropertyValue("--fg"),mut=css.getPropertyValue("--mut"),acc=css.getPropertyValue("--acc"),line=css.getPropertyValue("--line");
+  g.clearRect(0,0,W,W);mapDots=[];
+  $("maplist").innerHTML=d.nodes.map((n,i)=>`<tr onclick="mapPick=${i};drawMap()"><td>${esc(n.name)}${n.hops>=0?`<br><span class="mut">${n.hops?n.hops+" hop"+(n.hops>1?"s":""):"direct"}</span>`:""}</td><td>${d.me?dist(n.dist)+" "+DIRS[Math.round(n.bearing/45)%8]:`${n.lat.toFixed(4)}, ${n.lon.toFixed(4)}`}</td><td>${ago(n.age)}</td></tr>`).join("")||"<tr><td colspan=3 class='mut'>No node has shared its position yet.</td></tr>";
+  if(!d.me){$("mapmsg").textContent="The badge doesn't know where it is. In the Meshtastic app, share the phone's location with the badge or set a fixed position; until then only the list works.";return}
+  $("mapmsg").textContent="";
+  const far=Math.max(100,...d.nodes.map(n=>n.dist)),step=[100,250,500,1e3,2e3,5e3,1e4,25e3,5e4,1e5,25e4,5e5,1e6].find(v=>v>=far)||far;
+  g.strokeStyle=line;g.fillStyle=mut;g.font="20px system-ui";g.textAlign="left";
+  for(const f of[.25,.5,.75,1]){g.beginPath();g.arc(cx,cx,R*f,0,7);g.stroke();g.fillText(dist(Math.round(step*f)),cx+R*f*.71+4,cx-R*f*.71)}
+  g.beginPath();g.moveTo(cx,cx-R);g.lineTo(cx,cx+R);g.moveTo(cx-R,cx);g.lineTo(cx+R,cx);g.stroke();
+  g.textAlign="center";g.fillStyle=fg;g.fillText("N",cx,22);
+  g.fillStyle=acc;g.beginPath();g.arc(cx,cx,8,0,7);g.fill();
+  d.nodes.forEach((n,i)=>{const r=R*Math.min(1,n.dist/step),a=n.bearing*Math.PI/180,x=cx+r*Math.sin(a),y=cx-r*Math.cos(a);mapDots.push([x,y,i]);
+    g.fillStyle=i===mapPick?acc:fg;g.beginPath();g.arc(x,y,i===mapPick?9:6,0,7);g.fill();
+    if(i===mapPick||d.nodes.length<=8){g.fillText(n.name.slice(0,18),x,y-14)}});
+  if(mapPick>=0&&d.nodes[mapPick]){const n=d.nodes[mapPick];$("mapmsg").textContent=`${n.name}: ${dist(n.dist)} ${DIRS[Math.round(n.bearing/45)%8]} (${n.bearing}°), heard ${ago(n.age)}`}}
+$("map").onclick=e=>{if(!mapData||!mapData.me)return;const c=$("map"),b=c.getBoundingClientRect(),k=c.width/b.width,x=(e.clientX-b.left)*k,y=(e.clientY-b.top)*k;
+  let best=-1,bd=40*40;for(const[dx,dy,i]of mapDots){const q=(dx-x)**2+(dy-y)**2;if(q<bd){bd=q;best=i}}mapPick=best;drawMap()};
+
+// ---- update ----
+$("u-file").onchange=()=>$("u-send").disabled=!$("u-file").files.length||!info.ota;
+$("u-send").onclick=async()=>{const buf=new Uint8Array(await $("u-file").files[0].arrayBuffer());
+  if(buf.length<1000||String.fromCharCode(...buf.slice(-4))!=="BSIG")return say("u-msg","That isn't a signed badge update (.update.bin).",1);
+  const img=buf.slice(0,buf.length-68),sig=[...buf.slice(buf.length-68,buf.length-4)].map(b=>b.toString(16).padStart(2,"0")).join("");
+  const fd=new FormData();fd.append("f",new Blob([img]),"fw.bin");const x=new XMLHttpRequest();$("u-prog").hidden=false;$("u-send").disabled=true;
+  x.upload.onprogress=e=>{if(e.lengthComputable)$("u-prog").value=e.loaded*100/e.total};
+  x.onload=x.onerror=()=>poll();x.open("POST",`/api/update?size=${img.length}&sig=${sig}`);x.send(fd);
+  function poll(){api("/api/update").then(s=>{say("u-msg",s.msg+(s.version?` (${s.version})`:""),s.state==="failed");if(s.state==="confirm"||s.state==="receiving")setTimeout(poll,1500)}).catch(()=>say("u-msg","The badge is restarting. Reconnect to its WiFi if you want to check the version.",0))}};
+</script>
+<div id="modal"><div class="box"><h3 id="mx-title">Device</h3><p id="mx-status" class="mut"></p><ul id="mx-lines"></ul><button class="go" id="mx-close">Close</button></div></div>
+<div id="offline"><h2>Badge stopped sharing</h2><p class="mut">This page is no longer live. The badge closed its WiFi (you pressed stop on the badge, it timed out after no one was connected, or it went out of range). Re-open <b>Badge WiFi</b> on the badge and rejoin to carry on.</p></div>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "Tile",
+  "title": "Tile tracker",
+  "type": "ble",
+  "tag": [
+    "Tracker"
+  ],
+  "criteria": [
+    {
+      "mfg": [
+        "0x067C"
+      ]
+    },
+    {
+      "service": [
+        "FEED",
+        "FEEC",
+        "FD84"
+      ]
+    }
+  ]
+}

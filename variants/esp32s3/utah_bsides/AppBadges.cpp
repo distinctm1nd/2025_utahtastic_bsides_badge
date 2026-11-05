@@ -12,6 +12,7 @@
 
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
+#include <Wire.h>
 #include <stdio.h>
 
 namespace badge
@@ -20,6 +21,7 @@ namespace badge
 class ListApp : public App
 {
   public:
+    bool numberShortcuts() const override { return true; }
     uint32_t frameMs() const override { return 1000; }
     void key(int k, KeyAction a) override
     {
@@ -117,18 +119,68 @@ class BadgesApp : public ListApp
     }
 };
 
+// a guess at what sits at a given 7-bit I2C address (common parts)
+static const char *i2cGuess(uint8_t a)
+{
+    switch (a) {
+    case 0x20: return "keypad (TCA9535)";
+    case 0x3C:
+    case 0x3D: return "OLED (SSD1306)";
+    case 0x29: return "ToF / colour sensor";
+    case 0x40: return "PCA / INA / HTU";
+    case 0x44:
+    case 0x45: return "SHT3x temp/humidity";
+    case 0x48: return "ADS1115 / temp";
+    case 0x4A:
+    case 0x4B: return "ADS1115";
+    case 0x53: return "accelerometer";
+    case 0x57: return "MAX3010x / EEPROM";
+    case 0x5A: return "MLX90614 / MPR121";
+    case 0x5C: return "AM2320 / BH1750";
+    case 0x68:
+    case 0x69: return "RTC / IMU (MPU)";
+    case 0x6A:
+    case 0x6B: return "IMU (LSM6)";
+    case 0x76:
+    case 0x77: return "BME/BMP280";
+    default: return "";
+    }
+}
+
 class MinibadgesApp : public ListApp
 {
   public:
-    const char *name() const override { return "Minibadges"; }
-    void begin() override { page = scroll = 0; }
+    const char *name() const override { return "I2C & minibadges"; }
+    void begin() override
+    {
+        page = scroll = 0;
+        scanMain();
+    }
 
   protected:
-    int pageCount() const override { return 1; }
-    const char *pageTitle(int) const override { return "Minibadges"; }
-    int lineCount(int) const override { return minibadgeCount() ? 1 + minibadgeCount() * 2 : 3; }
-    void line(int, int i, char *b, size_t n) override
+    int pageCount() const override { return 2; }
+    const char *pageTitle(int p) const override { return p == 0 ? "Minibadges (GPIO5/6)" : "Main I2C (GPIO1/2)"; }
+    int lineCount(int p) const override
     {
+        if (p == 0)
+            return minibadgeCount() ? 1 + minibadgeCount() * 2 : 3;
+        return mainN ? 1 + mainN : 2; // "N found" + each, or a 2-line "none / # rescans"
+    }
+    void line(int p, int i, char *b, size_t n) override
+    {
+        if (p == 1) { // the main I2C bus (shared with the keypad)
+            if (!mainN) {
+                static const char *L[] = {"Nothing found.", "# rescans the bus."};
+                snprintf(b, n, "%s", L[i]);
+            } else if (i == 0) {
+                snprintf(b, n, "%d found  (# rescans)", mainN);
+            } else {
+                uint8_t a = mainAddr[i - 1];
+                const char *g = i2cGuess(a);
+                snprintf(b, n, "0x%02X%s%s", a, g[0] ? "  " : "", g);
+            }
+            return;
+        }
         if (!minibadgeCount()) {
             static const char *L[] = {"None talking on I2C.", "Plain LED minibadges", "still blink with CLK."};
             snprintf(b, n, "%s", L[i]);
@@ -143,6 +195,27 @@ class MinibadgesApp : public ListApp
             snprintf(b, n, "0x%02X%s  presses %u", m.addr, m.canWrite ? " (rw)" : "", m.presses);
         else
             snprintf(b, n, "  %s", m.text[0] ? m.text : "-");
+    }
+    // rescan the main bus each time we land on that page
+    void key(int k, KeyAction a) override
+    {
+        int before = page;
+        ListApp::key(k, a);
+        if (page == 1 && before != 1)
+            scanMain();
+    }
+
+  private:
+    uint8_t mainAddr[32];
+    int mainN = 0;
+    void scanMain()
+    {
+        mainN = 0;
+        for (uint8_t a = 1; a < 127 && mainN < 32; a++) { // same thread as the keypad reads, so no clash
+            Wire.beginTransmission(a);
+            if (Wire.endTransmission() == 0)
+                mainAddr[mainN++] = a;
+        }
     }
 };
 

@@ -2,7 +2,11 @@ name: Build Utah BSides badge firmware
 
 # Builds only the badge (env utah_bsides). Runs on every push to the badge branch, on pull
 # requests into it, and by hand from the Actions tab. Push a tag named badge-v* to also
-# publish a GitHub release with the .bin files attached.
+# sign the firmware for WiFi updates (after the release environment's reviewer approves),
+# publish a GitHub release with the .bin files and update the web installer on GitHub Pages.
+#
+# The signing key (secret BADGE_SIGNING_KEY) lives only in the "release" environment and is
+# only given to the small sign job, never to the build (which runs a lot of third-party code).
 on:
   push:
     branches: [utah-bsides-badge]
@@ -12,7 +16,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -49,6 +53,7 @@ jobs:
           cp .pio/build/utah_bsides/firmware-*.bin out/
           cp .pio/build/utah_bsides/littlefs-*.bin out/ 2>/dev/null || true
           cp bin/device-install.* bin/device-update.* out/ 2>/dev/null || true
+          rm -f out/*.update.bin
           ls -l out
 
       - uses: actions/upload-artifact@v4
@@ -56,8 +61,89 @@ jobs:
           name: utah-bsides-firmware
           path: out/
 
+  # Signs the firmware for WiFi updates. Waits for the release environment's required
+  # reviewer; only standard-library Python and the badge's own signing scripts run here.
+  sign:
+    if: startsWith(github.ref, 'refs/tags/badge-v')
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: variants/esp32s3/utah_bsides
+          sparse-checkout-cone-mode: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: utah-bsides-firmware
+          path: out/
+
+      - name: Sign
+        env:
+          BADGE_SIGNING_KEY: ${{ secrets.BADGE_SIGNING_KEY }}
+        run: python3 variants/esp32s3/utah_bsides/tools/sign_file.py out/firmware-*.bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: utah-bsides-update
+          path: out/*.update.bin
+
+  # The GitHub release (all .bin files) and the web installer site.
+  release:
+    if: startsWith(github.ref, 'refs/tags/badge-v')
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: variants/esp32s3/utah_bsides/installer
+          sparse-checkout-cone-mode: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: out/
+          merge-multiple: true
+
+      - name: Web installer site
+        run: |
+          mkdir -p site
+          cp variants/esp32s3/utah_bsides/installer/index.html site/
+          FACTORY=$(ls out/firmware-*.factory.bin | head -1)
+          cp "$FACTORY" site/firmware.factory.bin
+          cat > site/manifest.json <<JSON
+          {
+            "name": "Utah BSides badge",
+            "version": "${GITHUB_REF_NAME}",
+            "new_install_prompt_erase": true,
+            "builds": [{"chipFamily": "ESP32-S3", "parts": [{"path": "firmware.factory.bin", "offset": 0}]}]
+          }
+          JSON
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/
+
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/badge-v')
         uses: softprops/action-gh-release@v2
         with:
           files: out/*
+
+  # The web installer (variants/esp32s3/utah_bsides/installer) on GitHub Pages. Needs
+  # Settings -> Pages -> Source: GitHub Actions, and the github-pages environment allowed to
+  # deploy badge-v* tags.
+  pages:
+    if: startsWith(github.ref, 'refs/tags/badge-v')
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

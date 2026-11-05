@@ -1,0 +1,16 @@
+{
+  "name": "WiFi Pineapple",
+  "title": "WiFi Pineapple (default name)",
+  "type": "wifi",
+  "tag": [
+    "Attack"
+  ],
+  "criteria": [
+    {
+      "ssid": [
+        "pineapple_.*",
+        "pineapple"
+      ]
+    }
+  ]
+}

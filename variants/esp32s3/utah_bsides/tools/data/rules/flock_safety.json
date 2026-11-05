@@ -1,0 +1,15 @@
+{
+  "name": "Flock Safety",
+  "title": "Flock plate reader",
+  "type": "auto",
+  "tag": [
+    "Surveillance"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^Flock Safety"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+# build output of tools/make_vendors.py
+generated/
+# your own / third-party fox hunt rules
+tools/data/rules.local/

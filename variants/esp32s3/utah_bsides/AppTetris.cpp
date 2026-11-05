@@ -1,5 +1,5 @@
 // Falling blocks.
-//   joystick left/right move, up rotate, down drop faster      # drop / start      * quit
+//   keypad: 4/6 move, 5 rotate, 8 drop, # start, * quit
 #include "configuration.h"
 
 #include "BadgeApp.h"
@@ -38,18 +38,19 @@ class TetrisApp : public App
             return;
         }
         switch (k) {
-        case AK_LEFT: tryMove(px - 1, py, rot); break;
-        case AK_RIGHT: tryMove(px + 1, py, rot); break;
+        case AK_LEFT:
+        case AK_4: tryMove(px - 1, py, rot); break;
+        case AK_RIGHT:
+        case AK_6: tryMove(px + 1, py, rot); break;
         case AK_UP:
+        case AK_2:
+        case AK_5: // rotate
             if (a == KA_PRESS && !tryMove(px, py, (rot + 1) % 4))
                 if (!tryMove(px - 1, py, (rot + 1) % 4)) // wall kicks
                     tryMove(px + 1, py, (rot + 1) % 4);
             break;
         case AK_DOWN:
-            if (!tryMove(px, py + 1, rot))
-                lock();
-            break;
-        case AK_HASH:
+        case AK_8: // drop to the bottom
             if (a == KA_PRESS) {
                 while (tryMove(px, py + 1, rot)) {
                 }
@@ -98,11 +99,11 @@ class TetrisApp : public App
             cell(next, 0, i, c, r);
             d->fillRect(sx + 4 + c * CELL, top + 64 + r * CELL, CELL - 1, CELL - 1);
         }
-        if (state != TB_PLAYING) {
-            d->drawString(sx, top + 88, state == TB_READY ? "# start" : "Game over");
-            if (state == TB_OVER)
-                d->drawString(sx, top + 102, "# again");
-        }
+        d->drawString(sx, top + 80, "4 6 move");
+        d->drawString(sx, top + 94, "5 rot 8 drop");
+        d->drawString(sx, top + 108, "# start *quit");
+        if (state != TB_PLAYING)
+            drawCentered(d, x, top + 40, state == TB_READY ? "# start" : "Game over - #", FONT_SMALL);
     }
 
   private:

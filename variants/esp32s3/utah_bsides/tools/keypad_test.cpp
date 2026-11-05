@@ -49,6 +49,10 @@ struct FakeBadge : KeypadHooks {
     void welcomeDismiss() override { welcome = false; }
     void openBadgeMenu() override { menus++; banner = true; }
     void nextLedScene() override { scenes++; }
+    int locks = 0;
+    bool shortcutsInApp = false;
+    bool appShortcuts() override { return shortcutsInApp; }
+    void lockNow() override { locks++; }
     void keyDown(int) override {}
     void konami() override { konamis++; }
     // badge apps / home screen
@@ -123,6 +127,11 @@ int main()
         expect(b.draft == "cal", "* -> backspace");
         press(k, 3, 900);
         expect(b.draft == "cal9", "hold 9 -> digit 9");
+        press(k, 0, 900);
+        press(k, 2, 900);
+        expect(b.draft == "cal9*#" && b.menus == 0 && b.scenes == 0 && b.freetext, "typing: hold * and # type the symbols");
+        press(k, 0); press(k, 0);
+        expect(b.draft == "cal9", "* deletes them");
         press(k, 2);
         expect(b.draft == "<sent>" && !b.freetext, "# sends");
     }
@@ -167,7 +176,7 @@ int main()
         press(k, 10);
         expect(b.composeKey == 10 && b.draft.empty(), "tap 2 on a Meshtastic screen opens the badge editor");
         press(k, 9, 900);
-        expect(b.quick == 3 && b.composeKey == 10, "hold 3 on a Meshtastic screen -> quick send 3");
+        expect(b.quick == 3 && b.composeKey == 10, "hold 3 on a Meshtastic screen -> shortcut 3");
     }
     {
         FakeBadge b; KeypadLogic k(b);
@@ -211,8 +220,20 @@ int main()
         expect(strcmp(t.text(), "Hi. T9") == 0, "editor: cursor moves, insert in the middle");
         t.key(AK_HASH, KA_PRESS, ms);
         expect(t.key(AK_HASH, KA_RELEASE, ms + 100) == TextEntry::TE_DONE, "editor: # finishes");
-        t.key(AK_STAR, KA_PRESS, ms);
-        expect(t.key(AK_STAR, KA_HOLD, ms + 800) == TextEntry::TE_CANCEL, "editor: hold * cancels");
+        {
+            int n0 = (int)strlen(t.text());
+            t.key(AK_STAR, KA_PRESS, ms);
+            t.key(AK_STAR, KA_HOLD, ms + 800);
+            t.key(AK_STAR, KA_RELEASE, ms + 900);
+            t.key(AK_HASH, KA_PRESS, ms + 1000);
+            t.key(AK_HASH, KA_HOLD, ms + 1800);
+            expect(t.key(AK_HASH, KA_RELEASE, ms + 1900) == TextEntry::TE_NONE, "editor: holding # doesn't send");
+            expect((int)strlen(t.text()) == n0 + 2 && strcmp(t.text(), "Hi. T*#9") == 0, "editor: hold * and # type the symbols");
+            TextEntry e;
+            e.reset("", 20);
+            e.key(AK_STAR, KA_PRESS, ms);
+            expect(e.key(AK_STAR, KA_RELEASE, ms + 100) == TextEntry::TE_CANCEL, "editor: * with nothing typed cancels");
+        }
     }
     {
         FakeBadge b; KeypadLogic k(b);
@@ -248,6 +269,18 @@ int main()
         expect(KeypadLogic::resolveJoystick(2 | 4, 7, false) == 1, "default angle: R+D = right");
         expect(KeypadLogic::resolveJoystick(4 | 8, 7, false) == 2, "default angle: D+L = down (was moving up)");
         expect(KeypadLogic::resolveJoystick(8 | 1, 7, false) == 3, "default angle: L+U = left");
+        // one switch alone, as measured on a badge (U12 R23 D4 L14): down caught only switch 4
+        expect(KeypadLogic::resolveJoystick(8, 7, true) == 2, "default lean: switch 4 alone = down");
+        expect(KeypadLogic::resolveJoystick(1 | 2, 7, true) == 0 && KeypadLogic::resolveJoystick(2 | 4, 7, true) == 1 &&
+                   KeypadLogic::resolveJoystick(4 | 8, 7, true) == 2 && KeypadLogic::resolveJoystick(8 | 1, 7, true) == 3,
+               "default lean: two-switch pushes unchanged");
+        {
+            const uint8_t learned[4] = {1 | 2, 2 | 4, 8, 8 | 1}; // U12 R23 D4 L14
+            int8_t map[16];
+            KeypadLogic::buildJoyMap(learned, false, map);
+            expect(map[1 | 2] == 0 && map[2 | 4] == 1 && map[8] == 2 && map[8 | 1] == 3, "learned U12 R23 D4 L14: the four pushes");
+            expect(map[4 | 8] == 2, "learned U12 R23 D4 L14: a down push closing 3 and 4 is still down");
+        }
     }
     {
         // Joystick setup's learned pushes (switch bits as wired: 1, 2, 4, 8)
@@ -288,6 +321,48 @@ int main()
         for (int i = 0; i < 32; i++) k32[i] = (uint8_t)(i * 7 + 3);
         base64Encode(k32, 32, b);
         expect(strlen(b) == 44 && base64Decode(b, k, 32) == 32 && memcmp(k, k32, 32) == 0, "base64: 32-byte key (44 chars)");
+    }
+    {
+        FakeBadge b; KeypadLogic k(b);
+        raw |= 1u << 0; run(k, 100); raw |= 1u << 2; run(k, 100); // * then #
+        raw = 0; run(k, 100);
+        expect(b.locks == 1 && b.menus == 0 && b.selects == 0 && b.scenes == 0, "* + #: lock, nothing else");
+        raw |= 1u << 2; run(k, 300); raw |= 1u << 0; run(k, 900);  // # then * (held long)
+        raw = 0; run(k, 100);
+        expect(b.locks == 2 && b.menus == 0 && b.scenes == 0, "# + * held: lock, no menu or scene");
+        b.app = true; b.appLog.clear();
+        raw |= 1u << 0; run(k, 100); raw |= 1u << 2; run(k, 100);
+        raw = 0; run(k, 100);
+        expect(b.locks == 3 && b.appLog.find("0R") == std::string::npos && b.appLog.find("2P") == std::string::npos,
+               "* + # in an app: lock; the app gets no release of * and nothing of #");
+    }
+    {
+        FakeBadge b; KeypadLogic k(b);
+        b.app = true; b.shortcutsInApp = true;
+        press(k, 5);          // tap 7
+        expect(b.appLog == "5P 5R " && b.quick < 0, "app with shortcuts: a tapped number reaches it on release");
+        b.appLog.clear();
+        press(k, 5, 900);     // hold 7
+        expect(b.appLog.empty() && b.quick == 7, "app with shortcuts: a held number runs its shortcut, the app gets nothing");
+        b.shortcutsInApp = false; b.quick = -1; b.appLog.clear();
+        press(k, 5, 900);
+        expect(b.appLog.find("5H") != std::string::npos && b.quick < 0, "app without shortcuts (typing, PIN, games): the hold goes to the app");
+    }
+    {
+        // this badge's own setup (U12 R23 D4 L14): a left push catching only one switch
+        const uint8_t mine[4] = {1 | 2, 2 | 4, 8, 8 | 1};
+        int8_t map[16];
+        KeypadLogic::buildJoyMap(mine, true, map);
+        expect(map[8 | 1] == 3 && map[4 | 8] == 2 && map[1 | 2] == 0 && map[2 | 4] == 1, "45 degree setup: the four pushes");
+        expect(map[8] != 2 || map[1] != 0, "45 degree setup: switch 4 alone isn't claimed by down outright");
+        FakeBadge b; KeypadLogic k(b);
+        k.setJoystickMap(mine, true);
+        b.app = true; b.appLog.clear();
+        raw |= 1u << 12; run(k, 40); raw |= 1u << 15; run(k, 40); raw = 0; run(k, 100); // 1 then 4 quickly
+        expect(b.appLog == "15P 15R ", "a left push whose second switch closes late is still left");
+        b.appLog.clear();
+        raw |= (1u << 12) | (1u << 15); run(k, 50); raw = 0; run(k, 100);
+        expect(b.appLog == "15P 15R ", "a quick left tap (both switches) registers");
     }
     printf(fails ? "\n%d FAILED\n" : "\nall passed\n", fails);
     return fails ? 1 : 0;

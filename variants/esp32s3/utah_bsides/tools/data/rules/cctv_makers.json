@@ -1,0 +1,42 @@
+{
+  "name": "CCTV maker",
+  "title": "Security camera / video system",
+  "type": "auto",
+  "tag": [
+    "Surveillance"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "Hikvision",
+        "Dahua",
+        "Uniview",
+        "^Axis Communications",
+        "Vivotek",
+        "^Hanwha Vision",
+        "Samsung Techwin",
+        "^Tiandy",
+        "Milesight",
+        "^Sunell",
+        "Jovision",
+        "^TVT CO",
+        "^Avigilon",
+        "^Mobotix",
+        "^GeoVision",
+        "^Verkada",
+        "^Genetec Inc",
+        "^Infinova",
+        "^Honeywell Security",
+        "^Bosch Security Systems",
+        "^i-PRO Co",
+        "^Provision-ISR",
+        "^Hisilicon"
+      ]
+    },
+    {
+      "mfg_org": [
+        "Hikvision"
+      ]
+    }
+  ]
+}

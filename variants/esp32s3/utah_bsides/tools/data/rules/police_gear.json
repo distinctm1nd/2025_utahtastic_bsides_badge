@@ -1,0 +1,23 @@
+{
+  "name": "Police equipment",
+  "title": "Police radio / radar / forensics",
+  "type": "auto",
+  "tag": [
+    "Tactical"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^Motorola Solutions",
+        "^MOTOROLA SOLUTIONS",
+        "^Decatur Electronics",
+        "^CelleBrite"
+      ]
+    },
+    {
+      "mfg_org": [
+        "^Motorola Solutions"
+      ]
+    }
+  ]
+}

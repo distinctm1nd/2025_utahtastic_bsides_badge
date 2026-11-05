@@ -3,10 +3,13 @@
 
 #include "BadgeKeypad.h"
 #include "BadgeKeypadLogic.h"
+#include "BadgeLock.h"
 #include "BadgeLeds.h"
 #include "BadgeMenu.h"
 #include "BadgeApp.h"
 #include "BadgeApps.h"
+#include "BadgeHome.h"
+#include "BadgePortal.h"
 #include "BadgeStats.h"
 
 #include "concurrency/OSThread.h"
@@ -24,8 +27,10 @@ extern graphics::Screen *screen;
 
 // The joystick sits about 45 degrees round on every badge: straight up closes the UP and RIGHT
 // switches, straight down DOWN and LEFT. Angle 8 in Joystick setup (7 steps) reads those as up
-// and down without any setup; the setup is only needed if a badge differs.
+// and down without any setup; the setup is only needed if a badge differs. A push that catches
+// one switch leans clockwise: straight down often closes only LEFT (measured: U12 R23 D4 L14).
 static const int JOY_DEFAULT_STEPS = 7;
+static const bool JOY_DEFAULT_LEAN = true;
 
 // Joystick setup's four learned pushes, kept in NVS "joymap": 4 bits each, bit 16 = valid
 static uint32_t packMap(const uint8_t m[4])
@@ -90,6 +95,17 @@ class MeshtasticHooks : public KeypadHooks
 
     void emit(KpEvent ev, uint8_t ch) override
     {
+        // Meshtastic scrolls its quick-message list with left/right too, trapping the user on
+        // that page: close the list so left/right turn the page like everywhere else
+        if ((ev == KP_LEFT || ev == KP_RIGHT) && cannedMessageModule && cannedMessageModule->shouldDraw() &&
+            !cannedMessageModule->isCharInputAllowed() && !(screen && screen->isOverlayBannerShowing()))
+            send(KP_CANCEL, 0);
+        else if ((ev == KP_LEFT || ev == KP_RIGHT) && messagesTakePageTurn(ev == KP_RIGHT ? 1 : -1))
+            return; // the badge's Messages screen opened in place of Meshtastic's page
+        send(ev, ch);
+    }
+    void send(KpEvent ev, uint8_t ch)
+    {
         InputEvent e = {};
         e.source = "BSIDES-KEYPAD";
         e.inputEvent = (input_broker_event)ev;
@@ -120,10 +136,24 @@ class MeshtasticHooks : public KeypadHooks
             screen->showSimpleBanner("Konami code!\nYou win.", 4000);
         statsAchieve(ACH_KONAMI);
     }
-    bool appOpen() override { return appActive() != nullptr; }
+    // while an overlay menu (banner) is up, input drives the menu, not the app underneath it
+    bool appOpen() override { return appActive() != nullptr && !(screen && screen->isOverlayBannerShowing()); }
     void appKey(int k, KeyAction a) override { badge::appKey(k, a); }
     void openCompose(int firstKey) override { badge::openCompose(firstKey); }
-    void quickSend(int digit) override { menuQuickSend(digit); }
+    void quickSend(int digit) override { menuShortcut(digit); } // hold a number: its shortcut
+    bool appShortcuts() override
+    {
+        App *a = appActive();
+        return a && a->numberShortcuts();
+    }
+    void menuBack() override { badge::menuBack(); }
+    void lockNow() override
+    {
+        if (lockEnabled())
+            badge::lockNow();
+        else if (screen)
+            screen->showSimpleBanner("No PIN set yet:\nSettings > Screen lock", 2500);
+    }
 
   private:
     Observable<const InputEvent *> *source;
@@ -136,10 +166,10 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
     {
         Preferences p;
         if (p.begin("utah", true)) {
-            logic.setJoystick(p.getInt("joy", JOY_DEFAULT_STEPS), p.getBool("joylean", false));
+            logic.setJoystick(p.getInt("joy", JOY_DEFAULT_STEPS), p.getBool("joylean", JOY_DEFAULT_LEAN));
             uint8_t masks[4];
             if (unpackMap(p.getUInt("joymap", 0), masks))
-                logic.setJoystickMap(masks, p.getBool("joylean", false));
+                logic.setJoystickMap(masks, p.getBool("joylean", JOY_DEFAULT_LEAN));
             p.end();
         }
         if (inputBroker)
@@ -154,14 +184,27 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
   protected:
     int32_t runOnce() override
     {
+        // Hold back key handling until the badge has taken the screen after the boot screens,
+        // so a press while the boot images are still up can't leak to a Meshtastic page or the
+        // menu. Once the first badge screen (intro / lock / home) is up, input is live for good.
+        static bool armed = false;
+        if (!armed && lockBootReady() && (appActive() || lockLocked()))
+            armed = true;
         uint32_t keys;
         uint32_t now = millis();
-        if (readKeys(keys))
-            logic.update(keys, now);
+        if (readKeys(keys)) {
+            lockPoll(keys, now);
+            if (armed && (!lockLocked() || lockShowing())) // not yet armed, or locked with no PIN screen: keys go nowhere
+                logic.update(keys, now);
+        }
         // a fresh time: key handling above stamps letters with millis(), and an older 'now'
         // here made the editor think a tapped letter was already a second old (U came out TT)
         appTick(millis()); // the open badge app, if any
+        messagesPoll(millis());
+        portalPoll(); // Badge WiFi keeps serving even under the lock screen (it owns its idle time-out)
+        homePoll(millis()); // the pet-home is the default screen
         menuPoll();   // opens badge sub-menus queued by menu callbacks
+        pagesPoll();  // carries out a Meshtastic-page jump picked in the Pages overlay
         tttPoll();    // tic-tac-toe invitations
         return 10;
     }
@@ -234,11 +277,11 @@ void keypadSetJoystickMap(const uint8_t masks[4], bool lean, bool save)
 bool keypadGetJoystickMap(uint8_t masks[4], bool &lean)
 {
     bool ok = false;
-    lean = false;
+    lean = JOY_DEFAULT_LEAN;
     Preferences p;
     if (p.begin("utah", true)) {
         ok = unpackMap(p.getUInt("joymap", 0), masks);
-        lean = p.getBool("joylean", false);
+        lean = p.getBool("joylean", JOY_DEFAULT_LEAN);
         p.end();
     }
     return ok;
@@ -247,11 +290,11 @@ bool keypadGetJoystickMap(uint8_t masks[4], bool &lean)
 void keypadGetJoystick(int &steps, bool &lean)
 {
     steps = JOY_DEFAULT_STEPS;
-    lean = false;
+    lean = JOY_DEFAULT_LEAN;
     Preferences p;
     if (p.begin("utah", true)) {
         steps = p.getInt("joy", JOY_DEFAULT_STEPS);
-        lean = p.getBool("joylean", false);
+        lean = p.getBool("joylean", JOY_DEFAULT_LEAN);
         p.end();
     }
 }

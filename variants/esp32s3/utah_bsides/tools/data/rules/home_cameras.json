@@ -1,0 +1,30 @@
+{
+  "name": "Home camera maker",
+  "title": "Home camera / doorbell",
+  "type": "auto",
+  "tag": [
+    "Camera"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^Ring LLC",
+        "^Blink by Amazon",
+        "^Arlo Technology",
+        "^Wyze Labs",
+        "^Reolink",
+        "^Amcrest",
+        "^Lorex",
+        "^Swann communications",
+        "Ezviz",
+        "^Shanghai Xiaoyi"
+      ]
+    },
+    {
+      "mfg_org": [
+        "^Arlo Technologies",
+        "^Wyze Labs"
+      ]
+    }
+  ]
+}

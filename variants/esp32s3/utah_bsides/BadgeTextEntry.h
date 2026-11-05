@@ -2,8 +2,8 @@
 // Pure logic (no Arduino/Meshtastic), tested in tools/keypad_test.cpp.
 //
 //   digits     tap for letters, tap again within a second for the next letter; hold = digit
-//   0          space (tap twice for 0)      1  punctuation . , ? ! ' - @ : 1
-//   *          delete (hold = cancel)       #  done/send (hold = change case)
+//   0          space (tap twice for 0)      1  punctuation . , ? ! ' - @ : + / = 1
+//   *          delete (empty: cancel)       #  done/send          hold * or # = the symbol
 //   joystick   left/right move the cursor, up = change case, down = new letter right away
 // Case modes: "abc", "Abc" (capital after start and after ". ? !"), "ABC".
 #pragma once
@@ -58,8 +58,11 @@ class TextEntry
     Result key(int k, KeyAction a, uint32_t now)
     {
         if (a == KA_RELEASE) {
-            if (k == AK_STAR && !held[0])
+            if (k == AK_STAR && !held[0]) {
+                if (!len)
+                    return TE_CANCEL;
                 backspace();
+            }
             if (k == AK_HASH && !held[1]) {
                 pendKey = -1;
                 return TE_DONE;
@@ -71,13 +74,10 @@ class TextEntry
             return TE_NONE;
         }
         if (a == KA_HOLD) {
-            if (k == AK_STAR) {
-                held[0] = true;
-                return TE_CANCEL;
-            }
-            if (k == AK_HASH) {
-                held[1] = true;
-                cycleCase();
+            if (k == AK_STAR || k == AK_HASH) {
+                held[k == AK_HASH] = true;
+                pendKey = -1;
+                insert(k == AK_STAR ? '*' : '#');
                 return TE_NONE;
             }
             if (appKeyDigit(k) >= 0 && pendKey == k) { // held: the digit instead of the letter
@@ -140,6 +140,7 @@ class TextEntry
     bool caseAtPend = false;
     uint32_t pendAt = 0;
     bool held[2] = {false, false};
+
 
     static char upper(char c) { return (c >= 'a' && c <= 'z') ? (char)(c - 32) : c; }
 

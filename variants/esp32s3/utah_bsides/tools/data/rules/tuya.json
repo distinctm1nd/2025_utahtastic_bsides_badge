@@ -1,0 +1,20 @@
+{
+  "name": "Tuya device",
+  "title": "Tuya smart device (cheap cams use it)",
+  "type": "auto",
+  "tag": [
+    "Smart Home"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^Tuya Smart"
+      ]
+    },
+    {
+      "mfg_org": [
+        "^Hangzhou Tuya"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Police drones",
+  "title": "Skydio drone (police / security)",
+  "description": "Skydio makes the drones many US police 'drone as first responder' programmes fly. Also sold to businesses and consumers.",
+  "type": "auto",
+  "tag": [
+    "Tactical"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^Skydio"
+      ]
+    }
+  ]
+}

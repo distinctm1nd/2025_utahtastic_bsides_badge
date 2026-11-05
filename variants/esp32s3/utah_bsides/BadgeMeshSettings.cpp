@@ -6,6 +6,7 @@
 #include "BadgeApp.h"
 #include "BadgeApps.h"
 #include "BadgeBase64.h"
+#include "BadgeHome.h"
 #include "BadgeMenu.h"
 
 #include "MeshService.h"
@@ -30,6 +31,9 @@ extern meshtastic_CannedMessageModuleConfig cannedMessageModuleConfig; // Canned
 namespace badge
 {
 
+// where each menu reopens: the item last chosen, so changing a setting doesn't jump to the top
+static int mainSel = 1, chListSel = 1, chItemSel = 1, cannedListSel = 1;
+
 enum MsStep { MS_NONE, MS_MAIN, MS_CHANNELS, MS_CHANNEL, MS_JOIN_KEY, MS_SENDTO, MS_TXPOWER, MS_HOPS, MS_CANNED, MS_CANNED_ITEM, MS_LORA, MS_BT };
 static volatile MsStep queued = MS_NONE;
 static int chSel = 0;      // channel being looked at
@@ -37,6 +41,7 @@ static int cannedSel = 0;  // quick-send message being looked at
 static char pendingName[12];
 static const int MAX_CH = 8;
 
+static void showKeyChoice();
 static void queue(MsStep s)
 {
     queued = s;
@@ -238,7 +243,95 @@ static void newNameDone(const char *t)
     }
     strncpy(pendingName, t, sizeof(pendingName) - 1);
     pendingName[sizeof(pendingName) - 1] = 0;
-    queue(MS_JOIN_KEY);
+    showKeyChoice(); // straight into the key step, so nothing can interrupt between name and key
+}
+int meshChannelNamed(const char *name, const uint8_t *psk, int len, bool *sameKey)
+{
+    for (int i = 0; i < MAX_CH; i++) {
+        const meshtastic_Channel &c = channels.getByIndex((ChannelIndex)i);
+        if (chActive(i) && !strcmp(channels.getName((size_t)i), name)) {
+            if (sameKey)
+                *sameKey = c.settings.psk.size == len && !memcmp(c.settings.psk.bytes, psk, (size_t)len);
+            return i;
+        }
+    }
+    return -1;
+}
+
+int meshJoinWithKey(const char *name, const uint8_t *psk, int len, const char **why)
+{
+    *why = nullptr;
+    bool same = false;
+    int have = meshChannelNamed(name, psk, len, &same);
+    if (have >= 0 && same) {
+        *why = "You're already in it";
+        return have;
+    }
+    if (have >= 0) { // a group of that name, with a new key: switch it (not a second one)
+        meshtastic_Channel ch = channels.getByIndex((ChannelIndex)have);
+        if (ch.role == meshtastic_Channel_Role_PRIMARY) {
+            *why = "That's the main channel: not changed";
+            return -1;
+        }
+        ch.settings.psk.size = (pb_size_t)len;
+        memcpy(ch.settings.psk.bytes, psk, (size_t)len);
+        ch.index = (int8_t)have;
+        saveChannel(ch);
+        *why = "Switched to the new key";
+        return have;
+    }
+    int idx = freeSlot();
+    if (idx < 0) {
+        *why = "All 8 channels are in use:\nremove one in Mesh settings";
+        return -1;
+    }
+    meshtastic_Channel ch = channels.getByIndex((ChannelIndex)idx);
+    memset(&ch.settings, 0, sizeof(ch.settings));
+    strncpy(ch.settings.name, name, sizeof(ch.settings.name) - 1);
+    ch.settings.psk.size = (pb_size_t)len;
+    memcpy(ch.settings.psk.bytes, psk, (size_t)len);
+    ch.has_settings = true;
+    ch.role = meshtastic_Channel_Role_SECONDARY;
+    ch.index = (int8_t)idx;
+    saveChannel(ch);
+    return idx;
+}
+
+const char *meshLeaveChannel(int idx)
+{
+    if (idx < 0 || idx >= MAX_CH || !chActive(idx))
+        return "That group is gone";
+    meshtastic_Channel ch = channels.getByIndex((ChannelIndex)idx);
+    if (ch.role == meshtastic_Channel_Role_PRIMARY)
+        return "The main channel can't be left";
+    ch.role = meshtastic_Channel_Role_DISABLED;
+    memset(&ch.settings, 0, sizeof(ch.settings));
+    ch.index = (int8_t)idx;
+    saveChannel(ch);
+    return nullptr;
+}
+
+const char *meshRekeyChannel(int idx)
+{
+    if (idx < 0 || idx >= MAX_CH || !chActive(idx))
+        return "That group is gone";
+    meshtastic_Channel ch = channels.getByIndex((ChannelIndex)idx);
+    if (ch.role == meshtastic_Channel_Role_PRIMARY)
+        return "The main channel: change it in the app";
+    setKeyRandom(ch.settings);
+    ch.index = (int8_t)idx;
+    saveChannel(ch);
+    return nullptr;
+}
+
+void meshJoinChannel()
+{
+    if (freeSlot() < 0) {
+        note("No room: 8 channels already.\nRemove one in Mesh settings");
+        return;
+    }
+    pendingName[0] = 0;
+    openTextEditor("Channel name", "", 11, 1, newNameDone); // then: new key, type a key, ...
 }
 static void renameDone(const char *t)
 {
@@ -275,7 +368,11 @@ static void showChannels()
     }
     static int count;
     count = n;
-    banner("Channels", items, n, 1, [](int sel) -> void {
+    if (chListSel >= n)
+        chListSel = n - 1;
+    banner("Channels", items, n, chListSel > 0 ? chListSel : 1, [](int sel) -> void {
+        if (sel > 0 && sel < count)
+            chListSel = sel;
         if (sel <= 0 || sel >= count) {
             queue(MS_MAIN);
         } else if (map[sel] == -2) {
@@ -283,6 +380,7 @@ static void showChannels()
             openTextEditor("Channel name", "", 11, 1, newNameDone);
         } else {
             chSel = map[sel];
+            chItemSel = 1;
             queue(MS_CHANNEL);
         }
     });
@@ -303,7 +401,9 @@ static void showChannel()
         return;
     }
     static const char *items[] = {"Back", "Show key", "Rename", "New key", "Remove"};
-    banner(title, items, 5, 1, [](int sel) -> void {
+    banner(title, items, 5, chItemSel, [](int sel) -> void {
+        if (sel > 0)
+            chItemSel = sel;
         switch (sel) {
         case 1: showKey(chSel); break;
         case 2: openTextEditor("Rename channel", channels.getName((size_t)chSel), 11, 1, renameDone); break;
@@ -364,6 +464,11 @@ static int sendChannel()
 const char *meshSendChannelName()
 {
     return channels.getName((size_t)sendChannel());
+}
+void meshSendPrepareTo(uint32_t dest, uint8_t channel)
+{
+    if (cannedMessageModule)
+        cannedMessageModule->LaunchFreetextWithDestination(dest, channel);
 }
 void meshSendPrepare()
 {
@@ -524,7 +629,11 @@ static void showCanned()
         items[n++] = "+ Add message";
     static int count;
     count = n;
-    banner("Quick-send messages\n(hold a digit to send)", items, n, 1, [](int sel) -> void {
+    if (cannedListSel >= n)
+        cannedListSel = n - 1;
+    banner("Quick messages\n(Settings > Shortcuts\nputs them on a number)", items, n, cannedListSel > 0 ? cannedListSel : 1, [](int sel) -> void {
+        if (sel > 0 && sel < count)
+            cannedListSel = sel;
         if (sel <= 0 || sel >= count) {
             queue(MS_MAIN);
         } else if (sel - 1 == nCanned) {
@@ -560,6 +669,7 @@ static void showCannedItem()
             canned[cannedSel - 1] = t;
             saveCanned(-1, nullptr);
             cannedSel--;
+            cannedListSel = cannedSel + 1; // follow the message that moved
         } else if (sel == 3) {
             if (nCanned <= 1)
                 note("Keep at least one message");
@@ -588,15 +698,23 @@ static void showMain()
     snprintf(lbl[I_BT], 48, "Bluetooth on/off");
     for (int i = 0; i < I_COUNT; i++)
         items[i] = lbl[i];
-    banner("Mesh settings", items, I_COUNT, 1, [](int sel) -> void {
+    banner("Mesh settings", items, I_COUNT, mainSel, [](int sel) -> void {
+        if (sel > 0)
+            mainSel = sel;
         switch (sel) {
         case I_LONG: openTextEditor("Node name", owner.long_name, sizeof(owner.long_name) - 1, 1, longNameDone); break;
         case I_SHORT: openTextEditor("Short name (4)", owner.short_name, sizeof(owner.short_name) - 1, 2, shortNameDone); break;
-        case I_CHANNELS: queue(MS_CHANNELS); break;
+        case I_CHANNELS:
+            chListSel = 1;
+            queue(MS_CHANNELS);
+            break;
         case I_SENDTO: queue(MS_SENDTO); break;
         case I_TX: queue(MS_TXPOWER); break;
         case I_HOPS: queue(MS_HOPS); break;
-        case I_CANNED: queue(MS_CANNED); break;
+        case I_CANNED:
+            cannedListSel = 1;
+            queue(MS_CANNED);
+            break;
         case I_LORA: queue(MS_LORA); break;
         case I_BT: queue(MS_BT); break;
         default: menuOpen(); break; // back to the badge menu
@@ -606,13 +724,16 @@ static void showMain()
 
 void meshSettingsOpen()
 {
+    mainSel = 1; // opened from the badge menu: start at the top
     queue(MS_MAIN);
 }
+
+bool meshSettingsBusy() { return queued != MS_NONE; }
 
 void meshSettingsPoll()
 {
     MsStep s = queued;
-    if (s == MS_NONE || !screen || appActive() || screen->isOverlayBannerShowing())
+    if (s == MS_NONE || !screen || (appActive() && !homeActive()) || screen->isOverlayBannerShowing())
         return;
     queued = MS_NONE;
     switch (s) {

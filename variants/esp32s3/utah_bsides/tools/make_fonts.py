@@ -18,15 +18,55 @@ HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(HERE, "BadgeFonts.h")
 FIRST, LAST = 32, 126
 
-# (C name, display name, TTF, horizontal stretch, licence)
+FONTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
+# (C name, display name, TTF, horizontal stretch, licence[, "ink": size by the letters themselves,
+# for display fonts whose line metrics are much taller than their letters[, a variable font's
+# named style, e.g. "Bold"]]).
+# Add new families at the end: the badge keeps the chosen font as an index.
 FAMILIES = [
     ("Wood", "Wood type", "/usr/share/fonts/truetype/dejavu/DejaVuSerifCondensed-Bold.ttf", 1.25, "DejaVu (Bitstream Vera licence)"),
     ("Serif", "Serif", "/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 1.0, "Liberation (SIL OFL 1.1)"),
     ("Type", "Typewriter", "/usr/share/fonts/truetype/freefont/FreeMonoBold.ttf", 1.0, "GNU FreeFont (GPL + font exception)"),
     ("Fancy", "Fancy", "/usr/share/fonts/truetype/freefont/FreeSerifBoldItalic.ttf", 1.0, "GNU FreeFont (GPL + font exception)"),
+    # tools/fonts: from Google Fonts (github.com/google/fonts), licences next to them
+    ("Ultra", "Wanted", os.path.join(FONTS, "Ultra-Regular.ttf"), 1.0, "Ultra (Apache 2.0)", "ink"),
+    ("Holtwood", "Frontier", os.path.join(FONTS, "HoltwoodOneSC-Regular.ttf"), 1.0, "Holtwood One SC (SIL OFL 1.1)", "ink"),
+    ("Fell", "Old print", os.path.join(FONTS, "IMFellEnglishSC-Regular.ttf"), 1.0, "IM Fell English SC (SIL OFL 1.1)", "ink"),
+    ("Gazette", "Gazette", os.path.join(FONTS, "OldStandard-Bold.ttf"), 1.0, "Old Standard TT (SIL OFL 1.1)", "ink"),
+    ("Tomb", "Tombstone", os.path.join(FONTS, "Cinzel-Variable.ttf"), 1.0, "Cinzel (SIL OFL 1.1)", "ink", "Bold"),
+    ("Gothic", "Gothic", os.path.join(FONTS, "GrenzeGotisch-Variable.ttf"), 1.0, "Grenze Gotisch (SIL OFL 1.1)", "ink", "Bold"),
+    ("Grimoire", "Grimoire", os.path.join(FONTS, "PirataOne-Regular.ttf"), 1.0, "Pirata One (SIL OFL 1.1)", "ink"),
+    ("Undertaker", "Undertaker", os.path.join(FONTS, "PlayfairDisplaySC-Black.ttf"), 1.0, "Playfair Display SC (SIL OFL 1.1)", "ink"),
+    ("Fraktur", "Fraktur", os.path.join(FONTS, "UnifrakturMaguntia-Book.ttf"), 1.0, "UnifrakturMaguntia (SIL OFL 1.1)", "ink"),
+    ("Scripture", "Scripture", os.path.join(FONTS, "Texturina-Variable.ttf"), 1.0, "Texturina (SIL OFL 1.1)", "ink", "Bold"),
+    ("Saloon", "Saloon", os.path.join(FONTS, "VastShadow-Regular.ttf"), 1.0, "Vast Shadow (SIL OFL 1.1)", "ink"),
+    ("Weathered", "Weathered", os.path.join(FONTS, "FrederickatheGreat-Regular.ttf"), 1.0, "Fredericka the Great (SIL OFL 1.1)", "ink"),
 ]
+SAMPLE = "".join(chr(c) for c in range(33, 127))
 # target line heights in pixels: Big, Medium, Small
 SIZES = [("Big", 40), ("Med", 28), ("Small", 19)]
+
+
+VARIATION = None  # named style of the variable font being built
+
+
+def truetype(path, size):
+    f = ImageFont.truetype(path, size)
+    if VARIATION:
+        f.set_variation_by_name(VARIATION)
+    return f
+
+
+def fit_ink(path, height):
+    """Largest point size whose printable letters (top of the tallest to bottom of the lowest)
+    fit the line height. Returns the font and where the baseline goes."""
+    for size in range(height * 2, 5, -1):
+        f = truetype(path, size)
+        top = min(f.getbbox(c, anchor="ls")[1] for c in SAMPLE)
+        bottom = max(f.getbbox(c, anchor="ls")[3] for c in SAMPLE)
+        if bottom - top <= height:
+            return f, -top
+    raise SystemExit("font too small")
 
 
 def fit_font(path, height):
@@ -78,8 +118,8 @@ def encode(im):
     return data, len(data)
 
 
-def build(path, height, stretch):
-    f, ascent = fit_font(path, height)
+def build(path, height, stretch, ink=False):
+    f, ascent = fit_ink(path, height) if ink else fit_font(path, height)
     table, blob, maxw = [], [], 0
     for c in range(FIRST, LAST + 1):
         g = glyph(f, ascent, height, chr(c), stretch)
@@ -108,13 +148,15 @@ def main():
         "{",
     ]
     names = []
-    for cname, disp, path, stretch, lic in FAMILIES:
+    global VARIATION
+    for cname, disp, path, stretch, lic, *opt in FAMILIES:
+        VARIATION = opt[1].encode() if len(opt) > 1 else None
         if not os.path.exists(path):
             sys.exit("missing font " + path)
         lines.append(f"// {disp}: {lic}")
         row = []
         for sname, h in SIZES:
-            data = build(path, h, stretch)
+            data = build(path, h, stretch, bool(opt) and opt[0] == "ink")
             var = f"Font{cname}{sname}"
             row.append(var)
             lines.append(f"static const uint8_t {var}[] = {{ // height {h}, {len(data)} bytes")

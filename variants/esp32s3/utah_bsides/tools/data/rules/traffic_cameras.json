@@ -1,0 +1,24 @@
+{
+  "name": "Traffic and plate cameras",
+  "title": "Traffic / plate-reader camera",
+  "description": "Makers of red-light, speed, toll and licence-plate reader cameras (Jenoptik, Redflex, Kapsch TrafficCom, Leonardo / ELSAG). Flock, Neology and Motorola (Vigilant) have their own rules.",
+  "type": "auto",
+  "tag": [
+    "Surveillance"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^JENOPTIK",
+        "^Redflex",
+        "^KAPSCH",
+        "^Leonardo UK"
+      ]
+    },
+    {
+      "mfg_org": [
+        "^Kapsch TrafficCom"
+      ]
+    }
+  ]
+}

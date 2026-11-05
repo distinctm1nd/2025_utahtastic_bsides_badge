@@ -1,0 +1,126 @@
+[
+ {
+  "file": "outlaw.ch8",
+  "title": "Outlaw",
+  "authors": [
+   "JohnEarnest"
+  ],
+  "tickrate": "15",
+  "quirks": [],
+  "about": "An adaptation of the Atari 2600 game \"Outlaw\" for the Chip8."
+ },
+ {
+  "file": "ghostEscape.ch8",
+  "title": "Ghost Escape",
+  "authors": [
+   "TomRintjema"
+  ],
+  "tickrate": 7,
+  "quirks": [],
+  "about": "Seek revenge on mortal men in this exciting adventure!"
+ },
+ {
+  "file": "glitchGhost.ch8",
+  "title": "Glitch Ghost",
+  "authors": [
+   "JackieKircher"
+  ],
+  "tickrate": 200,
+  "quirks": [],
+  "about": "glitch ghost is all alone in the cemetery, please help them make some friends by"
+ },
+ {
+  "file": "caveexplorer.ch8",
+  "title": "Cave Explorer",
+  "authors": [
+   "JohnEarnest"
+  ],
+  "tickrate": "20",
+  "quirks": [],
+  "about": "Do you have what it takes to be a Cave Explorer?"
+ },
+ {
+  "file": "dinorun.ch8",
+  "title": "Dino Run",
+  "authors": [
+   "Andrezinrc"
+  ],
+  "tickrate": 15,
+  "quirks": [
+   "clipQuirks",
+   "vBlankQuirks",
+   "logicQuirks"
+  ],
+  "about": "An endless runner game for Chip-8."
+ },
+ {
+  "file": "br8kout.ch8",
+  "title": "Br8kout",
+  "authors": [
+   "SharpenedSpoon"
+  ],
+  "tickrate": 7,
+  "quirks": [],
+  "about": "You can't even imagine how amazing this breakout clone is!"
+ },
+ {
+  "file": "superpong.ch8",
+  "title": "Super Pong",
+  "authors": [
+   "offstatic"
+  ],
+  "tickrate": 30,
+  "quirks": [],
+  "about": "A fast pong-like."
+ },
+ {
+  "file": "spaceracer.ch8",
+  "title": "Space Racer",
+  "authors": [
+   "WilliamDonnelly"
+  ],
+  "tickrate": 20,
+  "quirks": [],
+  "about": "Based on the classic 2-player 'Space Race' video game."
+ },
+ {
+  "file": "flightrunner.ch8",
+  "title": "Flight Runner",
+  "authors": [
+   "TodPunk"
+  ],
+  "tickrate": "15",
+  "quirks": [],
+  "about": "A simple flight runner for the Chip8."
+ },
+ {
+  "file": "slipperyslope.ch8",
+  "title": "Slippery Slope",
+  "authors": [
+   "JohnEarnest"
+  ],
+  "tickrate": 30,
+  "quirks": [],
+  "about": "The ice we skate is getting pretty thin. The water's getting warm so you might a"
+ },
+ {
+  "file": "snek.ch8",
+  "title": "Snek",
+  "authors": [
+   "JohnEarnest"
+  ],
+  "tickrate": 1000,
+  "quirks": [],
+  "about": "Minimalist Snake in 65 bytes."
+ },
+ {
+  "file": "mini-lights-out.ch8",
+  "title": "Mini Lights Out",
+  "authors": [
+   "tobiasvl"
+  ],
+  "tickrate": "7",
+  "quirks": [],
+  "about": "Turn the lights out"
+ }
+]

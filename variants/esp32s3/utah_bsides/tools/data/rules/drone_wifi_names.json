@@ -1,0 +1,30 @@
+{
+  "name": "Drone WiFi networks",
+  "title": "Drone's own WiFi network",
+  "description": "Drones that fly over their own WiFi network: DJI Tello, Spark and Mavic in WiFi mode, Parrot Anafi / Bebop / Disco, and the common toy and selfie drones.",
+  "type": "wifi",
+  "tag": [
+    "Drone"
+  ],
+  "criteria": [
+    {
+      "ssid": [
+        "TELLO-.*",
+        "Spark-.*",
+        "Mavic.*",
+        "Phantom.*",
+        "ANAFI.*",
+        "Bebop.*",
+        "DISCO-.*",
+        "WIFI_UFO.*",
+        "WIFI-UFO.*",
+        "WiFi_FPV.*",
+        "FPV_WIFI.*",
+        "HolyStone.*",
+        "Potensic.*",
+        "SNAPTAIN.*",
+        ".*drone.*"
+      ]
+    }
+  ]
+}

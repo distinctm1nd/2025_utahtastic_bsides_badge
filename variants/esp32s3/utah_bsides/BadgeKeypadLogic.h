@@ -25,6 +25,7 @@
 //    multi-tap typed straight into it
 #pragma once
 #include <stdint.h>
+#include <string.h>
 
 namespace badge
 {
@@ -88,8 +89,11 @@ struct KeypadHooks {
     virtual void konami() = 0;
     virtual bool appOpen() = 0;                         // a badge app has the keys
     virtual void appKey(int key, KeyAction action) = 0; // key for the open app
+    virtual bool appShortcuts() { return false; }       // the open app lets a held number run its shortcut
     virtual void openCompose(int firstKey) = 0;         // tap a digit on a Meshtastic screen
-    virtual void quickSend(int digit) = 0;              // hold a digit on a Meshtastic screen
+    virtual void quickSend(int digit) = 0;              // hold a digit on a Meshtastic screen: its shortcut
+    virtual void menuBack() {}                          // * is about to close a menu: reopen its parent
+    virtual void lockNow() {}                           // * and # together, anywhere
 };
 
 class KeypadLogic
@@ -100,7 +104,9 @@ class KeypadLogic
     static const uint32_t HOLD_MS = 700;      // hold: * = badge menu, # = next LED scene, digit = the digit
     static const uint32_t REPEAT_DELAY_MS = 450;
     static const uint32_t REPEAT_MS = 130;
-    static const uint32_t CHORD_MS = 60; // wait this long for a second joystick switch (angled pushes)
+    // a push closes two neighbouring switches (the stick is mounted at 45 degrees): go as soon
+    // as both are closed; a single switch on its own waits this long for its neighbour
+    static const uint32_t CHORD_MS = 120;
 
     // Joystick correction (it is mounted at an angle):
     //   steps  turn the directions clockwise by steps x 45 degrees (0..7)
@@ -128,8 +134,28 @@ class KeypadLogic
     // switch mask -> direction from the four learned pushes. A push that closes exactly what a
     // learned push closed is that direction; otherwise the direction sharing the most switches
     // (a tie between two neighbours goes to the first, or the second with lean); -1 if unclear.
-    static void buildJoyMap(const uint8_t masks[4], bool lean, int8_t out[16])
+    static void buildJoyMap(const uint8_t masksIn[4], bool lean, int8_t out[16])
     {
+        // pushes that fit the 45 degree layout (each within a pair of neighbouring switches)
+        // get the whole pair: a push recorded as one switch must not claim that switch for
+        // itself, since it's also half of the next direction
+        uint8_t masks[4];
+        memcpy(masks, masksIn, 4);
+        bool angled = false; // only for a stick mounted at an angle (some push closed two switches)
+        for (int d = 0; d < 4; d++)
+            angled = angled || __builtin_popcount(masksIn[d] & 0xF) == 2;
+        for (int r = 0; r < 4 && angled; r++) {
+            uint8_t pairs[4];
+            bool fits = true;
+            for (int d = 0; d < 4 && fits; d++) {
+                pairs[d] = (uint8_t)((1u << ((d + r) & 3)) | (1u << ((d + r + 1) & 3)));
+                fits = (masksIn[d] & 0xF) && !(masksIn[d] & ~pairs[d] & 0xF);
+            }
+            if (fits) {
+                memcpy(masks, pairs, 4);
+                break;
+            }
+        }
         out[0] = -1;
         for (int m = 1; m < 16; m++) {
             int score[4], best = -99;
@@ -139,7 +165,8 @@ class KeypadLogic
                     score[d] = -99;
                     continue;
                 }
-                score[d] = 2 * __builtin_popcount(m & k) - __builtin_popcount(m & ~k) + (m == k ? 10 : 0);
+                // a push holding every switch a learned push closed (and more) leans to that one
+                score[d] = 2 * __builtin_popcount(m & k) - __builtin_popcount(m & ~k) + (m == k ? 10 : 0) + !(k & ~m);
                 if (score[d] > best)
                     best = score[d];
             }
@@ -212,10 +239,15 @@ class KeypadLogic
             uint32_t held = now - downAt[b];
             if (!holdDone[b] && held >= HOLD_MS) {
                 holdDone[b] = true;
-                if (appMode & (1u << b))
+                if (appDefer & (1u << b)) {
+                    appDefer &= ~(1u << b);
+                    appUsed |= 1u << b;
+                    hooks.quickSend(digitFor(b) - '0');
+                } else if (appMode & (1u << b)) {
                     hooks.appKey(appKeyOf(b), KA_HOLD);
-                else
+                } else {
                     onHold(b);
+                }
             }
         }
     }
@@ -255,10 +287,13 @@ class KeypadLogic
     int joyDir = -1;          // direction being held, -1 none
     uint8_t joyTarget = 0;    // where it went: 0 Meshtastic, 1 badge app, 2 used up
     uint32_t joyCand = 0, joyDownAt = 0, joyRepeatAt = 0;
+    uint8_t joyMax = 0; // every switch the push closed so far
     static const int NKEYS = 17;
     uint32_t stable = 0;
     uint32_t swallow = 0;  // keys whose press was used up (woke the screen, closed the welcome)
     uint32_t appMode = 0;  // keys whose press went to a badge app (their release/hold go there too)
+    uint32_t appDefer = 0; // number keys in an app that allows shortcuts: tap on release, hold = shortcut
+    uint32_t appUsed = 0;  // ...held: the shortcut ran, the app gets nothing
     uint32_t homeTap = 0;  // digit pressed on a Meshtastic screen: decide on release (compose) or hold
     uint32_t since[NKEYS] = {};
     uint32_t downAt[NKEYS] = {};
@@ -308,18 +343,29 @@ class KeypadLogic
         uint8_t m = (uint8_t)((stable >> 12) & 0xF);
         if (joyDir < 0) {
             if (!m) {
+                // let go before the wait was over: a quick tap, go with what it closed
+                int d = joyCand && joyMax ? (joyMapSet ? joyMap[joyMax] : resolveJoystick(joyMax, joySteps, joyLean)) : -1;
                 joyCand = 0;
+                joyMax = 0;
+                if (d >= 0) {
+                    joyPress(d);
+                    if (joyTarget == 1)
+                        hooks.appKey(AK_UP + d, KA_RELEASE);
+                }
                 return;
             }
             if (!joyCand) {
                 joyCand = now ? now : 1;
+                joyMax = m;
                 return;
             }
-            if (now - joyCand < CHORD_MS)
+            joyMax |= m;
+            if (__builtin_popcount(joyMax) < 2 && now - joyCand < CHORD_MS)
                 return;
-            int d = joyMapSet ? joyMap[m & 0xF] : resolveJoystick(m, joySteps, joyLean);
+            int d = joyMapSet ? joyMap[joyMax] : resolveJoystick(joyMax, joySteps, joyLean);
             if (d < 0)
                 return;
+            joyMax = 0;
             joyDir = d;
             joyCand = 0;
             joyDownAt = joyRepeatAt = now;
@@ -386,12 +432,28 @@ class KeypadLogic
             hooks.welcomeDismiss();
             return;
         }
+        // * and # down together: lock, even inside a badge app (neither key does anything else)
+        const uint32_t both = (1u << KEY_STAR_BIT) | (1u << KEY_HASH_BIT);
+        if ((b == KEY_STAR_BIT || b == KEY_HASH_BIT) && (stable & both) == both) {
+            swallow |= both;
+            appMode &= ~both;
+            homeTap &= ~both;
+            tapBit = -1;
+            hooks.lockNow();
+            return;
+        }
         if (b != CENTER_BIT)
             konamiStep(b);
 
         if (hooks.appOpen()) {
             appMode |= m;
             tapBit = -1;
+            appUsed &= ~m;
+            if (isDigit(b) && hooks.appShortcuts()) {
+                appDefer |= m; // a tap reaches the app when let go; a hold runs the shortcut
+                return;
+            }
+            appDefer &= ~m;
             hooks.appKey(appKeyOf(b), KA_PRESS);
             return;
         }
@@ -424,6 +486,11 @@ class KeypadLogic
     void onHold(int b)
     {
         uint32_t m = 1u << b;
+        if ((b == KEY_STAR_BIT || b == KEY_HASH_BIT) && hooks.inFreeText() && !hooks.bannerShowing()) {
+            tapBit = -1; // typing: hold * or # for the symbol, like a digit
+            hooks.emit(KP_ANYKEY, b == KEY_STAR_BIT ? '*' : '#');
+            return;
+        }
         if (b == KEY_STAR_BIT || b == CENTER_BIT) {
             tapBit = -1;
             if (!hooks.bannerShowing())
@@ -455,7 +522,15 @@ class KeypadLogic
         uint32_t m = 1u << b;
         if (appMode & m) {
             appMode &= ~m;
-            hooks.appKey(appKeyOf(b), KA_RELEASE);
+            if (appDefer & m) { // a tap: the app gets it now
+                appDefer &= ~m;
+                hooks.appKey(appKeyOf(b), KA_PRESS);
+                hooks.appKey(appKeyOf(b), KA_RELEASE);
+            } else if (appUsed & m) {
+                appUsed &= ~m; // it was a shortcut
+            } else {
+                hooks.appKey(appKeyOf(b), KA_RELEASE);
+            }
             return;
         }
         bool used = (swallow & m) || holdDone[b];
@@ -470,8 +545,14 @@ class KeypadLogic
             return;
         if (b == KEY_STAR_BIT) {
             tapBit = -1;
-            // in a Meshtastic menu * closes it; otherwise backspace (or back when nothing typed)
-            hooks.emit(hooks.bannerShowing() ? KP_CANCEL : KP_BACK, 0x08);
+            // in a Meshtastic menu * closes it (badge menus then reopen the one above);
+            // otherwise backspace (or back when nothing typed)
+            if (hooks.bannerShowing()) {
+                hooks.menuBack();
+                hooks.emit(KP_CANCEL, 0x08);
+            } else {
+                hooks.emit(KP_BACK, 0x08);
+            }
         } else if (b == KEY_HASH_BIT || b == CENTER_BIT) {
             tapBit = -1;
             hooks.emit(KP_SELECT, 0); // select: choose in a menu / send the draft

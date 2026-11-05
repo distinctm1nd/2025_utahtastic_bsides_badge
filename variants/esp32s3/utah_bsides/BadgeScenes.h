@@ -69,6 +69,6 @@ void sceneSetAppColour(float r, float g, float b);
 void overlayKeyFlash(SceneCtx &c, const float flashLevel[KEYPAD_LEDS], const Rgb &colour);
 void overlayCelebrate(SceneCtx &c, float secondsLeft);
 void overlayAlert(SceneCtx &c, bool directMessage, float secondsIn); // message arrived
-void overlayPulse(SceneCtx &c, float level, bool includeMoon);      // mesh traffic blink
+void overlayPulse(SceneCtx &c, float level, bool includeMoon, const Rgb &col);      // mesh traffic blink
 
 } // namespace badge

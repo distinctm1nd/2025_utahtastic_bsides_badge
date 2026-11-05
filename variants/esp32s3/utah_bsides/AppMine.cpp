@@ -97,6 +97,10 @@ class MineApp : public App
             held.fwd = down;
         else if (dg == 8)
             held.back = down;
+        else if (dg == 1)
+            held.left = down; // turn left
+        else if (dg == 3)
+            held.right = down; // turn right
         else if (dg == 0 && a == KA_PRESS)
             reloadQueued = true;
     }
@@ -121,7 +125,8 @@ class MineApp : public App
         int lh = fontHeight(FONT_SMALL);
         if (screenState == MN_TITLE) {
             drawTitle(d, x, y, "Skinwalker Mine", "*hold quit");
-            const char *lines[] = {"Something is in the", "old silver mine.", "5 chapters down.", "stick: walk/turn  4 6: step", "0: reload  centre: shoot"};
+            const char *lines[] = {"Something is in the old", "silver mine. 5 levels down.", "2 fwd 8 back  1 3 turn",
+                                   "4 6 step  5 shoot  0 reload", "* hold: quit"};
             for (int i = 0; i < 5; i++)
                 d->drawString(x + 4, y + lh + 2 + i * (lh - 3), lines[i]);
             char cont[40];

@@ -136,6 +136,7 @@ class SimonApp : public App
         switch (state) {
         case SM_IDLE:
             bigLine(d, x, my, "Simon says");
+            drawCentered(d, x, my + 30, "repeat on the lit keys", FONT_SMALL);
             drawFooter(d, x, y, "# start   * quit");
             break;
         case SM_SHOW:
@@ -148,6 +149,7 @@ class SimonApp : public App
             bigLine(d, x, my, b);
             snprintf(b, sizeof(b), "Your turn: %d / %d", pos, len);
             drawCentered(d, x, my + 30, b, FONT_SMALL);
+            drawCentered(d, x, my + 42, "press the lit keys", FONT_SMALL);
             break;
         case SM_OVER:
             bigLine(d, x, my, "Game over");
@@ -319,7 +321,7 @@ class SnakeApp : public App
         }
         if (a != KA_PRESS)
             return;
-        if (k == AK_HASH) {
+        if (k == AK_HASH || k == AK_5) {
             if (state == SN_PLAYING)
                 state = SN_PAUSED;
             else if (state == SN_PAUSED)
@@ -331,13 +333,13 @@ class SnakeApp : public App
             return;
         }
         // no reversing into yourself
-        if (k == AK_UP && dy != 1)
+        if ((k == AK_UP || k == AK_2) && dy != 1)
             ndx = 0, ndy = -1;
-        else if (k == AK_DOWN && dy != -1)
+        else if ((k == AK_DOWN || k == AK_8) && dy != -1)
             ndx = 0, ndy = 1;
-        else if (k == AK_LEFT && dx != 1)
+        else if ((k == AK_LEFT || k == AK_4) && dx != 1)
             ndx = -1, ndy = 0;
-        else if (k == AK_RIGHT && dx != -1)
+        else if ((k == AK_RIGHT || k == AK_6) && dx != -1)
             ndx = 1, ndy = 0;
     }
     void tick(uint32_t now) override
@@ -385,12 +387,14 @@ class SnakeApp : public App
             d->fillRect(x + bx[i] * CELL + 1, top + by[i] * CELL + 1, CELL - 1, CELL - 1);
         d->drawCircle(x + fx * CELL + CELL / 2, top + fy * CELL + CELL / 2, 2);
         if (state != SN_PLAYING) {
-            const char *msg = state == SN_READY ? "# to start" : state == SN_PAUSED ? "Paused" : "Game over - #";
+            const char *msg = state == SN_READY ? "# start" : state == SN_PAUSED ? "Paused (#)" : "Game over - #";
+            int bw = d->width() - 24, bh = 2 * fontHeight(FONT_SMALL) + 6;
             d->setColor(BLACK);
-            d->fillRect(x + 20, top + 30, d->width() - 40, 20);
+            d->fillRect(x + 12, top + 24, bw, bh);
             d->setColor(WHITE);
-            d->drawRect(x + 20, top + 30, d->width() - 40, 20);
-            drawCentered(d, x, top + 33, msg, FONT_SMALL);
+            d->drawRect(x + 12, top + 24, bw, bh);
+            drawCentered(d, x, top + 27, msg, FONT_SMALL);
+            drawCentered(d, x, top + 27 + fontHeight(FONT_SMALL), "2 8 4 6 move  5 start", FONT_SMALL);
         }
     }
 

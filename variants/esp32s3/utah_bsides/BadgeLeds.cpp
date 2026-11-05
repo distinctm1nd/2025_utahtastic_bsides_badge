@@ -7,11 +7,11 @@
 #include "BadgeScenes.h"
 #include "BadgeApp.h"
 #include "BadgeKeypad.h"
+#include "BadgeLedOut.h"
 
 #include "NodeDB.h"
 #include "concurrency/OSThread.h"
 #include "graphics/Screen.h"
-#include <Adafruit_NeoPixel.h>
 #include <Preferences.h>
 #include <math.h>
 #include <string.h>
@@ -23,9 +23,6 @@ extern graphics::Screen *screen;
 namespace badge
 {
 
-static Adafruit_NeoPixel keypadStrip(BUTTON_LED_COUNT, BUTTON_LED_PIN, NEO_GRB + NEO_KHZ800);
-static Adafruit_NeoPixel logoStrip(LOGO_EYE_LED_COUNT, LOGO_EYE_LED_PIN, NEO_GRB + NEO_KHZ800);
-static Adafruit_NeoPixel moonStrip(NEOPIXEL_COUNT, NEOPIXEL_DATA, NEOPIXEL_TYPE);
 
 static_assert(BUTTON_LED_COUNT == KEYPAD_LEDS, "keypad LED count");
 static_assert(LOGO_EYE_LED_COUNT == LOGO_LEDS, "logo LED count");
@@ -45,6 +42,7 @@ static int curSpeed = 2;
 static int curBright = 2;
 static bool moonFollows = true; // the moon is part of the scenes unless set to the app colour
 static bool keyFlash = true;
+static bool flashlight = false;
 static bool sceneReset = true;
 static float sceneTime = 0;
 static float flash[KEYPAD_LEDS];
@@ -118,12 +116,14 @@ static inline float gamma22(float v)
 
 static uint8_t settle(uint8_t prev, float target)
 {
-    if (target < 0.35f)
+    // hysteresis first: near the bottom a fading channel used to flick between off and 1
+    // (the "off below 0.35" rule ran before it), which looked like glitching mid colour change
+    if (fabsf(target - prev) < 0.75f)
+        return prev;
+    if (target < 0.5f)
         return 0;
     if (target > 254.5f)
         return 255;
-    if (fabsf(target - prev) < 0.75f)
-        return prev;
     return (uint8_t)lroundf(target);
 }
 
@@ -172,15 +172,16 @@ static void loadSettings()
 // Hand the moon to the scenes, or back to Meshtastic's Ambient Lighting (app colour).
 static void applyMoonOwner()
 {
-    if (!ambientLightingThread)
-        return;
     if (moonFollows) {
-        ambientLightingThread->disable();
+        if (ambientLightingThread)
+            ambientLightingThread->disable();
+        ledOutBegin(STRIP_MOON);
         forceShow = true;
     } else {
-        moonStrip.clear();
-        moonStrip.show();
-        if (moduleConfig.ambient_lighting.led_state) {
+        static const uint8_t off[MOON_LEDS][3] = {};
+        ledOutShow(STRIP_MOON, off, MOON_LEDS);
+        ledOutEnd(STRIP_MOON); // Meshtastic's Ambient Lighting drives the moon now
+        if (ambientLightingThread && moduleConfig.ambient_lighting.led_state) {
             ambientLightingThread->enabled = true;
             ambientLightingThread->setIntervalFromNow(0); // re-applies the app colour now
         }
@@ -282,7 +283,9 @@ class BadgeLedThread : public concurrency::OSThread
                 frame[SKULL_LED][j] += (col[j] - frame[SKULL_LED][j]) * k;
         }
         if (pulseLeft > 0) {
-            overlayPulse(c, pulseLeft / 0.35f, moonFollows);
+            Rgb accent;
+            sceneAccent(curScene, accent);
+            overlayPulse(c, pulseLeft / 0.35f, moonFollows, accent);
             pulseLeft -= dt;
         }
         if (flourishLeft > 0) {
@@ -296,8 +299,11 @@ class BadgeLedThread : public concurrency::OSThread
         for (int i = 0; i < KEYPAD_LEDS; i++)
             flash[i] = flash[i] > 0 ? flash[i] - dt * 3.0f : 0;
 
-        float level = BRIGHT_LEVEL[nightMode ? 0 : curBright];
-        if (screen && !screen->isScreenOn() && offMode)
+        if (flashlight)
+            for (int i = 0; i < NUM_LEDS; i++)
+                frame[i][0] = frame[i][1] = frame[i][2] = 1.0f;
+        float level = flashlight ? 1.0f : BRIGHT_LEVEL[nightMode ? 0 : curBright];
+        if (!flashlight && screen && !screen->isScreenOn() && offMode)
             level = offMode == 2 ? 0 : level * 0.3f; // save the AA batteries while nobody looks
 
         float keyLevel = level + ((level > TYPING_LEVEL ? level : TYPING_LEVEL) - level) * typingK;
@@ -325,35 +331,25 @@ class BadgeLedThread : public concurrency::OSThread
                 }
             }
         }
-        if (forceShow) {
+        // resend everything once a second too: a frame the radio or screen garbled on the LED
+        // line (a few LEDs the wrong colour) would otherwise stay until the next change
+        if (forceShow || now - lastFull >= 1000) {
             forceShow = false;
+            lastFull = now;
             changed[0] = changed[1] = changed[2] = true;
         }
         // only send data when something changed: fewer chances for a glitch on the LED line
-        if (changed[0]) {
-            for (int i = 0; i < KEYPAD_LEDS; i++)
-                keypadStrip.setPixelColor(i, outVal[i][0], outVal[i][1], outVal[i][2]);
-            keypadStrip.show();
-        }
-        if (changed[1]) {
-            for (int i = 0; i < LOGO_LEDS; i++) {
-                const uint8_t *v = outVal[FIRST_LOGO + i];
-                logoStrip.setPixelColor(i, v[0], v[1], v[2]);
-            }
-            logoStrip.show();
-        }
-        if (moonFollows && changed[2]) {
-            for (int i = 0; i < MOON_LEDS; i++) {
-                const uint8_t *v = outVal[FIRST_MOON + i];
-                moonStrip.setPixelColor(i, v[0], v[1], v[2]);
-            }
-            moonStrip.show();
-        }
+        if (changed[0])
+            ledOutShow(STRIP_KEYPAD, outVal, KEYPAD_LEDS);
+        if (changed[1])
+            ledOutShow(STRIP_LOGO, outVal + FIRST_LOGO, LOGO_LEDS);
+        if (moonFollows && changed[2])
+            ledOutShow(STRIP_MOON, outVal + FIRST_MOON, MOON_LEDS);
         return 20; // 50 frames a second
     }
 
   private:
-    uint32_t lastMs = 0;
+    uint32_t lastMs = 0, lastFull = 0;
 };
 
 static BadgeLedThread *ledThread = nullptr;
@@ -361,18 +357,18 @@ static BadgeLedThread *ledThread = nullptr;
 // ---- public API ---------------------------------------------------------------------------
 void ledsEarlyInit()
 {
-    keypadStrip.begin();
-    logoStrip.begin();
-    keypadStrip.fill(Adafruit_NeoPixel::Color(8, 3, 0)); // dim amber while booting
-    logoStrip.fill(Adafruit_NeoPixel::Color(8, 3, 0));
-    keypadStrip.show();
-    logoStrip.show();
+    ledOutBegin(STRIP_KEYPAD);
+    ledOutBegin(STRIP_LOGO);
+    static uint8_t amber[KEYPAD_LEDS][3];
+    for (auto &v : amber) // dim amber while booting
+        v[0] = 8, v[1] = 3, v[2] = 0;
+    ledOutShow(STRIP_KEYPAD, amber, KEYPAD_LEDS);
+    ledOutShow(STRIP_LOGO, amber, LOGO_LEDS);
 }
 
 void ledsStart()
 {
     loadSettings();
-    moonStrip.begin();
     applyMoonOwner();
     sceneReset = true;
     if (!ledThread)
@@ -424,6 +420,10 @@ void ledsMessageAlert(bool dm)
     alertLen = alertLeft = dm ? 1.8f : 0.8f;
     skullUnread = true;
     unreadDm = dm;
+}
+void ledsSetFlashlight(bool on)
+{
+    flashlight = on;
 }
 void ledsMeshPulse()
 {

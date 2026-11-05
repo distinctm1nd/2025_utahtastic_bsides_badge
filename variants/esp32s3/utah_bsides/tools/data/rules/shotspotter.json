@@ -1,0 +1,15 @@
+{
+  "name": "ShotSpotter",
+  "title": "ShotSpotter gunshot sensor",
+  "type": "auto",
+  "tag": [
+    "Surveillance"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^ShotSpotter"
+      ]
+    }
+  ]
+}

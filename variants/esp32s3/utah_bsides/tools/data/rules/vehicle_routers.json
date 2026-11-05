@@ -1,0 +1,16 @@
+{
+  "name": "Vehicle router",
+  "title": "Vehicle router (common in police cars)",
+  "type": "auto",
+  "tag": [
+    "Networking"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^CradlePoint",
+        "^Sierra Wireless"
+      ]
+    }
+  ]
+}

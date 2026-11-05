@@ -1,0 +1,15 @@
+{
+  "name": "Neology",
+  "title": "Neology plate reader",
+  "type": "auto",
+  "tag": [
+    "Surveillance"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^Neology"
+      ]
+    }
+  ]
+}

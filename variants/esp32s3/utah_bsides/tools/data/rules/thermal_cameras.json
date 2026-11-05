@@ -1,0 +1,21 @@
+{
+  "name": "Thermal cameras",
+  "title": "Thermal / security camera (FLIR)",
+  "description": "FLIR thermal and security cameras, used by police, border patrol and in surveillance systems (also in some consumer gadgets).",
+  "type": "auto",
+  "tag": [
+    "Surveillance"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^FLIR Systems"
+      ]
+    },
+    {
+      "mfg_org": [
+        "^FLIR Systems"
+      ]
+    }
+  ]
+}

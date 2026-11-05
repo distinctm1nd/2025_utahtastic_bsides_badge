@@ -1,0 +1,26 @@
+{
+  "name": "Police body camera",
+  "title": "Police body cam / in-car video",
+  "type": "auto",
+  "tag": [
+    "Tactical"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^Axon Enterprise",
+        "^WatchGuard Video",
+        "^Digital Ally",
+        "^Zepcam",
+        "^VIEVU",
+        "^PRO-VISION, Inc",
+        "^Utility, Inc"
+      ]
+    },
+    {
+      "mfg_org": [
+        "^TASER International"
+      ]
+    }
+  ]
+}

@@ -17,10 +17,11 @@ import hashlib
 import os
 import sys
 
-VERSION = "2"  # 2: frames packed (XOR with the previous frame, then PackBits)
+VERSION = "3"  # 2: frames packed (XOR with the previous frame, then PackBits); 3: per-frame timing
 W, H = 160, 128
 MAX_FRAMES = 24
-BUDGET = 512 * 1024  # bytes of image data in the firmware
+MAX_SHOWN = 96  # frames after repeating slow ones
+BUDGET = 2 * 1024 * 1024  # bytes of image data in the firmware (6 MB app slot; more go on the file system)
 EXTS = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp")
 
 try:  # running inside PlatformIO
@@ -142,10 +143,19 @@ def convert(files):
             log("skipping", f, "-", e)
             continue
         invert = "_inv" in f.lower()
-        frames = [fr.copy() for fr in ImageSequence.Iterator(src)]
+        frames, times = [], []
+        for fr in ImageSequence.Iterator(src):
+            frames.append(fr.copy())
+            times.append(int(fr.info.get("duration", src.info.get("duration", 100)) or 100))
         step = max(1, (len(frames) + MAX_FRAMES - 1) // MAX_FRAMES)
         frames = frames[::step][:MAX_FRAMES]
-        duration = int(src.info.get("duration", 100) or 100) * step
+        times = [sum(times[k:k + step]) for k in range(0, step * len(frames), step)][: len(frames)]
+        # the badge plays every frame for the same time: show slow frames several times (a
+        # repeated frame packs to almost nothing), so pauses and quick moves keep their timing
+        duration = max(40, min(times))
+        while sum(max(1, round(t / duration)) for t in times) > MAX_SHOWN:
+            duration += 10
+        frames = [fr for fr, t in zip(frames, times) for _ in range(max(1, round(t / duration)))]
         data, w, h, raw, check = b"", 0, 0, 0, 2166136261
         prev = None
         for fr in frames:

@@ -15,6 +15,7 @@
 #include "graphics/ScreenFonts.h"
 #include <Arduino.h>
 #include <initializer_list>
+#include <new>
 #include <stdio.h>
 
 namespace badge
@@ -50,6 +51,13 @@ class ChessApp : public App
         state = CH_MENU;
         menuRow = 0;
         quitHeld = false;
+        if (!h)
+            h = new (std::nothrow) Engine();
+    }
+    void end() override
+    {
+        delete h;
+        h = nullptr;
     }
     void key(int k, KeyAction a) override
     {
@@ -65,7 +73,7 @@ class ChessApp : public App
             }
             return;
         }
-        if (a != KA_PRESS && a != KA_REPEAT)
+        if (!h || (a != KA_PRESS && a != KA_REPEAT))
             return;
         if (state == CH_MENU) {
             menuKey(k, a);
@@ -81,32 +89,37 @@ class ChessApp : public App
         // the cursor moves the way you push on screen (the board is flipped when you're Black)
         int fl = flipped() ? -1 : 1;
         int f = Chess::fileOf(cursor), r = Chess::rankOf(cursor);
-        if (k == AK_UP)
+        if (k == AK_UP || k == AK_2)
             r += fl;
-        else if (k == AK_DOWN)
+        else if (k == AK_DOWN || k == AK_8)
             r -= fl;
-        else if (k == AK_LEFT)
+        else if (k == AK_LEFT || k == AK_4)
             f -= fl;
-        else if (k == AK_RIGHT)
+        else if (k == AK_RIGHT || k == AK_6)
             f += fl;
-        else if (k == AK_HASH && a == KA_PRESS)
+        else if ((k == AK_HASH || k == AK_5) && a == KA_PRESS)
             choose();
         if (f >= 0 && f < 8 && r >= 0 && r < 8)
             cursor = Chess::sqAt(f, r);
     }
     void tick(uint32_t now) override
     {
-        if (state == CH_CPU && now >= thinkAt) {
+        if (h && state == CH_CPU && now >= thinkAt) {
             ChessMove m;
-            game.noise = level == 0 ? 15 : level == 1 ? 6 : 0;
+            h->game.noise = level == 0 ? 15 : level == 1 ? 6 : 0;
             static const long BUDGET[3] = {2500, 20000, 80000};
-            if (game.think(m, BUDGET[level], level == 0 ? 2 : 6))
+            if (h->game.think(m, BUDGET[level], level == 0 ? 2 : 6))
                 play(m);
             appRedraw();
         }
     }
     void draw(OLEDDisplay *d, int16_t x, int16_t y) override
     {
+        if (!h) {
+            drawTitle(d, x, y, "Chess", "*back");
+            drawCentered(d, x, y + 2 * fontHeight(FONT_SMALL), "Not enough memory", FONT_SMALL);
+            return;
+        }
         if (state == CH_MENU) {
             drawMenu(d, x, y);
             return;
@@ -126,7 +139,12 @@ class ChessApp : public App
 
   private:
     enum State { CH_MENU, CH_PLAYER, CH_CPU, CH_OVER } state = CH_MENU;
-    Chess game;
+    // the engine's search buffers are ~13 KB: only held while Chess is open
+    struct Engine {
+        Chess game;
+        ChessMove moves[Chess::MAXMOVES];
+    };
+    Engine *h = nullptr;
     int mode = 0;  // 0 you White, 1 you Black, 2 two players
     int level = 1; // 0 Easy, 1 Normal, 2 Hard
     int menuRow = 0;
@@ -135,30 +153,29 @@ class ChessApp : public App
     bool quitHeld = false;
     uint32_t thinkAt = 0;
     const char *result = "";
-    ChessMove moves[Chess::MAXMOVES];
     int nmoves = 0;
 
     // your pieces are always at the bottom: Black at the bottom when you play Black, and in a
     // two-player game the board turns to face whoever's move it is
-    bool flipped() const { return mode == 1 || (mode == 2 && game.side < 0); }
+    bool flipped() const { return mode == 1 || (mode == 2 && h->game.side < 0); }
     bool cpuSide(int side) const { return mode == 0 ? side < 0 : mode == 1 ? side > 0 : false; }
 
     void menuKey(int k, KeyAction a)
     {
-        if (k == AK_UP)
+        if (k == AK_UP || k == AK_2)
             menuRow = (menuRow + 3) % 4;
-        else if (k == AK_DOWN)
+        else if (k == AK_DOWN || k == AK_8)
             menuRow = (menuRow + 1) % 4;
-        else if ((k == AK_LEFT || k == AK_RIGHT || k == AK_HASH) && menuRow == 3)
-            level = (level + (k == AK_LEFT ? 2 : 1)) % 3;
-        else if (k == AK_HASH && a == KA_PRESS) {
+        else if ((k == AK_LEFT || k == AK_4 || k == AK_RIGHT || k == AK_6 || k == AK_HASH || k == AK_5) && menuRow == 3)
+            level = (level + ((k == AK_LEFT || k == AK_4) ? 2 : 1)) % 3;
+        else if ((k == AK_HASH || k == AK_5) && a == KA_PRESS) {
             mode = menuRow;
             newGame();
         }
     }
     void newGame()
     {
-        game.reset();
+        h->game.reset();
         selected = -1;
         lastFrom = lastTo = -1;
         cursor = flipped() ? 0x64 : 0x14; // e7 or e2
@@ -166,18 +183,18 @@ class ChessApp : public App
     }
     void choose()
     {
-        int pc = game.board[cursor];
+        int pc = h->game.board[cursor];
         if (selected >= 0) {
             for (int i = 0; i < nmoves; i++)
-                if (moves[i].from == selected && moves[i].to == cursor && (!moves[i].promo || moves[i].promo == Chess::QUEEN)) {
-                    play(moves[i]);
+                if (h->moves[i].from == selected && h->moves[i].to == cursor && (!h->moves[i].promo || h->moves[i].promo == Chess::QUEEN)) {
+                    play(h->moves[i]);
                     return;
                 }
         }
         // pick up (or switch to) one of your pieces that can move
-        if (pc * game.side > 0)
+        if (pc * h->game.side > 0)
             for (int i = 0; i < nmoves; i++)
-                if (moves[i].from == cursor) {
+                if (h->moves[i].from == cursor) {
                     selected = cursor;
                     return;
                 }
@@ -186,8 +203,8 @@ class ChessApp : public App
     void play(const ChessMove &m)
     {
         Chess::Undo u;
-        bool capture = game.board[m.to] != 0 || (m.flags & Chess::CM_EP);
-        game.make(m, u);
+        bool capture = h->game.board[m.to] != 0 || (m.flags & Chess::CM_EP);
+        h->game.make(m, u);
         lastFrom = m.from;
         lastTo = m.to;
         selected = -1;
@@ -197,13 +214,13 @@ class ChessApp : public App
     }
     void afterMove()
     {
-        nmoves = game.legal(moves);
-        Chess::Status st = game.status();
+        nmoves = h->game.legal(h->moves);
+        Chess::Status st = h->game.status();
         if (st != Chess::PLAYING) {
             state = CH_OVER;
             if (st == Chess::CHECKMATE) {
-                bool loserCpu = cpuSide(game.side);
-                result = mode == 2 ? (game.side > 0 ? "Black wins!" : "White wins!") : loserCpu ? "Checkmate! You win" : "Checkmate. Badge wins";
+                bool loserCpu = cpuSide(h->game.side);
+                result = mode == 2 ? (h->game.side > 0 ? "Black wins!" : "White wins!") : loserCpu ? "Checkmate! You win" : "Checkmate. Badge wins";
                 if (mode != 2 && loserCpu)
                     ledsFlourish();
             } else {
@@ -211,13 +228,13 @@ class ChessApp : public App
             }
             return;
         }
-        if (cpuSide(game.side)) {
+        if (cpuSide(h->game.side)) {
             state = CH_CPU;
             thinkAt = millis() + 150; // let "Thinking" reach the screen first
         } else {
             state = CH_PLAYER;
             if (mode == 2) // pass the badge: the cursor starts on the next player's king's file
-                cursor = game.side > 0 ? 0x14 : 0x64;
+                cursor = h->game.side > 0 ? 0x14 : 0x64;
         }
     }
 
@@ -261,7 +278,7 @@ class ChessApp : public App
                         for (int px = (py & 2) ? 0 : 1; px < SQ; px += 2)
                             if (((px + py) & 3) == 1)
                                 d->setPixel(sx + px, sy + py);
-                int pc = game.board[s];
+                int pc = h->game.board[s];
                 if (pc)
                     drawPiece(d, sx + 2, sy + 2, pc < 0 ? -pc : pc, pc < 0);
             }
@@ -278,9 +295,9 @@ class ChessApp : public App
         // where the picked-up piece can go
         if (selected >= 0)
             for (int i = 0; i < nmoves; i++)
-                if (moves[i].from == selected && (!moves[i].promo || moves[i].promo == Chess::QUEEN)) {
+                if (h->moves[i].from == selected && (!h->moves[i].promo || h->moves[i].promo == Chess::QUEEN)) {
                     int sx, sy;
-                    squareXY(moves[i].to, x, y, sx, sy);
+                    squareXY(h->moves[i].to, x, y, sx, sy);
                     d->setColor(BLACK);
                     d->fillRect(sx + 6, sy + 6, 4, 4);
                     d->setColor(WHITE);
@@ -326,10 +343,10 @@ class ChessApp : public App
     {
         int lh = fontHeight(FONT_SMALL);
         // whose turn: a king of that colour
-        drawPiece(d, x + 9, y + 2, Chess::KING, game.side < 0);
-        const char *who = state == CH_CPU ? "..." : mode == 2 ? (game.side > 0 ? "W" : "B") : "You";
+        drawPiece(d, x + 9, y + 2, Chess::KING, h->game.side < 0);
+        const char *who = state == CH_CPU ? "..." : mode == 2 ? (h->game.side > 0 ? "W" : "B") : "You";
         drawCenteredIn(d, x, d->width() - x, y + 16, who);
-        if (state != CH_OVER && game.inCheck(game.side))
+        if (state != CH_OVER && h->game.inCheck(h->game.side))
             drawCenteredIn(d, x, d->width() - x, y + 16 + lh, "chk!");
         if (lastFrom >= 0) {
             char mv[6] = {(char)('a' + Chess::fileOf(lastFrom)), (char)('1' + Chess::rankOf(lastFrom)),
@@ -338,7 +355,9 @@ class ChessApp : public App
         }
         static const char *LV[3] = {"easy", "norm", "hard"};
         if (mode != 2)
-            drawCenteredIn(d, x, d->width() - x, y + d->height() - lh, LV[level]);
+            drawCenteredIn(d, x, d->width() - x, y + d->height() - 2 * lh - 2, LV[level]);
+        drawCenteredIn(d, x, d->width() - x, y + d->height() - 2 * lh, "2/8/4/6");
+        drawCenteredIn(d, x, d->width() - x, y + d->height() - lh, "# pick");
     }
     static void drawCenteredIn(OLEDDisplay *d, int x, int w, int y, const char *s)
     {

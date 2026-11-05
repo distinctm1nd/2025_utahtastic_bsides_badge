@@ -1,0 +1,23 @@
+{
+  "name": "Consumer drones",
+  "title": "Drone maker (DJI / Parrot)",
+  "description": "Drones that aren't broadcasting Remote ID: DJI and Parrot by their registered address ranges and DJI's Bluetooth company ID. DJI's ranges also cover its controllers, gimbals and Osmo cameras, so treat this as 'drone gear', not proof of a drone in the air.",
+  "type": "auto",
+  "tag": [
+    "Drone"
+  ],
+  "criteria": [
+    {
+      "oui_org": [
+        "^SZ DJI TECHNOLOGY",
+        "^DJI BAIWANG",
+        "^PARROT SA"
+      ]
+    },
+    {
+      "mfg_org": [
+        "^SZ DJI TECHNOLOGY"
+      ]
+    }
+  ]
+}

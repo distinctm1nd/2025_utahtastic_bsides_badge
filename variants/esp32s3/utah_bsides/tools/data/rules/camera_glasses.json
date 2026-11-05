@@ -1,0 +1,17 @@
+{
+  "name": "Camera glasses",
+  "title": "Camera glasses / headset (Meta, Ray-Ban)",
+  "description": "Smart glasses that can record video (Ray-Ban Meta and other Meta Reality Labs devices, which includes Quest headsets). Matched by the Bluetooth company IDs of Meta Platforms Technologies and Luxottica, not Meta's older ID that apps can use.",
+  "type": "ble",
+  "tag": [
+    "Camera"
+  ],
+  "criteria": [
+    {
+      "mfg": [
+        "0x058E",
+        "0x0D53"
+      ]
+    }
+  ]
+}

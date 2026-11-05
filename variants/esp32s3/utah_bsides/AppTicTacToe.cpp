@@ -222,7 +222,10 @@ class TttApp : public App
         else
             msg = turn == myMark ? "Your turn" : (mode == TT_CPU ? "Thinking" : "Their turn");
         drawLines(d, sx, top + 4, d->width() - sx - 2, msg);
-        d->drawString(sx, y + d->height() - fontHeight(FONT_SMALL), state == TT_DONE && mode == TT_CPU ? "#again *quit" : "*quit");
+        int lh = fontHeight(FONT_SMALL);
+        if (state == TT_PLAYING && turn == myMark)
+            d->drawString(sx, y + d->height() - 2 * lh - 2, "keys 1-9");
+        d->drawString(sx, y + d->height() - lh, state == TT_DONE && mode == TT_CPU ? "#again *quit" : "*quit");
     }
 
   private:

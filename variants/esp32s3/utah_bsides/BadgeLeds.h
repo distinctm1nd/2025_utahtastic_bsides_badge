@@ -34,7 +34,8 @@ void ledsKeyPressed(int keyBit); // TCA9535 bit of a key that went down
 void ledsCelebrate();            // Konami code reward (6 s rainbow strobe)
 void ledsFlourish();             // short rainbow burst: new badge, achievement, hunt flag
 void ledsMessageAlert(bool dm);  // keys pulse: 3x for a direct message, once for a channel
-void ledsMeshPulse();            // the eyes (and moon, if it follows) blink on mesh traffic
+void ledsSetFlashlight(bool on);  // every LED full white (the flashlight app)
+void ledsMeshPulse();            // the eyes (and moon, if it follows) blink once: game feedback
 
 // light shows: jump to a scene at a given scene time (not saved)
 void ledsSetSceneSynced(int scene, int speed, uint32_t timeMs);
