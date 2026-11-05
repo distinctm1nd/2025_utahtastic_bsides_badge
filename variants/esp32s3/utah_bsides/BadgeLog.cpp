@@ -44,10 +44,10 @@ static void position(int32_t &lat, int32_t &lon)
     lat = lon = 0;
     if (!nodeDB)
         return;
-    const meshtastic_NodeInfoLite *n = nodeDB->getMeshNode(nodeDB->getNodeNum());
-    if (n && n->has_position) {
-        lat = n->position.latitude_i;
-        lon = n->position.longitude_i;
+    meshtastic_PositionLite pos; // 2.8 keeps node positions in NodeDB, not on NodeInfoLite
+    if (nodeDB->copyNodePosition(nodeDB->getNodeNum(), pos)) {
+        lat = pos.latitude_i;
+        lon = pos.longitude_i;
     }
 }
 

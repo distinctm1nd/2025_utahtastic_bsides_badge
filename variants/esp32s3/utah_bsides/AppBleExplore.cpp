@@ -147,7 +147,7 @@ static int onRead(uint16_t, const struct ble_gatt_error *err, struct ble_gatt_at
 static int plainRead(NimBLEClient *c, uint16_t handle)
 {
     xSemaphoreTake(rd.done, 0);
-    if (ble_gattc_read(c->getConnId(), handle, onRead, nullptr) != 0)
+    if (ble_gattc_read(c->getConnHandle(), handle, onRead, nullptr) != 0)
         return -1;
     if (xSemaphoreTake(rd.done, pdMS_TO_TICKS(3000)) != pdTRUE)
         return -2;
@@ -171,8 +171,9 @@ static void valueText(const uint8_t *v, int n, char *out, size_t size)
 
 class NoPairing : public NimBLEClientCallbacks
 {
-    bool onConfirmPIN(uint32_t) override { return false; } // never accept a pairing this way
-    uint32_t onPassKeyRequest() override { return 0; }
+    // never accept a pairing this way
+    void onConfirmPasskey(NimBLEConnInfo &connInfo, uint32_t) override { NimBLEDevice::injectConfirmPasskey(connInfo, false); }
+    void onPassKeyEntry(NimBLEConnInfo &connInfo) override { NimBLEDevice::injectPassKey(connInfo, 0); }
 };
 static NoPairing noPairing;
 
@@ -185,10 +186,10 @@ static void readInfo(NimBLEClient *c)
     static const Field FIELDS[] = {{0x2A00, "Name"},     {0x2A29, "Maker"},   {0x2A24, "Model"},   {0x2A25, "Serial"},
                                    {0x2A27, "Hardware"}, {0x2A26, "Firmware"}, {0x2A28, "Software"}, {0x2A19, "Battery"},
                                    {0x2A01, "Looks like"}};
-    std::vector<NimBLERemoteService *> *svcs = c->getServices(true);
+    const std::vector<NimBLERemoteService *> &svcs = c->getServices(true);
     int locked = 0;
     for (const Field &f : FIELDS)
-        for (NimBLERemoteService *s : *svcs) {
+        for (NimBLERemoteService *s : svcs) {
             NimBLERemoteCharacteristic *ch = s->getCharacteristic(NimBLEUUID(f.uuid));
             if (!ch || !ch->canRead())
                 continue;
@@ -231,24 +232,24 @@ static const char *secLabel(int st)
 
 static void listServices(NimBLEClient *c)
 {
-    std::vector<NimBLERemoteService *> *svcs = c->getServices(false);
-    addLine("Services (%d):", (int)svcs->size());
+    const std::vector<NimBLERemoteService *> &svcs = c->getServices(false);
+    addLine("Services (%d):", (int)svcs.size());
     int openReadable = 0, protReadable = 0, probes = 0;
-    for (NimBLERemoteService *s : *svcs) {
+    for (NimBLERemoteService *s : svcs) {
         NimBLEUUID u = s->getUUID();
-        uint16_t u16 = u.bitSize() == 16 ? u.getNative()->u16.value : 0;
+        uint16_t u16 = u.bitSize() == 16 ? (uint16_t)(u.getValue()[0] | (u.getValue()[1] << 8)) : 0;
         if (u16 == 0x1800 || u16 == 0x1801) // every device has these
             continue;
         const char *name = u16 ? service16(u16) : service128(u);
-        std::vector<NimBLERemoteCharacteristic *> *chs = s->getCharacteristics(true);
+        const std::vector<NimBLERemoteCharacteristic *> &chs = s->getCharacteristics(true);
         bool r = false, w = false, n = false;
-        for (NimBLERemoteCharacteristic *ch : *chs) {
+        for (NimBLERemoteCharacteristic *ch : chs) {
             r |= ch->canRead();
             w |= ch->canWrite() || ch->canWriteNoResponse();
             n |= ch->canNotify() || ch->canIndicate();
         }
         char what[24];
-        snprintf(what, sizeof(what), "%d: %s%s%s", (int)chs->size(), r ? "R" : "", w ? "W" : "", n ? "N" : "");
+        snprintf(what, sizeof(what), "%d: %s%s%s", (int)chs.size(), r ? "R" : "", w ? "W" : "", n ? "N" : "");
         if (name)
             addLine(" %s (%s)", name, what);
         else if (u16)
@@ -256,7 +257,7 @@ static void listServices(NimBLEClient *c)
         else
             addLine(" %.8s.. (%s)", u.toString().c_str(), what);
         // probe each readable characteristic to see what security it demands
-        for (NimBLERemoteCharacteristic *ch : *chs) {
+        for (NimBLERemoteCharacteristic *ch : chs) {
             if (!ch->canRead() || probes >= 50)
                 continue;
             probes++;
@@ -266,7 +267,7 @@ static void listServices(NimBLEClient *c)
             else
                 protReadable++;
             NimBLEUUID cu = ch->getUUID();
-            uint16_t c16 = cu.bitSize() == 16 ? cu.getNative()->u16.value : 0;
+            uint16_t c16 = cu.bitSize() == 16 ? (uint16_t)(cu.getValue()[0] | (cu.getValue()[1] << 8)) : 0;
             if (c16)
                 addLine("  %04X: %s", c16, secLabel(st));
             else
@@ -287,7 +288,7 @@ static void exploreTask(void *)
     char addr[18];
     snprintf(addr, sizeof(addr), "%02x:%02x:%02x:%02x:%02x:%02x", exMac[0], exMac[1], exMac[2], exMac[3], exMac[4], exMac[5]);
     bool ok = false;
-    if (!NimBLEDevice::getInitialized()) {
+    if (!NimBLEDevice::isInitialized()) {
         snprintf(exStatus, sizeof(exStatus), "Bluetooth is off");
     } else if (NimBLEClient *c = NimBLEDevice::createClient()) {
         c->setClientCallbacks(&noPairing, false);

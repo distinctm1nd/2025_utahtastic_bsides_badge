@@ -28,7 +28,7 @@ const char *rfBorrow()
         return "No LoRa radio";
     savedTx = config.lora.tx_enabled;
     config.lora.tx_enabled = false; // Meshtastic drops what it would send
-    for (int i = 0; i < 150 && !r->canSleep(); i++) // let a packet in the air finish
+    for (int i = 0; i < 150 && !r->canSleep(false); i++) // let a packet in the air finish
         delay(20);
     lora = static_cast<SX1262 *>(RadioPeek::radio(r));
     if (!lora) {

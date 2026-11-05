@@ -346,9 +346,9 @@ static void nodes()
     int n = 0;
     for (size_t i = 0; nodeDB && i < nodeDB->getNumMeshNodes() && n < 80; i++) {
         meshtastic_NodeInfoLite *nd = nodeDB->getMeshNodeByIndex(i);
-        if (!nd || nd->num == meshMyNode() || !nd->has_user)
+        if (!nd || nd->num == meshMyNode() || !nodeInfoLiteHasUser(nd))
             continue;
-        o += String(n++ ? "," : "") + "{\"num\":" + String((unsigned long)nd->num) + ",\"name\":" + js(nd->user.long_name) + "}";
+        o += String(n++ ? "," : "") + "{\"num\":" + String((unsigned long)nd->num) + ",\"name\":" + js(nd->long_name) + "}";
     }
     sendJson(o + "]");
 }

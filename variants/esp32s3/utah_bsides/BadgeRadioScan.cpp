@@ -299,13 +299,13 @@ bool radioDroneGet(const uint8_t *mac, DroneInfo &out)
     return found;
 }
 
-class BleResults : public NimBLEAdvertisedDeviceCallbacks
+class BleResults : public NimBLEScanCallbacks
 {
-    void onResult(NimBLEAdvertisedDevice *d) override
+    void onResult(const NimBLEAdvertisedDevice *d) override
     {
         std::string n = d->haveName() ? d->getName() : std::string();
         NimBLEAddress a = d->getAddress();
-        const uint8_t *le = a.getNative(); // little-endian
+        const uint8_t *le = a.getVal(); // little-endian
         uint8_t mac[6];
         for (int i = 0; i < 6; i++)
             mac[i] = le[5 - i];
@@ -331,13 +331,13 @@ class BleResults : public NimBLEAdvertisedDeviceCallbacks
         for (uint8_t i = 0; i < d->getServiceUUIDCount(); i++) {
             NimBLEUUID u = d->getServiceUUID(i);
             if (x.nServices < 3 && u.bitSize() == 16)
-                x.services[x.nServices++] = u.getNative()->u16.value;
+                x.services[x.nServices++] = (uint16_t)(u.getValue()[0] | (u.getValue()[1] << 8));
         }
         for (uint8_t i = 0; i < d->getServiceDataCount(); i++) {
             NimBLEUUID u = d->getServiceDataUUID(i);
             if (u.bitSize() != 16)
                 continue;
-            uint16_t v = u.getNative()->u16.value;
+            uint16_t v = (uint16_t)(u.getValue()[0] | (u.getValue()[1] << 8));
             if (x.nServices < 3)
                 x.services[x.nServices++] = v;
             if (v == 0xFFFA) {
@@ -362,13 +362,12 @@ class BleResults : public NimBLEAdvertisedDeviceCallbacks
             portEXIT_CRITICAL(&lock);
         }
         if (captureBleOn() || captureStreamKind() == STREAM_BLE)
-            capPush(1, d->getPayload(), (int)d->getPayloadLength(), 0, mac, d->getAdvType(),
+            capPush(1, d->getPayload().data(), (int)d->getPayload().size(), 0, mac, d->getAdvType(),
                     a.getType() != BLE_ADDR_PUBLIC);
         record(mac, n.c_str(), d->getRSSI(), 0, company, a.getType() == BLE_ADDR_PUBLIC, &x);
     }
 };
 static BleResults bleResults;
-static void bleScanDone(NimBLEScanResults) {}
 
 // ---- WiFi frames ---------------------------------------------------------------------------
 // NAN service discovery frame (ASTM F3411): public action, Wi-Fi Alliance NAN, then attributes;
@@ -478,10 +477,10 @@ static int hops = 0;
 
 static const char *bleBegin(bool light)
 {
-    if (!NimBLEDevice::getInitialized())
+    if (!NimBLEDevice::isInitialized())
         return isWifiAvailable() ? "Bluetooth is off\nwhile WiFi is on" : "Bluetooth is off\n(Mesh settings)";
     NimBLEScan *s = NimBLEDevice::getScan();
-    s->setAdvertisedDeviceCallbacks(&bleResults, true);
+    s->setScanCallbacks(&bleResults, true);
     s->setMaxResults(0); // callbacks only, don't keep a list
     s->setActiveScan(true);
     s->setInterval(light ? 300 : 100);
@@ -491,11 +490,11 @@ static const char *bleBegin(bool light)
 
 static void bleEnd()
 {
-    if (!NimBLEDevice::getInitialized())
+    if (!NimBLEDevice::isInitialized())
         return;
     NimBLEScan *s = NimBLEDevice::getScan();
     s->stop();
-    s->setAdvertisedDeviceCallbacks(nullptr);
+    s->setScanCallbacks(nullptr);
     s->setMaxResults(0xFF);
     s->clearResults();
 }
@@ -598,7 +597,7 @@ static volatile bool held = false; // the radio is lent to something else (a bee
 void radioScanHold(bool hold)
 {
     held = hold;
-    if (hold && running && (active == SCAN_BLE || allBle) && NimBLEDevice::getInitialized())
+    if (hold && running && (active == SCAN_BLE || allBle) && NimBLEDevice::isInitialized())
         NimBLEDevice::getScan()->stop();
 }
 
@@ -610,14 +609,14 @@ void radioScanPoll()
         return;
     if (active == SCAN_ALL && allBle && allWifi) { // turns: one 3 s Bluetooth scan, one sweep of the channels
         if (phaseBle) {
-            if (!NimBLEDevice::getInitialized())
+            if (!NimBLEDevice::isInitialized())
                 return;
             NimBLEScan *s = NimBLEDevice::getScan();
             if (s->isScanning())
                 return;
             if (!lastStart) {
                 lastStart = millis();
-                s->start(3, bleScanDone, false);
+                s->start(3000, false); // 2.x: duration is ms; scan-end handled by the callbacks
                 return;
             }
             phaseBle = false;
@@ -634,13 +633,13 @@ void radioScanPoll()
         }
     }
     if (active == SCAN_BLE || (active == SCAN_ALL && !allWifi)) {
-        if (!NimBLEDevice::getInitialized())
+        if (!NimBLEDevice::isInitialized())
             return;
         NimBLEScan *s = NimBLEDevice::getScan();
         // 3 s scans: each end clears devices whose scan response never came
         if (!s->isScanning() && !Throttle::isWithinTimespanMs(lastStart, 500)) {
             lastStart = millis();
-            s->start(3, bleScanDone, false);
+            s->start(3000, false); // 2.x: duration is ms; scan-end handled by the callbacks
         }
         return;
     }

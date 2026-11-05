@@ -48,11 +48,11 @@ static volatile uint16_t hostConn = 0xFFFF; // the computer that turned our repo
 
 class ReportSub : public NimBLECharacteristicCallbacks
 {
-    void onSubscribe(NimBLECharacteristic *, ble_gap_conn_desc *desc, uint16_t subValue) override
+    void onSubscribe(NimBLECharacteristic *, NimBLEConnInfo &connInfo, uint16_t subValue) override
     {
         if (subValue)
-            hostConn = desc->conn_handle;
-        else if (hostConn == desc->conn_handle)
+            hostConn = connInfo.getConnHandle();
+        else if (hostConn == connInfo.getConnHandle())
             hostConn = 0xFFFF;
     }
 };
@@ -247,7 +247,7 @@ class BleRemoteApp : public App
         held = 0;
         buttons = 0;
         speed = 6;
-        error = NimBLEDevice::getInitialized() ? nullptr : "Turn on Bluetooth first\n(Mesh settings)";
+        error = NimBLEDevice::isInitialized() ? nullptr : "Turn on Bluetooth first\n(Mesh settings)";
         if (!error) {
             buildHid();
             setHid(true);

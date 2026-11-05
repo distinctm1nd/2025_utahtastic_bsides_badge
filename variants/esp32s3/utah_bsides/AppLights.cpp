@@ -18,7 +18,6 @@
 #include "graphics/ScreenFonts.h"
 #include <stdio.h>
 
-extern graphics::Screen *screen;
 
 namespace badge
 {

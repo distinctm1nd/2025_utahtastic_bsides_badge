@@ -16,7 +16,6 @@
 #include <stdio.h>
 #include <string.h>
 
-extern graphics::Screen *screen;
 
 #define MB_SDA_PIN 5
 #define MB_SCL_PIN 6

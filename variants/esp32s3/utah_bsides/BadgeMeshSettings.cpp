@@ -25,7 +25,6 @@
 #include <stdio.h>
 #include <string.h>
 
-extern graphics::Screen *screen;
 extern meshtastic_CannedMessageModuleConfig cannedMessageModuleConfig; // CannedMessageModule.cpp
 
 namespace badge
@@ -47,7 +46,7 @@ static void queue(MsStep s)
     queued = s;
 }
 
-static void banner(const char *title, const char **items, int count, int selected, std::function<void(int)> cb)
+static void banner(const char *title, const char **items, int count, int selected, void (*cb)(int))
 {
     graphics::BannerOverlayOptions o;
     o.message = title;

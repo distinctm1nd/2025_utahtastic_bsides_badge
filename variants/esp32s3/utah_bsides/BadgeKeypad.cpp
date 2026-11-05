@@ -23,7 +23,6 @@
 // The joystick is mounted at an angle; its correction is set on the badge (badge menu >
 // Settings > Joystick) and kept in NVS ("utah": "joy", "joylean").
 
-extern graphics::Screen *screen;
 
 // The joystick sits about 45 degrees round on every badge: straight up closes the UP and RIGHT
 // switches, straight down DOWN and LEFT. Angle 8 in Joystick setup (7 steps) reads those as up
@@ -98,7 +97,7 @@ class MeshtasticHooks : public KeypadHooks
         // Meshtastic scrolls its quick-message list with left/right too, trapping the user on
         // that page: close the list so left/right turn the page like everywhere else
         if ((ev == KP_LEFT || ev == KP_RIGHT) && cannedMessageModule && cannedMessageModule->shouldDraw() &&
-            !cannedMessageModule->isCharInputAllowed() && !(screen && screen->isOverlayBannerShowing()))
+            !cannedMessageModule->isFreeTextActive() && !(screen && screen->isOverlayBannerShowing()))
             send(KP_CANCEL, 0);
         else if ((ev == KP_LEFT || ev == KP_RIGHT) && messagesTakePageTurn(ev == KP_RIGHT ? 1 : -1))
             return; // the badge's Messages screen opened in place of Meshtastic's page
@@ -116,7 +115,7 @@ class MeshtasticHooks : public KeypadHooks
     {
         // true while composing a message (or typing a node-name search), i.e. when a letter
         // we send ends up in a text box (getRunState() is only public on RAK14014 builds)
-        return cannedMessageModule && cannedMessageModule->isCharInputAllowed();
+        return cannedMessageModule && cannedMessageModule->isFreeTextActive();
     }
     bool bannerShowing() override { return screen && screen->isOverlayBannerShowing(); }
     bool screenOff() override { return screen && !screen->isScreenOn(); }
@@ -178,6 +177,10 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
         writeReg2(TCA9535_CONFIG0, 0xFF, 0xFF);
         pinMode(BADGE_CENTER_PIN, INPUT_PULLUP);
         writeReg2(TCA9535_POLARITY0, 0x00, 0x00);
+        // TFT backlight (active HIGH): Meshtastic's TFTDisplay no longer owns this pin (see
+        // variant.h BADGE_TFT_BL), so drive it on ourselves. The badge display stays on.
+        pinMode(BADGE_TFT_BL, OUTPUT);
+        digitalWrite(BADGE_TFT_BL, HIGH);
     }
     uint32_t state() const { return logic.state(); }
 
@@ -304,7 +307,7 @@ bool keypadTyping()
     App *a = appActive();
     if (a)
         return a->typingLights();
-    return cannedMessageModule && cannedMessageModule->isCharInputAllowed();
+    return cannedMessageModule && cannedMessageModule->isFreeTextActive();
 }
 
 uint32_t keypadState()

@@ -31,7 +31,6 @@
 #include <stdio.h>
 #include <string.h>
 
-extern graphics::Screen *screen;
 extern uint16_t TFT_MESH; // the screen's drawing colour (src/graphics/TFTDisplay.cpp)
 
 namespace badge
@@ -273,7 +272,7 @@ void menuInit()
 }
 
 // ---- option-banner helper ---------------------------------------------------------------------
-static void banner(const char *title, const char **items, int count, int selected, std::function<void(int)> cb)
+static void banner(const char *title, const char **items, int count, int selected, void (*cb)(int))
 {
     graphics::BannerOverlayOptions o;
     o.message = title;

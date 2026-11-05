@@ -23,7 +23,6 @@
 #include <stdio.h>
 #include <string.h>
 
-extern graphics::Screen *screen;
 extern uint32_t serialSinceMsec;
 namespace graphics
 {

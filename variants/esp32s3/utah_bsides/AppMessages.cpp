@@ -40,7 +40,6 @@
 #include <string>
 #include <vector>
 
-extern graphics::Screen *screen;
 namespace graphics
 {
 extern bool hasUnreadMessage;
@@ -84,12 +83,12 @@ PageInfo pageInfo()
     PageInfo p;
     if (!screen)
         return p;
-    OLEDDisplayUi *ui = screen->*stealUi(ScreenUi{});
+    OLEDDisplayUi *ui = (*screen).*stealUi(ScreenUi{});
     if (!ui)
         return p;
     OLEDDisplayUiState *st = ui->getUiState();
-    const auto &fs = screen->*stealFrames(ScreenFrames{});
-    p.normal = screen->*stealNormal(ScreenNormal{});
+    const auto &fs = (*screen).*stealFrames(ScreenFrames{});
+    p.normal = (*screen).*stealNormal(ScreenNormal{});
     p.settled = st->frameState == FIXED;
     p.current = st->currentFrame;
     p.messages = fs.positions.textMessage;
@@ -145,7 +144,7 @@ static Privacy chatPrivacy(const Chat &c)
 {
     if (c.dm) {
         const meshtastic_NodeInfoLite *n = nodeDB ? nodeDB->getMeshNode(c.peer) : nullptr;
-        return n && n->has_user && n->user.public_key.size == 32 ? P_PRIVATE : P_NOKEY;
+        return nodeInfoLiteHasUser(n) && n->public_key.size == 32 ? P_PRIVATE : P_NOKEY;
     }
     const auto &psk = channels.getByIndex(c.ch).settings.psk;
     if (psk.size == 0 || (psk.size == 1 && psk.bytes[0] == 0))
@@ -764,7 +763,7 @@ class MessagesApp : public App
             return;
         for (size_t i = 0; i < nodeDB->getNumMeshNodes() && nPeople < 48; i++) {
             const meshtastic_NodeInfoLite *nd = nodeDB->getMeshNodeByIndex(i);
-            if (nd && nd->num != nodeDB->getNodeNum() && nd->has_user)
+            if (nd && nd->num != nodeDB->getNodeNum() && nodeInfoLiteHasUser(nd))
                 people[nPeople++] = nd->num;
         }
         for (int a = 1; a < nPeople; a++) // most recently heard first
@@ -1088,7 +1087,7 @@ void MessagesApp::leave(int dir)
         p = pageInfo();
         if (p.count) {
             uint8_t target = (uint8_t)((p.messages + (dir > 0 ? 1 : p.count - 1)) % p.count);
-            OLEDDisplayUi *ui = screen->*stealUi(ScreenUi{});
+            OLEDDisplayUi *ui = (*screen).*stealUi(ScreenUi{});
             ui->switchToFrame(target);
         }
     }

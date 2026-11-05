@@ -29,7 +29,6 @@
 #include <stdio.h>
 #include <string.h>
 
-extern graphics::Screen *screen;
 
 namespace graphics
 {
@@ -103,10 +102,10 @@ uint32_t meshMyNode()
 const char *meshNodeName(uint32_t node, char *buf, size_t n)
 {
     meshtastic_NodeInfoLite *info = nodeDB ? nodeDB->getMeshNode(node) : nullptr;
-    if (info && info->has_user && info->user.long_name[0])
-        snprintf(buf, n, "%s", info->user.long_name);
-    else if (info && info->has_user && info->user.short_name[0])
-        snprintf(buf, n, "%s", info->user.short_name);
+    if (info && nodeInfoLiteHasUser(info) && info->long_name[0])
+        snprintf(buf, n, "%s", info->long_name);
+    else if (info && nodeInfoLiteHasUser(info) && info->short_name[0])
+        snprintf(buf, n, "%s", info->short_name);
     else
         snprintf(buf, n, "!%08x", (unsigned)node);
     return buf;
@@ -695,7 +694,7 @@ class BadgeMeshModule : public MeshModule, private concurrency::OSThread
     static bool hasName(uint32_t node)
     {
         const meshtastic_NodeInfoLite *n = nodeDB ? nodeDB->getMeshNode(node) : nullptr;
-        return n && n->has_user && (n->user.long_name[0] || n->user.short_name[0]);
+        return nodeInfoLiteHasUser(n) && (n->long_name[0] || n->short_name[0]);
     }
     void wantName(uint32_t node, uint8_t channel)
     {
@@ -734,7 +733,7 @@ class BadgeMeshModule : public MeshModule, private concurrency::OSThread
         if (!from || !nodeDB)
             return;
         meshtastic_NodeInfoLite *n = nodeDB->getMeshNode(from);
-        if (!n || !n->has_user || n->user.hw_model != meshtastic_HardwareModel_PRIVATE_HW)
+        if (!nodeInfoLiteHasUser(n) || n->hw_model != meshtastic_HardwareModel_PRIVATE_HW)
             return;
         if (!statsMetBadge(from))
             return;

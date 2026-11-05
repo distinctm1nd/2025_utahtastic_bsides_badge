@@ -14,6 +14,11 @@ on:
   pull_request:
     branches: [utah-bsides-badge]
   workflow_dispatch:
+    inputs:
+      env:
+        description: "PlatformIO env to build (default: utah_bsides; e.g. utah_bsides_beacon0 for a hunt beacon)"
+        required: false
+        default: "utah_bsides"
 
 permissions:
   contents: read
@@ -29,7 +34,8 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          # Match upstream Meshtastic CI: pioarduino 55.03.312 requires Python 3.10-3.14
+          python-version: "3.14"
 
       - name: Cache PlatformIO
         uses: actions/cache@v4
@@ -40,18 +46,30 @@ jobs:
           key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini', 'variants/esp32/*.ini', 'variants/esp32s3/*.ini', 'variants/esp32s3/utah_bsides/platformio.ini') }}
 
       - name: Install PlatformIO
-        run: pip install -U platformio
+        # Pin to match upstream Meshtastic CI: "pip install -U" pulls 6.2.0.post1, which the
+        # pioarduino platform's engine check rejects (IncompatiblePlatform, pioarduino #563).
+        run: pip install platformio==6.2.0
 
       - name: Build
+        env:
+          # pioarduino's platform builds its own penv and installs "pioarduino" via uv, which
+          # picks 6.2.0.post1 (PEP440 post1 > 6.2.0) and its engine check then rejects it
+          # (IncompatiblePlatform; pioarduino#563). Constrain uv to the exact version.
+          UV_CONSTRAINT: ${{ github.workspace }}/.ci-pio-constraints.txt
+          # Defaults to utah_bsides; a manual run can pick another env (e.g. a debug build).
+          BUILD_ENV: ${{ github.event.inputs.env || 'utah_bsides' }}
         run: |
-          pio run -e utah_bsides
-          pio run -e utah_bsides -t buildfs || true
+          echo "pioarduino==6.2.0" > "$UV_CONSTRAINT"
+          pio run -e "$BUILD_ENV"
+          pio run -e "$BUILD_ENV" -t buildfs || true
 
       - name: Collect firmware
+        env:
+          BUILD_ENV: ${{ github.event.inputs.env || 'utah_bsides' }}
         run: |
           mkdir -p out
-          cp .pio/build/utah_bsides/firmware-*.bin out/
-          cp .pio/build/utah_bsides/littlefs-*.bin out/ 2>/dev/null || true
+          cp ".pio/build/$BUILD_ENV"/firmware-*.bin out/
+          cp ".pio/build/$BUILD_ENV"/littlefs-*.bin out/ 2>/dev/null || true
           cp bin/device-install.* bin/device-update.* out/ 2>/dev/null || true
           rm -f out/*.update.bin
           ls -l out

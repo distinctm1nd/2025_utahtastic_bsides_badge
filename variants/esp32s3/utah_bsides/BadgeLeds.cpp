@@ -18,7 +18,6 @@
 
 // Meshtastic's Ambient Lighting thread (owns the moon LEDs by default); defined in main.cpp
 extern concurrency::OSThread *ambientLightingThread;
-extern graphics::Screen *screen;
 
 namespace badge
 {

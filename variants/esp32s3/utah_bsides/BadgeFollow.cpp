@@ -21,7 +21,6 @@
 #include <stdio.h>
 #include <string.h>
 
-extern graphics::Screen *screen;
 
 namespace badge
 {

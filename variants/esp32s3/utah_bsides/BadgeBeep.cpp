@@ -34,9 +34,9 @@ static void beepTask(void *)
     snprintf(addr, sizeof(addr), "%02x:%02x:%02x:%02x:%02x:%02x", target[0], target[1], target[2], target[3], target[4],
              target[5]);
     bool connected = false, ok = false;
-    if (NimBLEDevice::getInitialized()) {
+    if (NimBLEDevice::isInitialized()) {
         NimBLEClient *c = NimBLEDevice::createClient();
-        c->setConnectTimeout(8);
+        c->setConnectTimeout(8000); // 2.x: milliseconds
         connected = c->connect(NimBLEAddress(std::string(addr), targetPublic ? BLE_ADDR_PUBLIC : BLE_ADDR_RANDOM));
         if (connected) {
             static const uint8_t airtag[] = {0xAF};

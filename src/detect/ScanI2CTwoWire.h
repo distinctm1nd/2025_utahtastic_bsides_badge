@@ -53,7 +53,7 @@ class ScanI2CTwoWire : public ScanI2C
 
     concurrency::Lock lock;
 
-    uint16_t getRegisterValue(const RegisterLocation &, ResponseWidth, bool = false) const;
+    uint16_t getRegisterValue(const RegisterLocation &, ResponseWidth, bool) const;
 
     bool sensirionResponseValid(DeviceAddress addr, uint16_t command, uint8_t expectedLength) const;
 

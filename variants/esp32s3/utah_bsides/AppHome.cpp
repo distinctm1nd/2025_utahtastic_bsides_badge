@@ -23,7 +23,6 @@
 #include <string.h>
 #include <time.h>
 
-extern graphics::Screen *screen;
 
 namespace badge
 {

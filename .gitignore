@@ -75,3 +75,6 @@ build/wasm/
 build/wasm-obj/
 build/wasm-*.log
 .emsdk/
+
+# utah_bsides badge: generated symlink to the badge sources (see variants/esp32s3/utah_bsides/tools/link_badge_sources.py)
+/src/utah_bsides

@@ -43,6 +43,11 @@
 // ---- Display: ST7735S 128x160 TFT on SPI3, shown landscape --------------------------
 #define HAS_SCREEN 1
 #define USE_TFTDISPLAY 1
+// Meshtastic 2.8 (PR #10803) keys SPI-TFT Screen creation in main.cpp on HAS_SPI_TFT; it replaced
+// the old per-driver list (defined(ST7735_CS) || defined(ST7789_CS) || ...) that the badge relied
+// on in 2.7.26. Without this the Screen is never constructed (the fallback only builds a Screen for
+// an I2C-detected panel), so TFTDisplay never inits the ST7735 and the backlit panel stays white.
+#define HAS_SPI_TFT 1
 #define ST7735S 1
 #define ST7735_CS 38
 #define ST7735_RS 35  // DC
@@ -51,8 +56,11 @@
 #define ST7735_RESET 48
 #define ST7735_MISO -1
 #define ST7735_BUSY -1
-#define TFT_BL 47
-#define TFT_BACKLIGHT_ON HIGH
+// Backlight (active HIGH) on GPIO47. NOT defined as TFT_BL: Meshtastic 2.8's TFTDisplay hard-codes
+// the LovyanGFX backlight to cfg.invert = true (was false in 2.7.26), which would drive our
+// active-HIGH backlight OFF (black screen). Keep it out of LovyanGFX and drive it HIGH ourselves
+// (see BadgeKeypad.cpp begin()); the badge display is always on.
+#define BADGE_TFT_BL 47
 #define ST7735_SPI_HOST SPI3_HOST
 #define SPI_FREQUENCY 40000000
 #define SPI_READ_FREQUENCY 16000000

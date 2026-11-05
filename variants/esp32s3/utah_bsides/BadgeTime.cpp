@@ -15,7 +15,6 @@
 #include <sys/time.h>
 #include <time.h>
 
-extern graphics::Screen *screen;
 extern uint32_t serialSinceMsec;
 namespace graphics
 {

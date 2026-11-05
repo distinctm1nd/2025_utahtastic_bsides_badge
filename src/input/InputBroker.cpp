@@ -283,16 +283,6 @@ void InputBroker::Init()
 #endif
     };
 #endif
-#if defined(HAPTIC_FEEDBACK_PIN)
-    // Blip on touch, second blip when long-press fires (500 ms = touchConfig.longPressTime default).
-    touchConfig.suppressLeadUpSound = true;
-    initHapticFeedback();
-    touchConfig.onPress = []() {
-        hapticFeedback->pulse(80);
-        hapticFeedback->armDelayedPulse(500, 80);
-    };
-    touchConfig.onRelease = []() { hapticFeedback->cancelDelayedPulse(); };
-#endif
     TouchButtonThread->initButton(touchConfig);
 #endif
 

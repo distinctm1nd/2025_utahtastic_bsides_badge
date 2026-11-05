@@ -280,9 +280,9 @@ class NodeListApp : public App
             r.chHash = hn[i].chHash;
             r.preset = hn[i].preset;
             meshtastic_NodeInfoLite *info = nodeDB ? nodeDB->getMeshNode(hn[i].num) : nullptr;
-            r.mqtt = info ? info->via_mqtt : false;
-            r.favorite = info ? info->is_favorite : false;
-            if (info && info->has_user)
+            r.mqtt = nodeInfoLiteViaMqtt(info);
+            r.favorite = nodeInfoLiteIsFavorite(info);
+            if (nodeInfoLiteHasUser(info))
                 r.other = false; // we know who it is after all
             fillName(r);
         }
@@ -301,8 +301,8 @@ class NodeListApp : public App
                                 : 999999;
                 r.snr = info->snr;
                 r.hops = info->has_hops_away ? (int)info->hops_away : -1;
-                r.mqtt = info->via_mqtt;
-                r.favorite = info->is_favorite;
+                r.mqtt = nodeInfoLiteViaMqtt(info);
+                r.favorite = nodeInfoLiteIsFavorite(info);
                 r.other = false;
                 r.chHash = 0;
                 r.preset = 0xFF;

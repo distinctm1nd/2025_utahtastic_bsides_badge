@@ -16,11 +16,11 @@ bool posMine(int32_t &lat, int32_t &lon)
 {
     if (!nodeDB)
         return false;
-    const meshtastic_NodeInfoLite *me = nodeDB->getMeshNode(nodeDB->getNodeNum());
-    if (!me || !me->has_position || (!me->position.latitude_i && !me->position.longitude_i))
+    meshtastic_PositionLite pos; // 2.8 keeps node positions in NodeDB, not on NodeInfoLite
+    if (!nodeDB->copyNodePosition(nodeDB->getNodeNum(), pos) || (!pos.latitude_i && !pos.longitude_i))
         return false;
-    lat = me->position.latitude_i;
-    lon = me->position.longitude_i;
+    lat = pos.latitude_i;
+    lon = pos.longitude_i;
     return true;
 }
 
@@ -34,14 +34,15 @@ int posList(NodePos *out, int max)
     int n = 0;
     for (size_t i = 0; i < nodeDB->getNumMeshNodes() && n < max; i++) {
         const meshtastic_NodeInfoLite *nd = nodeDB->getMeshNodeByIndex(i);
-        if (!nd || nd->num == nodeDB->getNodeNum() || !nd->has_position ||
-            (!nd->position.latitude_i && !nd->position.longitude_i))
+        meshtastic_PositionLite pos;
+        if (!nd || nd->num == nodeDB->getNodeNum() || !nodeDB->copyNodePosition(nd->num, pos) ||
+            (!pos.latitude_i && !pos.longitude_i))
             continue;
         NodePos &p = out[n++];
         p.num = nd->num;
         meshNodeName(nd->num, p.name, sizeof(p.name));
-        p.lat = nd->position.latitude_i;
-        p.lon = nd->position.longitude_i;
+        p.lat = pos.latitude_i;
+        p.lon = pos.longitude_i;
         p.ageS = (now && nd->last_heard && now > nd->last_heard) ? now - nd->last_heard : 0;
         p.hops = nd->has_hops_away ? nd->hops_away : -1;
         p.distM = -1;

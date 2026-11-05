@@ -18,7 +18,6 @@
 #include <Arduino.h>
 #include <stdio.h>
 
-extern graphics::Screen *screen;
 
 namespace badge
 {

@@ -15,7 +15,6 @@
 #include <OLEDDisplayUi.h>
 #include <stdio.h>
 
-extern graphics::Screen *screen;
 
 // reach Screen's private ui + framesetInfo the same way the Messages page does
 namespace
@@ -67,7 +66,7 @@ static uint8_t posOf(PageId id)
 {
     if (!screen)
         return 255;
-    const auto &p = (screen->*pgFrames(PgFrames{})).positions;
+    const auto &p = ((*screen).*pgFrames(PgFrames{})).positions;
     switch (id) {
     case P_HOME: return p.home;
     case P_DEVICE: return p.deviceFocused;
@@ -148,7 +147,7 @@ static void doJump(PageId id)
     screen->setFrames(graphics::Screen::FOCUS_PRESERVE); // rebuild so the switch sticks
     uint8_t idx = posOf(id);                             // re-read: indices may have shifted
     if (idx != 255) {
-        OLEDDisplayUi *ui = screen->*pgUi(PgUi{});
+        OLEDDisplayUi *ui = (*screen).*pgUi(PgUi{});
         if (ui)
             ui->switchToFrame(idx);
     }
