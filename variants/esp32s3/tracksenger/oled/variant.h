@@ -36,7 +36,7 @@
 #define BUTTON_PIN 0
 
 #define BATTERY_PIN 1 // A battery voltage measurement pin, voltage divider connected here to measure battery voltage
-#define ADC_CHANNEL ADC1_GPIO1_CHANNEL
+#define ADC_CHANNEL ADC_CHANNEL_0
 #define ADC_ATTENUATION ADC_ATTEN_DB_2_5 // lower dB for high resistance voltage divider
 #define ADC_MULTIPLIER 4.9
 #define ADC_CTRL 2 // active HIGH, powers the voltage divider. Only on 1.1
@@ -74,7 +74,6 @@
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
 
 // Picomputer gets a white on black display
-#define TFT_MESH_OVERRIDE COLOR565(255, 255, 255)
 
 // keyboard changes
 
@@ -82,12 +81,6 @@
 
 #define INPUTBROKER_MATRIX_TYPE 1
 
-#define KEYS_COLS                                                                                                                \
-    {                                                                                                                            \
-        44, 45, 46, 4, 5, 6                                                                                                      \
-    }
-#define KEYS_ROWS                                                                                                                \
-    {                                                                                                                            \
-        26, 37, 17, 16, 15, 7                                                                                                    \
-    }
+#define KEYS_COLS {44, 45, 46, 4, 5, 6}
+#define KEYS_ROWS {26, 37, 17, 16, 15, 7}
 // #end keyboard

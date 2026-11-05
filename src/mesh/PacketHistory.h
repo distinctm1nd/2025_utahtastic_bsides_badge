@@ -23,11 +23,29 @@ class PacketHistory
         uint8_t hop_limit;                // bit 0-2: Highest hop limit observed for this packet,
                                           // bit 3-5: our hop limit when we first transmitted it
         uint8_t relayed_by[NUM_RELAYERS]; // Array of nodes that relayed this packet
-    };                                    // 4B + 4B + 4B + 1B + 1B + 6B = 20B
+    }; // 4B + 4B + 4B + 1B + 1B + 6B = 20B
+    static_assert(sizeof(PacketRecord) == 20,
+                  "PacketRecord size feeds the boot-cache budget math in mesh-pb-constants.h - update both together");
 
     uint32_t recentPacketsCapacity =
         0; // Can be set in constructor, no need to recompile. Used to allocate memory for mx_recentPackets.
     std::unique_ptr<PacketRecord[]> recentPackets; // Simple and fixed in size. Debloat.
+
+#if !MESHTASTIC_EXCLUDE_PKT_HISTORY_HASH
+    // Open-addressing hash table for O(1) lookup in find(), replacing the O(N) linear scan.
+    // Maps (sender, id) -> index into recentPackets[]. Uses linear probing with a load factor <= 0.5.
+    // The load factor invariant holds permanently: hashCapacity = 2 * nextPowerOf2(recentPacketsCapacity),
+    // and at most recentPacketsCapacity entries can ever be live (one per recentPackets[] slot).
+    static constexpr uint16_t HASH_EMPTY = 0xFFFF;
+    std::unique_ptr<uint16_t[]> hashIndex;
+    uint32_t hashCapacity = 0; // Always a power of 2
+    uint32_t hashMask = 0;     // hashCapacity - 1, for fast modular indexing
+
+    uint32_t hashSlot(NodeNum sender, PacketId id) const;
+    void hashInsert(NodeNum sender, PacketId id, uint16_t slotIdx);
+    void hashRemove(NodeNum sender, PacketId id);
+    void hashRebuild();
+#endif
 
     /** Find a packet record in history.
      * @param sender NodeNum
@@ -50,7 +68,7 @@ class PacketHistory
     void setOurTxHopLimit(PacketRecord &r, uint8_t hopLimit);
 
   public:
-    explicit PacketHistory(uint32_t size = -1); // Constructor with size parameter, default is PACKETHISTORY_MAX
+    explicit PacketHistory(uint32_t size = PACKETHISTORY_MAX);
 
     /**
      * Update recentBroadcasts and return true if we have already seen this packet
@@ -67,6 +85,16 @@ class PacketHistory
      * If wasSole is not nullptr, it will be set to true if the relayer was the only relayer of that packet
      * @return true if node was indeed a relayer, false if not */
     bool wasRelayer(const uint8_t relayer, const uint32_t id, const NodeNum sender, bool *wasSole = nullptr);
+
+    /**
+     * Check two relayers against the same packet record with a single lookup.
+     * Avoids redundant find() calls when checking multiple relayers for the same (id, sender) pair.
+     * @param r1Result set to true if relayer1 was a relayer
+     * @param r2Result set to true if relayer2 was a relayer
+     * @param r2WasSole if not nullptr, set to true if relayer2 was the sole relayer
+     */
+    void checkRelayers(uint8_t relayer1, uint8_t relayer2, uint32_t id, NodeNum sender, bool *r1Result, bool *r2Result,
+                       bool *r2WasSole = nullptr);
 
     // Remove a relayer from the list of relayers of a packet in the history given an ID and sender
     void removeRelayer(const uint8_t relayer, const uint32_t id, const NodeNum sender);

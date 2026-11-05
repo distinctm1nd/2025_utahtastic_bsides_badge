@@ -125,8 +125,8 @@ static const uint8_t SCL = PIN_WIRE_SCL;
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #define GPS_UBLOX
 #define HAS_GPS 1
-#define GPS_RX_PIN D9  // P1.12 — MCU RX, wired to GPS module TX
-#define GPS_TX_PIN D10 // P1.11 — MCU TX, wired to GPS module RX
+#define GPS_RX_PIN D9  // P1.12 - MCU RX, wired to GPS module TX
+#define GPS_TX_PIN D10 // P1.11 - MCU TX, wired to GPS module RX
 #define PIN_GPS_EN D11 // P1.10
 #define GPS_EN_ACTIVE LOW
 #define GPS_BAUDRATE 38400
@@ -157,6 +157,8 @@ static const uint8_t SCL = PIN_WIRE_SCL;
 //  IMU (ICM20948 on Wire1)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #define HAS_ICM20948
+// D27, not (0 + 7): pinMode/attachInterrupt index g_ADigitalPinMap, where 7 is P1.13 (RF_VC1).
+#define ICM_20948_INT_PIN D27
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  Charger (SGM41562 on Wire1 @ 0x03)

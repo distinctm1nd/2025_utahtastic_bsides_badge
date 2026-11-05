@@ -12,7 +12,10 @@ rm -f $OUTDIR/firmware*
 rm -r $OUTDIR/* || true
 
 # Important to pull latest version of libs into all device flavors, otherwise some devices might be stale
-platformio pkg install -e $1
+# platformio pkg install -e $1
+# ...redundant with pioarduino
+
+pio --version
 
 echo "Building for $1 with $PLATFORMIO_BUILD_FLAGS"
 rm -f $BUILDDIR/firmware*
@@ -26,6 +29,10 @@ pio run --environment $1 -t mtjson # -v
 
 cp $BUILDDIR/$basename.elf $OUTDIR/$basename.elf
 
+echo "Copying linker scripts and map file"
+cp $BUILDDIR/$basename.*.ld $OUTDIR/ 2>/dev/null || true
+cp $BUILDDIR/$basename.map $OUTDIR/ 2>/dev/null || true
+
 echo "Copying ESP32 bin file"
 cp $BUILDDIR/$basename.factory.bin $OUTDIR/$basename.factory.bin
 
@@ -38,4 +45,4 @@ cp bin/device-install.* $OUTDIR/
 cp bin/device-update.* $OUTDIR/
 
 echo "Copying manifest"
-cp $BUILDDIR/$basename.mt.json $OUTDIR/$basename.mt.json || true
+cp $BUILDDIR/$basename.mt.json $OUTDIR/$basename.mt.json

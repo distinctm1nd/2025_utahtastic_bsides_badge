@@ -24,6 +24,7 @@ This is driven via the FastEPD library through the NicheGraphics ED047TC1 driver
 #include "graphics/niche/InkHUD/InkHUD.h"
 
 // Applets
+#include "graphics/niche/InkHUD/Applets/Bases/Map/SDMapTiles.h"
 #include "graphics/niche/InkHUD/Applets/User/AllMessage/AllMessageApplet.h"
 #include "graphics/niche/InkHUD/Applets/User/DM/DMApplet.h"
 #include "graphics/niche/InkHUD/Applets/User/FavoritesMap/FavoritesMapApplet.h"
@@ -31,10 +32,10 @@ This is driven via the FastEPD library through the NicheGraphics ED047TC1 driver
 #include "graphics/niche/InkHUD/Applets/User/Positions/PositionsApplet.h"
 #include "graphics/niche/InkHUD/Applets/User/RecentsList/RecentsListApplet.h"
 #include "graphics/niche/InkHUD/Applets/User/ThreadedMessage/ThreadedMessageApplet.h"
+#include "graphics/niche/InkHUD/Applets/User/Waypoints/WaypointListApplet.h"
 
 // Shared NicheGraphics components
 // --------------------------------
-#include "graphics/niche/Drivers/Backlight/LatchingBacklight.h"
 #include "graphics/niche/Drivers/EInk/ED047TC1.h"
 #include "graphics/niche/Inputs/TwoButton.h"
 
@@ -44,11 +45,12 @@ void setupNicheGraphics()
 
     // E-Ink Driver
     // -----------------------------
-    // The ED047TC1 is a parallel display — no SPI bus setup needed.
+    // The ED047TC1 is a parallel display - no SPI bus setup needed.
     // begin() args are part of the EInk interface but are ignored for parallel displays.
 
     Drivers::EInk *driver = new Drivers::ED047TC1;
     driver->begin(nullptr, 0, 0, 0);
+    InkHUD::SDMapTiles::preload();
 
     // InkHUD
     // ----------------------------
@@ -62,7 +64,7 @@ void setupNicheGraphics()
     // Set how unhealthy additional FAST updates beyond this number are
     inkhud->setDisplayResilience(7, 1.5);
 
-    // Prepare fonts — use larger sizes to suit the 4.7" screen at ~234 DPI
+    // Prepare fonts - use larger sizes to suit the 4.7" screen at ~234 DPI
     InkHUD::Applet::fontLarge = FREESANS_24PT_WIN1253;
     InkHUD::Applet::fontMedium = FREESANS_18PT_WIN1253;
     InkHUD::Applet::fontSmall = FREESANS_12PT_WIN1253;
@@ -72,7 +74,7 @@ void setupNicheGraphics()
     inkhud->persistence->settings.rotation = 3;           // 270 degrees clockwise
     inkhud->persistence->settings.userTiles.count = 1;    // One tile only by default, keep things simple for new users
     inkhud->persistence->settings.optionalFeatures.batteryIcon = true;
-    inkhud->persistence->settings.optionalMenuItems.backlight = true;
+    inkhud->persistence->settings.optionalMenuItems.backlight = false;
 
     // Alignment must cancel rotation for visual-frame touch input: (rotation + alignment) % 4 == 0.
     inkhud->persistence->settings.joystick.alignment = (4 - inkhud->persistence->settings.rotation) % 4;
@@ -84,33 +86,36 @@ void setupNicheGraphics()
     inkhud->addApplet("Channel 0", new InkHUD::ThreadedMessageApplet(0), true, true);   // Activated, Autoshown
     inkhud->addApplet("Channel 1", new InkHUD::ThreadedMessageApplet(1), false, false); // Not Active, not autoshown
     inkhud->addApplet("Positions", new InkHUD::PositionsApplet, true, false);           // Activated, not autoshown
+    inkhud->addApplet("Waypoints", new InkHUD::WaypointListApplet, false, false);       // Not Active, not autoshown
     inkhud->addApplet("Recents List", new InkHUD::RecentsListApplet, true, false);      // Activated, not autoshown
     inkhud->addApplet("Heard", new InkHUD::HeardApplet, true, false, 0); // Activated, not autoshown, default on tile 0
     inkhud->addApplet("Favorites Map", new InkHUD::FavoritesMapApplet, false, false); // Not Active, not autoshown
 
-    // Backlight
-    // ----------------------------
-    Drivers::LatchingBacklight *backlight = Drivers::LatchingBacklight::getInstance();
-    backlight->setPin(BOARD_BL_EN); // GPIO11 on V2
+    // Enable reusable InkHUD touch status indicator for this touch-capable board.
+    inkhud->setTouchEnabledProvider(isTouchInputEnabled);
 
     // Start running InkHUD
     inkhud->begin();
+    // Arm GT911 capacitive-home callback only after InkHUD startup is complete.
+    t5SetHomeCapButtonEventsEnabled(true);
 
-    // Touch navigation requires joystick mode — enforce post-begin so flash cannot override.
-    inkhud->persistence->settings.joystick.enabled = true;
-    inkhud->persistence->settings.joystick.aligned = true;
+    // Keep Wireless Paper single-button semantics regardless of persisted settings:
+    // short press advances, long press opens menu/selects.
+    inkhud->persistence->settings.joystick.enabled = false;
 
     // Buttons
     // --------------------------
 
     Inputs::TwoButton *buttons = Inputs::TwoButton::getInstance(); // A shared NicheGraphics component
 
-    // Setup the main user button (boot button, GPIO 0)
+    // #0: BOOT button (primary user input for InkHUD navigation on T5-S3)
+#if defined(T5_S3_EPAPER_PRO_V1)
+    buttons->setWiring(0, PIN_BUTTON2);
+#else
     buttons->setWiring(0, BUTTON_PIN);
+#endif
     buttons->setHandlerShortPress(0, [inkhud]() { inkhud->shortpress(); });
     buttons->setHandlerLongPress(0, [inkhud]() { inkhud->longpress(); });
-
-    // No dedicated aux button on this board
 
     buttons->start();
 }

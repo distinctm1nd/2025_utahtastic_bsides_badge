@@ -30,6 +30,9 @@ PB_BIND(meshtastic_StoreForwardPlusPlus, meshtastic_StoreForwardPlusPlus, 2)
 PB_BIND(meshtastic_RemoteShell, meshtastic_RemoteShell, AUTO)
 
 
+PB_BIND(meshtastic_BoundingBox, meshtastic_BoundingBox, AUTO)
+
+
 PB_BIND(meshtastic_Waypoint, meshtastic_Waypoint, AUTO)
 
 
@@ -96,6 +99,15 @@ PB_BIND(meshtastic_Neighbor, meshtastic_Neighbor, AUTO)
 PB_BIND(meshtastic_DeviceMetadata, meshtastic_DeviceMetadata, AUTO)
 
 
+PB_BIND(meshtastic_LoRaPresetGroup, meshtastic_LoRaPresetGroup, AUTO)
+
+
+PB_BIND(meshtastic_LoRaRegionPresets, meshtastic_LoRaRegionPresets, AUTO)
+
+
+PB_BIND(meshtastic_LoRaRegionPresetMap, meshtastic_LoRaRegionPresetMap, 2)
+
+
 PB_BIND(meshtastic_Heartbeat, meshtastic_Heartbeat, AUTO)
 
 
@@ -109,6 +121,10 @@ PB_BIND(meshtastic_resend_chunks, meshtastic_resend_chunks, AUTO)
 
 
 PB_BIND(meshtastic_ChunkedPayloadResponse, meshtastic_ChunkedPayloadResponse, AUTO)
+
+
+
+
 
 
 

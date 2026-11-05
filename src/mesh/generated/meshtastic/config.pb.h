@@ -5,6 +5,7 @@
 #define PB_MESHTASTIC_MESHTASTIC_CONFIG_PB_H_INCLUDED
 #include <pb.h>
 #include "meshtastic/device_ui.pb.h"
+#include "meshtastic/field_metadata.pb.h"
 
 #if PB_PROTO_HEADER_VERSION != 40
 #error Regenerate this file with the current version of nanopb generator.
@@ -13,7 +14,7 @@
 /* Enum definitions */
 /* Defines the device's role on the Mesh network */
 typedef enum _meshtastic_Config_DeviceConfig_Role {
-    /* Description: App connected or stand alone messaging device.
+    /* Description: App connected or standalone messaging device.
  Technical Details: Default Role */
     meshtastic_Config_DeviceConfig_Role_CLIENT = 0,
     /* Description: Device that does not forward packets from other devices. */
@@ -50,7 +51,7 @@ typedef enum _meshtastic_Config_DeviceConfig_Role {
     Still rebroadcasts, but with local only rebroadcast mode (known meshes only)
     Can be used for clandestine operation or to dramatically reduce airtime / power consumption */
     meshtastic_Config_DeviceConfig_Role_CLIENT_HIDDEN = 8,
-    /* Description: Broadcasts location as message to default channel regularly for to assist with device recovery.
+    /* Description: Broadcasts location as message to default channel regularly to assist with device recovery.
  Technical Details: Used to automatically send a text message to the mesh
     with the current position of the device on a frequent interval:
     "I'm lost! Position: lat / long" */
@@ -82,10 +83,10 @@ typedef enum _meshtastic_Config_DeviceConfig_RebroadcastMode {
  Only available in Repeater role. Setting this on any other roles will result in ALL behavior. */
     meshtastic_Config_DeviceConfig_RebroadcastMode_ALL_SKIP_DECODING = 1,
     /* Ignores observed messages from foreign meshes that are open or those which it cannot decrypt.
- Only rebroadcasts message on the nodes local primary / secondary channels. */
+ Only rebroadcasts messages on the node's local primary / secondary channels. */
     meshtastic_Config_DeviceConfig_RebroadcastMode_LOCAL_ONLY = 2,
     /* Ignores observed messages from foreign meshes like LOCAL_ONLY,
- but takes it step further by also ignoring messages from nodenums not in the node's known list (NodeDB) */
+ but takes it a step further by also ignoring messages from nodenums not in the node's known list (NodeDB) */
     meshtastic_Config_DeviceConfig_RebroadcastMode_KNOWN_ONLY = 3,
     /* Only permitted for SENSOR, TRACKER and TAK_TRACKER roles, this will inhibit all rebroadcasts, not unlike CLIENT_MUTE role. */
     meshtastic_Config_DeviceConfig_RebroadcastMode_NONE = 4,
@@ -174,7 +175,8 @@ typedef enum _meshtastic_Config_NetworkConfig_ProtocolFlags {
     meshtastic_Config_NetworkConfig_ProtocolFlags_UDP_BROADCAST = 1
 } meshtastic_Config_NetworkConfig_ProtocolFlags;
 
-/* Deprecated in 2.7.4: Unused */
+/* Unused. Kept so the deprecated gps_format field still has a type; when
+ firmware stopped reading that field is recorded on the field itself. */
 typedef enum _meshtastic_Config_DisplayConfig_DeprecatedGpsCoordinateFormat {
     meshtastic_Config_DisplayConfig_DeprecatedGpsCoordinateFormat_UNUSED = 0
 } meshtastic_Config_DisplayConfig_DeprecatedGpsCoordinateFormat;
@@ -210,7 +212,7 @@ typedef enum _meshtastic_Config_DisplayConfig_DisplayMode {
     meshtastic_Config_DisplayConfig_DisplayMode_TWOCOLOR = 1,
     /* Same as TwoColor, but with inverted top bar. Not so good for Epaper displays */
     meshtastic_Config_DisplayConfig_DisplayMode_INVERTED = 2,
-    /* TFT Full Color Displays (not implemented yet) */
+    /* TFT Full Color Displays, which select the MUI */
     meshtastic_Config_DisplayConfig_DisplayMode_COLOR = 3
 } meshtastic_Config_DisplayConfig_DisplayMode;
 
@@ -300,7 +302,20 @@ typedef enum _meshtastic_Config_LoRaConfig_RegionCode {
     /* EU 868MHz band, with narrow presets */
     meshtastic_Config_LoRaConfig_RegionCode_EU_N_868 = 32,
     /* ITU Region 3 Amateur Radio 2m band (144-148 MHz) */
-    meshtastic_Config_LoRaConfig_RegionCode_ITU3_2M = 33
+    meshtastic_Config_LoRaConfig_RegionCode_ITU3_2M = 33,
+    /* ITU Region 1 Amateur Radio 70cm band (430-440 MHz) */
+    meshtastic_Config_LoRaConfig_RegionCode_ITU1_70CM = 34,
+    /* ITU Region 2 Amateur Radio 70cm band (420-450 MHz)
+ Note: Some countries do not allocate 420-430 MHz or 440-450 MHz.
+ Check local law! */
+    meshtastic_Config_LoRaConfig_RegionCode_ITU2_70CM = 35,
+    /* ITU Region 3 Amateur Radio 70cm band (430-450 MHz)
+ Note: Some countries do not allocate 440-450 MHz. Check local law! */
+    meshtastic_Config_LoRaConfig_RegionCode_ITU3_70CM = 36,
+    /* ITU Region 2 Amateur Radio 1.25m '125cm' band (220-225 MHz)
+ Note: Some countries do not allocate 220-222 MHz (Ex: USA/Canada).
+ Check local law! */
+    meshtastic_Config_LoRaConfig_RegionCode_ITU2_125CM = 37
 } meshtastic_Config_LoRaConfig_RegionCode;
 
 /* Standard predefined channel settings
@@ -325,11 +340,11 @@ typedef enum _meshtastic_Config_LoRaConfig_ModemPreset {
     /* Long Range - Moderately Fast */
     meshtastic_Config_LoRaConfig_ModemPreset_LONG_MODERATE = 7,
     /* Short Range - Turbo
- This is the fastest preset and the only one with 500kHz bandwidth.
+ This is the fastest preset, and one of three with 500kHz bandwidth.
  It is not legal to use in all regions due to this wider bandwidth. */
     meshtastic_Config_LoRaConfig_ModemPreset_SHORT_TURBO = 8,
     /* Long Range - Turbo
- This preset performs similarly to LongFast, but with 500Khz bandwidth. */
+ This preset performs similarly to LongFast, but with 500kHz bandwidth. */
     meshtastic_Config_LoRaConfig_ModemPreset_LONG_TURBO = 9,
     /* Lite Fast
  Medium range preset optimized for EU 866MHz SRD band with 125kHz bandwidth.
@@ -347,7 +362,25 @@ typedef enum _meshtastic_Config_LoRaConfig_ModemPreset {
     /* Narrow Slow
  Moderate range preset optimized for EU 868MHz band with 62.5kHz bandwidth.
  Comparable link budget and data rate to LONG_FAST. */
-    meshtastic_Config_LoRaConfig_ModemPreset_NARROW_SLOW = 13
+    meshtastic_Config_LoRaConfig_ModemPreset_NARROW_SLOW = 13,
+    /* Tiny Fast
+ Preset optimized for compliance with Amateur Radio restrictions with 20kHz bandwidth.
+ Many regions limit data transmission bandwidth in lower amateur bands (2 Meter).
+ Note: TCXO with tight tolerances (±5 ppm or better) is *absolutely required* at these narrow bandwidths.
+ Only compatible with SX127x and SX126x chipsets.
+ Comparable link budget and data rate to LONG_FAST. */
+    meshtastic_Config_LoRaConfig_ModemPreset_TINY_FAST = 14,
+    /* Tiny Slow
+ Preset optimized for compliance with Amateur Radio restrictions with 20kHz bandwidth.
+ Many regions limit data transmission bandwidth in lower amateur bands (2 Meter).
+ Note: TCXO with tight tolerances (±5 ppm or better) is *absolutely required* at these narrow bandwidths.
+ Only compatible with SX127x and SX126x chipsets.
+ Comparable link budget and data rate to LONG_MODERATE. */
+    meshtastic_Config_LoRaConfig_ModemPreset_TINY_SLOW = 15,
+    /* Medium Range - Turbo
+ This preset performs similarly to MEDIUM_FAST, but with 500kHz bandwidth.
+ It is not legal to use in all regions due to this wider bandwidth. */
+    meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_TURBO = 16
 } meshtastic_Config_LoRaConfig_ModemPreset;
 
 typedef enum _meshtastic_Config_LoRaConfig_FEM_LNA_Mode {
@@ -368,6 +401,19 @@ typedef enum _meshtastic_Config_BluetoothConfig_PairingMode {
     meshtastic_Config_BluetoothConfig_PairingMode_NO_PIN = 2
 } meshtastic_Config_BluetoothConfig_PairingMode;
 
+/* Controls how the device authenticates remotely received mesh packets. */
+typedef enum _meshtastic_Config_SecurityConfig_PacketSignaturePolicy {
+    /* Accept unsigned packets for maximum compatibility while still rejecting malformed or invalid signatures.
+ This is the default to avoid legacy nodes dropping signed packets during rebroadcast. */
+    meshtastic_Config_SecurityConfig_PacketSignaturePolicy_PACKET_SIGNATURE_POLICY_COMPATIBLE = 0,
+    /* Prefer authenticated packets while retaining compatibility with unsigned packets from nodes not known to sign.
+ Rejects unsigned, signable broadcasts from nodes that have previously signed. */
+    meshtastic_Config_SecurityConfig_PacketSignaturePolicy_PACKET_SIGNATURE_POLICY_BALANCED = 1,
+    /* Accept only packets authenticated by a verified XEdDSA signature or successful PKI decryption.
+ Unsigned, malformed, invalid, or unverifiable packets are ignored. */
+    meshtastic_Config_SecurityConfig_PacketSignaturePolicy_PACKET_SIGNATURE_POLICY_STRICT = 2
+} meshtastic_Config_SecurityConfig_PacketSignaturePolicy;
+
 /* Struct definitions */
 /* Configuration */
 typedef struct _meshtastic_Config_DeviceConfig {
@@ -385,7 +431,7 @@ typedef struct _meshtastic_Config_DeviceConfig {
     /* Sets the role of node */
     meshtastic_Config_DeviceConfig_RebroadcastMode rebroadcast_mode;
     /* Send our nodeinfo this often
- Defaults to 900 Seconds (15 minutes) */
+ Defaults to 10800 seconds (3 hours), minimum 3600 (1 hour) */
     uint32_t node_info_broadcast_secs;
     /* Treat double tap interrupt on supported accelerometers as a button press if set to true */
     bool double_tap_as_button_press;
@@ -407,7 +453,7 @@ typedef struct _meshtastic_Config_DeviceConfig {
 /* Position Config */
 typedef struct _meshtastic_Config_PositionConfig {
     /* We should send our position this often (but only if it has changed significantly)
- Defaults to 15 minutes */
+ Defaults to 1 hour (12 hours on routers) */
     uint32_t position_broadcast_secs;
     /* Adaptive position braoadcast, which is now the default. */
     bool position_broadcast_smart_enabled;
@@ -418,7 +464,7 @@ typedef struct _meshtastic_Config_PositionConfig {
     /* Is GPS enabled for this node? */
     bool gps_enabled;
     /* How often should we try to get GPS position (in seconds)
- or zero for the default of once every 30 seconds
+ or zero for the default of once every 2 minutes (24 hours on routers)
  or a very large value (maxint) to update only once at boot. */
     uint32_t gps_update_interval;
     /* Deprecated in favor of using smart / regular broadcast intervals as implicit attempt time */
@@ -443,7 +489,7 @@ typedef struct _meshtastic_Config_PositionConfig {
 /* Power Config\
  See [Power Config](/docs/settings/config/power) for additional power config details. */
 typedef struct _meshtastic_Config_PowerConfig {
-    /* Description: Will sleep everything as much as possible, for the tracker and sensor role this will also include the lora radio.
+    /* Description: Will sleep everything as much as possible, for the Tracker and Sensor roles this also includes the LoRa radio.
  Don't use this setting if you want to use your device with the phone apps or are using a device without a user button.
  Technical Details: Works for ESP32 devices and NRF52 devices in the Sensor or Tracker roles */
     bool is_power_saving;
@@ -515,10 +561,9 @@ typedef struct _meshtastic_Config_NetworkConfig {
 /* Display Config */
 typedef struct _meshtastic_Config_DisplayConfig {
     /* Number of seconds the screen stays on after pressing the user button or receiving a message
- 0 for default of one minute MAXUINT for always on */
+ 0 for default of ten minutes, MAXUINT for always on */
     uint32_t screen_on_secs;
-    /* Deprecated in 2.7.4: Unused
- How the GPS coordinates are formatted on the OLED screen. */
+    /* How the GPS coordinates are formatted on the OLED screen. */
     meshtastic_Config_DisplayConfig_DeprecatedGpsCoordinateFormat gps_format;
     /* Automatically toggles to the next page on the screen like a carousel, based the specified interval in seconds.
  Potentially useful for devices without user buttons. */
@@ -552,24 +597,43 @@ typedef struct _meshtastic_Config_DisplayConfig {
 
 /* Lora Config */
 typedef struct _meshtastic_Config_LoRaConfig {
-    /* When enabled, the `modem_preset` fields will be adhered to, else the `bandwidth`/`spread_factor`/`coding_rate`
- will be taked from their respective manually defined fields */
+    /* When enabled, the `modem_preset` sets the bandwidth and spread factor, and the
+ `bandwidth`/`spread_factor` fields are ignored. `coding_rate` is the exception:
+ see that field. When disabled, all three are taken from their respective
+ manually defined fields. */
     bool use_preset;
     /* Either modem_config or bandwidth/spreading/coding will be specified - NOT BOTH.
  As a heuristic: If bandwidth is specified, do not use modem_config.
  Because protobufs take ZERO space when the value is zero this works out nicely.
  This value is replaced by bandwidth/spread_factor/coding_rate.
+ The one exception is `coding_rate`, which can raise the preset's coding rate
+ without moving off the preset; see that field.
  If you'd like to experiment with other options add them to MeshRadio.cpp in the device code. */
     meshtastic_Config_LoRaConfig_ModemPreset modem_preset;
-    /* Bandwidth in MHz
+    /* Bandwidth in kHz
  Certain bandwidth numbers are 'special' and will be converted to the
- appropriate floating point value: 31 -> 31.25MHz */
+ appropriate floating point value: 31 -> 31.25kHz */
     uint16_t bandwidth;
-    /* A number from 7 to 12.
- Indicates number of chirps per symbol as 1<<spread_factor. */
+    /* A number from 5 to 12; firmware replaces a value outside that range with 11.
+ Indicates number of chirps per symbol as 1<<spread_factor.
+ RF95 radios additionally reject 5 and 6; that exclusion is per hardware
+ and so is not expressible as a bound here. */
     uint32_t spread_factor;
     /* The denominator of the coding rate.
- ie for 4/5, the value is 5. 4/8 the value is 8. */
+ ie for 4/5, the value is 5. 4/8 the value is 8.
+
+ With `use_preset` disabled this is the coding rate, 4 through 8; firmware replaces a value outside that range with 5.
+
+ With `use_preset` enabled, since 2.7.18 this raises the preset's coding rate
+ when it is 5 through 8 AND higher than the preset's. A lower value, a value
+ out of range, and 0 all leave the preset's coding rate in place, so 0 is how
+ a client says "use the preset's". Bandwidth and spread factor still come from
+ the preset, and the coding rate travels in the explicit LoRa header, so nodes
+ on the same preset still hear each other either way.
+
+ No bound is stated here because the valid set differs between the two cases:
+ 5 through 8 with `use_preset` off, and 0 plus anything from above the preset's
+ own coding rate up to 8 with it on. */
     uint8_t coding_rate;
     /* This parameter is for advanced users with advanced test equipment, we do not recommend most users use it.
  A frequency offset that is added to to the calculated band center frequency.
@@ -579,7 +643,7 @@ typedef struct _meshtastic_Config_LoRaConfig {
     meshtastic_Config_LoRaConfig_RegionCode region;
     /* Maximum number of hops. This can't be greater than 7.
  Default of 3
- Attempting to set a value > 7 results in the default */
+ Values above 7 are treated as 7 */
     uint32_t hop_limit;
     /* Disable TX from the LoRa radio. Useful for hot-swapping antennas and other tests.
  Defaults to false */
@@ -651,13 +715,15 @@ typedef struct _meshtastic_Config_SecurityConfig {
     /* If true, device is considered to be "managed" by a mesh administrator via admin messages
  Device is managed by a mesh administrator. */
     bool is_managed;
-    /* Serial Console over the Stream API." */
+    /* Serial Console over the Stream API. */
     bool serial_enabled;
     /* By default we turn off logging as soon as an API client connects (to keep shared serial link quiet).
  Output live debug logging over serial or bluetooth is set to true. */
     bool debug_log_api_enabled;
     /* Allow incoming device control over the insecure legacy admin channel. */
     bool admin_channel_enabled;
+    /* Determines the packet signature policy applied to remotely received mesh packets. */
+    meshtastic_Config_SecurityConfig_PacketSignaturePolicy packet_signature_policy;
 } meshtastic_Config_SecurityConfig;
 
 /* Blank config request, strictly for getting the session key */
@@ -736,12 +802,12 @@ extern "C" {
 #define _meshtastic_Config_DisplayConfig_CompassOrientation_ARRAYSIZE ((meshtastic_Config_DisplayConfig_CompassOrientation)(meshtastic_Config_DisplayConfig_CompassOrientation_DEGREES_270_INVERTED+1))
 
 #define _meshtastic_Config_LoRaConfig_RegionCode_MIN meshtastic_Config_LoRaConfig_RegionCode_UNSET
-#define _meshtastic_Config_LoRaConfig_RegionCode_MAX meshtastic_Config_LoRaConfig_RegionCode_ITU3_2M
-#define _meshtastic_Config_LoRaConfig_RegionCode_ARRAYSIZE ((meshtastic_Config_LoRaConfig_RegionCode)(meshtastic_Config_LoRaConfig_RegionCode_ITU3_2M+1))
+#define _meshtastic_Config_LoRaConfig_RegionCode_MAX meshtastic_Config_LoRaConfig_RegionCode_ITU2_125CM
+#define _meshtastic_Config_LoRaConfig_RegionCode_ARRAYSIZE ((meshtastic_Config_LoRaConfig_RegionCode)(meshtastic_Config_LoRaConfig_RegionCode_ITU2_125CM+1))
 
 #define _meshtastic_Config_LoRaConfig_ModemPreset_MIN meshtastic_Config_LoRaConfig_ModemPreset_LONG_FAST
-#define _meshtastic_Config_LoRaConfig_ModemPreset_MAX meshtastic_Config_LoRaConfig_ModemPreset_NARROW_SLOW
-#define _meshtastic_Config_LoRaConfig_ModemPreset_ARRAYSIZE ((meshtastic_Config_LoRaConfig_ModemPreset)(meshtastic_Config_LoRaConfig_ModemPreset_NARROW_SLOW+1))
+#define _meshtastic_Config_LoRaConfig_ModemPreset_MAX meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_TURBO
+#define _meshtastic_Config_LoRaConfig_ModemPreset_ARRAYSIZE ((meshtastic_Config_LoRaConfig_ModemPreset)(meshtastic_Config_LoRaConfig_ModemPreset_MEDIUM_TURBO+1))
 
 #define _meshtastic_Config_LoRaConfig_FEM_LNA_Mode_MIN meshtastic_Config_LoRaConfig_FEM_LNA_Mode_DISABLED
 #define _meshtastic_Config_LoRaConfig_FEM_LNA_Mode_MAX meshtastic_Config_LoRaConfig_FEM_LNA_Mode_NOT_PRESENT
@@ -750,6 +816,10 @@ extern "C" {
 #define _meshtastic_Config_BluetoothConfig_PairingMode_MIN meshtastic_Config_BluetoothConfig_PairingMode_RANDOM_PIN
 #define _meshtastic_Config_BluetoothConfig_PairingMode_MAX meshtastic_Config_BluetoothConfig_PairingMode_NO_PIN
 #define _meshtastic_Config_BluetoothConfig_PairingMode_ARRAYSIZE ((meshtastic_Config_BluetoothConfig_PairingMode)(meshtastic_Config_BluetoothConfig_PairingMode_NO_PIN+1))
+
+#define _meshtastic_Config_SecurityConfig_PacketSignaturePolicy_MIN meshtastic_Config_SecurityConfig_PacketSignaturePolicy_PACKET_SIGNATURE_POLICY_COMPATIBLE
+#define _meshtastic_Config_SecurityConfig_PacketSignaturePolicy_MAX meshtastic_Config_SecurityConfig_PacketSignaturePolicy_PACKET_SIGNATURE_POLICY_STRICT
+#define _meshtastic_Config_SecurityConfig_PacketSignaturePolicy_ARRAYSIZE ((meshtastic_Config_SecurityConfig_PacketSignaturePolicy)(meshtastic_Config_SecurityConfig_PacketSignaturePolicy_PACKET_SIGNATURE_POLICY_STRICT+1))
 
 
 #define meshtastic_Config_DeviceConfig_role_ENUMTYPE meshtastic_Config_DeviceConfig_Role
@@ -774,6 +844,7 @@ extern "C" {
 
 #define meshtastic_Config_BluetoothConfig_mode_ENUMTYPE meshtastic_Config_BluetoothConfig_PairingMode
 
+#define meshtastic_Config_SecurityConfig_packet_signature_policy_ENUMTYPE meshtastic_Config_SecurityConfig_PacketSignaturePolicy
 
 
 
@@ -787,7 +858,7 @@ extern "C" {
 #define meshtastic_Config_DisplayConfig_init_default {0, _meshtastic_Config_DisplayConfig_DeprecatedGpsCoordinateFormat_MIN, 0, 0, 0, _meshtastic_Config_DisplayConfig_DisplayUnits_MIN, _meshtastic_Config_DisplayConfig_OledType_MIN, _meshtastic_Config_DisplayConfig_DisplayMode_MIN, 0, 0, _meshtastic_Config_DisplayConfig_CompassOrientation_MIN, 0, 0, 0}
 #define meshtastic_Config_LoRaConfig_init_default {0, _meshtastic_Config_LoRaConfig_ModemPreset_MIN, 0, 0, 0, 0, _meshtastic_Config_LoRaConfig_RegionCode_MIN, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0}, 0, 0, _meshtastic_Config_LoRaConfig_FEM_LNA_Mode_MIN, 0}
 #define meshtastic_Config_BluetoothConfig_init_default {0, _meshtastic_Config_BluetoothConfig_PairingMode_MIN, 0}
-#define meshtastic_Config_SecurityConfig_init_default {{0, {0}}, {0, {0}}, 0, {{0, {0}}, {0, {0}}, {0, {0}}}, 0, 0, 0, 0}
+#define meshtastic_Config_SecurityConfig_init_default {{0, {0}}, {0, {0}}, 0, {{0, {0}}, {0, {0}}, {0, {0}}}, 0, 0, 0, 0, _meshtastic_Config_SecurityConfig_PacketSignaturePolicy_MIN}
 #define meshtastic_Config_SessionkeyConfig_init_default {0}
 #define meshtastic_Config_init_zero              {0, {meshtastic_Config_DeviceConfig_init_zero}}
 #define meshtastic_Config_DeviceConfig_init_zero {_meshtastic_Config_DeviceConfig_Role_MIN, 0, 0, 0, _meshtastic_Config_DeviceConfig_RebroadcastMode_MIN, 0, 0, 0, 0, "", 0, _meshtastic_Config_DeviceConfig_BuzzerMode_MIN}
@@ -798,7 +869,7 @@ extern "C" {
 #define meshtastic_Config_DisplayConfig_init_zero {0, _meshtastic_Config_DisplayConfig_DeprecatedGpsCoordinateFormat_MIN, 0, 0, 0, _meshtastic_Config_DisplayConfig_DisplayUnits_MIN, _meshtastic_Config_DisplayConfig_OledType_MIN, _meshtastic_Config_DisplayConfig_DisplayMode_MIN, 0, 0, _meshtastic_Config_DisplayConfig_CompassOrientation_MIN, 0, 0, 0}
 #define meshtastic_Config_LoRaConfig_init_zero   {0, _meshtastic_Config_LoRaConfig_ModemPreset_MIN, 0, 0, 0, 0, _meshtastic_Config_LoRaConfig_RegionCode_MIN, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0}, 0, 0, _meshtastic_Config_LoRaConfig_FEM_LNA_Mode_MIN, 0}
 #define meshtastic_Config_BluetoothConfig_init_zero {0, _meshtastic_Config_BluetoothConfig_PairingMode_MIN, 0}
-#define meshtastic_Config_SecurityConfig_init_zero {{0, {0}}, {0, {0}}, 0, {{0, {0}}, {0, {0}}, {0, {0}}}, 0, 0, 0, 0}
+#define meshtastic_Config_SecurityConfig_init_zero {{0, {0}}, {0, {0}}, 0, {{0, {0}}, {0, {0}}, {0, {0}}}, 0, 0, 0, 0, _meshtastic_Config_SecurityConfig_PacketSignaturePolicy_MIN}
 #define meshtastic_Config_SessionkeyConfig_init_zero {0}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -894,6 +965,7 @@ extern "C" {
 #define meshtastic_Config_SecurityConfig_serial_enabled_tag 5
 #define meshtastic_Config_SecurityConfig_debug_log_api_enabled_tag 6
 #define meshtastic_Config_SecurityConfig_admin_channel_enabled_tag 8
+#define meshtastic_Config_SecurityConfig_packet_signature_policy_tag 9
 #define meshtastic_Config_device_tag             1
 #define meshtastic_Config_position_tag           2
 #define meshtastic_Config_power_tag              3
@@ -1055,7 +1127,8 @@ X(a, STATIC,   REPEATED, BYTES,    admin_key,         3) \
 X(a, STATIC,   SINGULAR, BOOL,     is_managed,        4) \
 X(a, STATIC,   SINGULAR, BOOL,     serial_enabled,    5) \
 X(a, STATIC,   SINGULAR, BOOL,     debug_log_api_enabled,   6) \
-X(a, STATIC,   SINGULAR, BOOL,     admin_channel_enabled,   8)
+X(a, STATIC,   SINGULAR, BOOL,     admin_channel_enabled,   8) \
+X(a, STATIC,   SINGULAR, UENUM,    packet_signature_policy,   9)
 #define meshtastic_Config_SecurityConfig_CALLBACK NULL
 #define meshtastic_Config_SecurityConfig_DEFAULT NULL
 
@@ -1099,7 +1172,7 @@ extern const pb_msgdesc_t meshtastic_Config_SessionkeyConfig_msg;
 #define meshtastic_Config_NetworkConfig_size     204
 #define meshtastic_Config_PositionConfig_size    62
 #define meshtastic_Config_PowerConfig_size       52
-#define meshtastic_Config_SecurityConfig_size    178
+#define meshtastic_Config_SecurityConfig_size    180
 #define meshtastic_Config_SessionkeyConfig_size  0
 #define meshtastic_Config_size                   207
 

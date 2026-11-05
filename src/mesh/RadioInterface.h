@@ -7,6 +7,7 @@
 #include "airtime.h"
 #include "error.h"
 #include <memory>
+#include <meshUtils.h> // for pow_of_2
 
 #if HAS_LORA_FEM
 #include "LoRaFEMInterface.h"
@@ -20,6 +21,7 @@ typedef struct _meshtastic_Config_LoRaConfig meshtastic_Config_LoRaConfig;
 #define MAX_LORA_PAYLOAD_LEN 255 // max length of 255 per Semtech's datasheets on SX12xx
 #define MESHTASTIC_HEADER_LENGTH 16
 #define MESHTASTIC_PKC_OVERHEAD 12
+#define MESHTASTIC_AEAD_OVERHEAD 12
 
 #define PACKET_FLAGS_HOP_LIMIT_MASK 0x07
 #define PACKET_FLAGS_WANT_ACK_MASK 0x08
@@ -67,6 +69,11 @@ typedef struct {
 
 } RadioBuffer;
 
+/// On-air ceiling for MeshPacket.encrypted. RadioBuffer holds one byte more, but the PHY caps a whole
+/// frame at MAX_LORA_PAYLOAD_LEN, so the header comes out of the same budget (matches perhapsEncode).
+constexpr size_t MAX_RADIO_PAYLOAD_LEN = MAX_LORA_PAYLOAD_LEN - sizeof(PacketHeader);
+static_assert(MAX_RADIO_PAYLOAD_LEN < sizeof(RadioBuffer::payload), "payload ceiling must fit the buffer");
+
 /**
  * Basic operations all radio chipsets must implement.
  *
@@ -92,20 +99,39 @@ class RadioInterface
     uint8_t sf = 9;
     uint8_t cr = 5;
 
-    const uint8_t NUM_SYM_CAD = 2;       // Number of symbols used for CAD, 2 is the default since RadioLib 6.3.0 as per AN1200.48
-    const uint8_t NUM_SYM_CAD_24GHZ = 4; // Number of symbols used for CAD in 2.4 GHz, 4 is recommended in AN1200.22 of SX1280
+    // Fallback per-band counts for a driver that states nothing of its own. Every driver in the tree
+    // states its own, and they do NOT all agree: the slot has to match the scan each part really runs,
+    // so a mesh mixing RF95 (2.25 symbols, fixed in hardware) with SX126x/LR (4) runs two slot lengths.
+    // Uncited on purpose - no single vendor note covers every part they cover. AN1200.77 backs the
+    // 2.4 GHz figure for SX1280: a longer window moves P(Detection) away from P(False Detection).
+    static constexpr uint8_t NUM_SYM_CAD = 4;
+    static constexpr uint8_t NUM_SYM_CAD_24GHZ = 8;
+    // Runs during RadioInterface's own construction, so it uses the fallbacks above, never a driver
+    // override. applyModemConfig() recomputes it before anything reads it, and is authoritative.
     uint32_t slotTimeMsec = computeSlotTimeMsec();
-    uint16_t preambleLength = 16;    // 8 is default, but we use longer to increase the amount of sleep time when receiving
-    uint32_t preambleTimeMsec = 165; // calculated on startup, this is the default for LongFast
-    const uint32_t PROCESSING_TIME_MSEC =
-        4500;                // time to construct, process and construct a packet again (empirically determined)
-    const uint8_t CWmin = 3; // minimum CWsize
-    const uint8_t CWmax = 8; // maximum CWsize
+    uint16_t preambleLength = 16; // 8 is default, but we use longer to increase the amount of sleep time when receiving
+    static constexpr uint16_t preambleLengthDefault =
+        16; // 8 is default, but we use longer to increase the amount of sleep time when receiving
+    static constexpr uint16_t wideLoraPreambleLengthDefault = 12; // 12 is default for wide Lora
+    uint32_t preambleTimeMsec = 165;                              // calculated on startup, this is the default for LongFast
+    static constexpr uint32_t PROCESSING_TIME_MSEC =
+        4500;                           // time to construct, process and construct a packet again (empirically determined)
+    static constexpr uint8_t CWmin = 3; // minimum CWsize
+    static constexpr uint8_t CWmax = 8; // maximum CWsize
 
     meshtastic_MeshPacket *sendingPacket = NULL; // The packet we are currently sending
     uint32_t lastTxStart = 0L;
 
     uint32_t computeSlotTimeMsec();
+
+    // Symbols this part scans, declared per band: a part that works in both need not scan the same
+    // length in each, and the parts sharing a band do not all agree. Each driver states its own, and
+    // must pass a matching symNum - these are what size the CW slot, so a mismatch mis-scales backoff.
+    virtual uint8_t getCadSymbolCountSubGhz() const { return NUM_SYM_CAD; }
+    virtual uint8_t getCadSymbolCountWideLora() const { return NUM_SYM_CAD_24GHZ; }
+
+    /** Whichever of the two applies to the band actually in use. */
+    uint8_t getCadSymbolCount() const;
 
     /**
      * A temporary buffer used for sending/receiving packets, sized to hold the biggest buffer we might need
@@ -130,16 +156,24 @@ class RadioInterface
      * Coerce LoRa config fields (bandwidth/spread_factor) derived from presets.
      * This is used during early bootstrapping so UIs that display these fields directly remain consistent.
      */
-    static void bootstrapLoRaConfigFromPreset(meshtastic_Config_LoRaConfig &loraConfig);
+    // static void bootstrapLoRaConfigFromPreset(meshtastic_Config_LoRaConfig &loraConfig); // maybe superseded?
 
     /**
      * Return true if we think the board can go to sleep (i.e. our tx queue is empty, we are not sending or receiving)
      *
      * This method must be used before putting the CPU into deep or light sleep.
+     *
+     * @param deepSleep true when the radio itself is about to be powered down (deep sleep or
+     * shutdown) - an in-flight transmission then vetoes sleep, since it would be truncated on
+     * air. false for a light sleep where the radio stays powered and finishes the TX on its own.
      */
-    virtual bool canSleep() { return true; }
+    virtual bool canSleep(bool deepSleep = false) { return true; }
 
     virtual bool wideLora() { return false; }
+
+    /// Whether the radio can tune sub-GHz bands. False for 2.4 GHz-only chips (SX128x);
+    /// multiband chips like the LR1121 keep the default.
+    virtual bool supportsSubGhz() { return true; }
 
     /// Prepare hardware for sleep.  Call this _only_ for deep sleep, not needed for light sleep.
     virtual bool sleep() { return true; }
@@ -237,6 +271,39 @@ class RadioInterface
     // Whether we use the default frequency slot given our LoRa config (region and modem preset)
     static bool uses_default_frequency_slot;
 
+    // Whether we have a custom channel name
+    static bool uses_custom_channel_name;
+
+    static bool checkOrClampConfigLora(meshtastic_Config_LoRaConfig &loraConfig, bool clamp);
+
+    // Check if a candidate region is compatible and valid, with no side effects (safe for
+    // speculative UI checks). prospectiveLicensedOwner is for a UI flow that requires
+    // confirmation before it sets the owner licensed. errBuf, if given, receives the failure reason.
+    static bool checkConfigRegion(const meshtastic_Config_LoRaConfig &loraConfig, char *errBuf = nullptr, size_t errLen = 0,
+                                  bool prospectiveLicensedOwner = false);
+
+    // Check if a candidate region is compatible and valid. On failure, logs at ERROR,
+    // records a critical error, and sends a client notification.
+    static bool validateConfigRegion(const meshtastic_Config_LoRaConfig &loraConfig);
+
+    // Check if a candidate radio configuration is valid.
+    static bool validateConfigLora(const meshtastic_Config_LoRaConfig &loraConfig);
+
+    // Make a candidate radio configuration valid, even if it isn't.
+    static void clampConfigLora(meshtastic_Config_LoRaConfig &loraConfig);
+
+    // How many frequency slots the config's region holds at the config's bandwidth. 0 for an UNSET region.
+    static uint32_t frequencySlotCount(const meshtastic_Config_LoRaConfig &loraConfig);
+
+    // The 1-based slot a config lands on for a channel name, without making that channel primary: an in-range
+    // channel_num wins, else the region's override slot, else the hash applyModemConfig() would use.
+    static uint32_t resolveFrequencySlot(const meshtastic_Config_LoRaConfig &loraConfig, const char *channelName);
+
+    // If preset is locked to a sibling of currentRegion among the swappable EU regions
+    // (EU_868/EU_866/EU_N_868), return the sibling region owning the preset, else nullptr.
+    static const RegionInfo *regionSwapForPreset(meshtastic_Config_LoRaConfig_RegionCode currentRegion,
+                                                 meshtastic_Config_LoRaConfig_ModemPreset preset);
+
   protected:
     int8_t power = 17; // Set by applyModemConfig()
 
@@ -250,6 +317,9 @@ class RadioInterface
      * Used as the first step of
      */
     [[nodiscard]] size_t beginSending(meshtastic_MeshPacket *p);
+
+    /** beginSending()'s encoding into radioBuffer, without claiming sendingPacket; returns the bytes to send */
+    [[nodiscard]] size_t encodeRadioBuffer(meshtastic_MeshPacket *p);
 
     /**
      * Some regulatory regions limit xmit power.
@@ -281,8 +351,9 @@ class RadioInterface
      */
     void applyModemConfig();
 
-    /// Return 0 if sleep is okay
-    int preflightSleepCb(void *unused = NULL) { return canSleep() ? 0 : 1; }
+    /// Return 0 if sleep is okay. A non-NULL argument means the radio is about to be powered
+    /// down (deep sleep / shutdown), see doPreflightSleep()
+    int preflightSleepCb(void *deepSleep = NULL) { return canSleep(deepSleep != NULL) ? 0 : 1; }
 
     int notifyDeepSleepCb(void *unused = NULL);
 
@@ -294,6 +365,38 @@ class RadioInterface
 };
 
 std::unique_ptr<RadioInterface> initLoRa();
+
+// What the plain-RX poll does with PREAMBLE/HEADER flags that no RX_DONE has consumed.
+enum class StaleRxFlagAction : uint8_t { Keep, ClearPreamble, ClearHeaderErr, Rearm };
+
+// RX_DONE clears every flag, so one still latched a max packet after first sight has no frame behind it.
+// One header raises HEADER_VALID or HEADER_ERR and never both (SX1262 DS rev 2.1 table 13-29), so an error
+// beside a valid header is an earlier frame's and is retired without touching the valid header's window.
+// Where a header error wedges RX instead (SX1280 DS rev 3.3 16.2) the two together mean something else: RX
+// could not have reached a later header while wedged, so the error is the NEWER of the two, the frame behind
+// that valid header is dead, and only a re-arm gets the chip listening again - there is nothing left to abort.
+constexpr StaleRxFlagAction staleRxFlagAction(bool validSeen, bool errSeen, bool errWedgesRx, uint32_t sinceFirstSeenMsec,
+                                              uint32_t maxPacketTimeMsec)
+{
+    return validSeen && errSeen                     ? (errWedgesRx ? StaleRxFlagAction::Rearm : StaleRxFlagAction::ClearHeaderErr)
+           : sinceFirstSeenMsec < maxPacketTimeMsec ? StaleRxFlagAction::Keep
+           : validSeen                              ? StaleRxFlagAction::Rearm
+           : !errSeen                               ? StaleRxFlagAction::ClearPreamble
+           : errWedgesRx                            ? StaleRxFlagAction::Rearm
+                                                    : StaleRxFlagAction::ClearHeaderErr;
+}
+
+// How long after a preamble sighting a frame we can decode would have latched HEADER_VALID: the rest of the preamble plus
+// the ~12.25 symbols of sync word, SFD and explicit header, and 2 more because PREAMBLE_DETECTED dates from a look, not
+// from the first symbol. Taken from sf and bw, never from preambleTimeMsec: that is whole milliseconds, and a wide-LoRa
+// symbol is tens of microseconds, so the stored value truncates to 0 and would make every sighting peekable at once.
+inline uint32_t preambleHeaderGraceMsec(uint8_t sf, float bwKhz, uint16_t preambleLength)
+{
+    const float symbolMsec = (float)pow_of_2(sf) / bwKhz; // bw is in kHz, so a symbol time comes out in milliseconds
+    const float grace = symbolMsec * (preambleLength + 14.25f);
+    const uint32_t whole = (uint32_t)grace;
+    return grace > (float)whole ? whole + 1 : whole; // round up, so a sub-millisecond grace is never zero
+}
 
 /// Debug printing for packets
 void printPacket(const char *prefix, const meshtastic_MeshPacket *p);

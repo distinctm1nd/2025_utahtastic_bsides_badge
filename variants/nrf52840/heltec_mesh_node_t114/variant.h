@@ -36,7 +36,7 @@ extern "C" {
 #define HELTEC_MESH_NODE_T114
 
 #define USE_ST7789
-
+#define HAS_SPI_TFT 1
 #define ST7789_NSS 11
 #define ST7789_RS 12  // DC
 #define ST7789_SDA 41 // MOSI
@@ -56,9 +56,6 @@ extern "C" {
 #define TFT_WIDTH 240
 #define TFT_OFFSET_X 0
 #define TFT_OFFSET_Y 0
-
-// T114 gets a muted yellow on black display
-#define TFT_MESH_OVERRIDE COLOR565(255, 255, 128)
 
 // #define TFT_OFFSET_ROTATION 0
 // #define SCREEN_ROTATE
@@ -174,8 +171,8 @@ No longer populated on PCB
 #define PIN_GPS_PPS (32 + 4)
 // Seems to be missing on this new board
 // #define PIN_GPS_PPS (32 + 4)  // Pulse per second input from the GPS
-#define GPS_TX_PIN (32 + 7) // This is for bits going TOWARDS the CPU
-#define GPS_RX_PIN (32 + 5) // This is for bits going TOWARDS the GPS
+#define GPS_TX_PIN (32 + 7) // This is for bits going TOWARDS the GPS
+#define GPS_RX_PIN (32 + 5) // This is for bits going TOWARDS the CPU
 
 #define GPS_THREAD_INTERVAL 50
 

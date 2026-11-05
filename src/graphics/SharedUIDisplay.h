@@ -1,6 +1,7 @@
 #pragma once
 
 #include <OLEDDisplay.h>
+#include <stdint.h>
 #include <string>
 
 namespace graphics
@@ -20,7 +21,7 @@ namespace graphics
 #define textSixthLine (textFifthLine + (FONT_HEIGHT_SMALL - 5))
 
 // Consistent Line Spacing for devices like T114 and TEcho/ThinkNode M1 of devices
-#define textFirstLine_medium (FONT_HEIGHT_SMALL + 1)
+#define textFirstLine_medium (FONT_HEIGHT_SMALL + 1 + BASEUI_HEADER_MARGIN)
 #define textSecondLine_medium (textFirstLine_medium + FONT_HEIGHT_SMALL)
 #define textThirdLine_medium (textSecondLine_medium + FONT_HEIGHT_SMALL)
 #define textFourthLine_medium (textThirdLine_medium + FONT_HEIGHT_SMALL)
@@ -34,6 +35,22 @@ namespace graphics
 #define textFourthLine_large (textThirdLine_large + (FONT_HEIGHT_SMALL + 5))
 #define textFifthLine_large (textFourthLine_large + (FONT_HEIGHT_SMALL + 5))
 #define textSixthLine_large (textFifthLine_large + (FONT_HEIGHT_SMALL + 5))
+
+#ifndef BASEUI_HEADER_MARGIN
+#define BASEUI_HEADER_MARGIN 0
+#endif
+#ifndef BASEUI_HEADER_LR_MARGIN
+#define BASEUI_HEADER_LR_MARGIN 0
+#endif
+#ifndef BASEUI_BODY_LR_MARGIN
+#define BASEUI_BODY_LR_MARGIN 0
+#endif
+#ifndef BASEUI_BELOW_HEADER_MARGIN
+#define BASEUI_BELOW_HEADER_MARGIN 0
+#endif
+#ifndef ROUNDED_SCREEN
+#define ROUNDED_SCREEN false
+#endif
 
 // Quick screen access
 #define SCREEN_WIDTH display->getWidth()
@@ -52,10 +69,23 @@ void drawRoundedHighlight(OLEDDisplay *display, int16_t x, int16_t y, int16_t w,
 
 // Shared battery/time/mail header
 void drawCommonHeader(OLEDDisplay *display, int16_t x, int16_t y, const char *titleStr = "", bool force_no_invert = false,
-                      bool show_date = false);
+                      bool show_date = false, bool transparent_background = false, bool use_title_color_override = false,
+                      uint16_t title_color_override = 0);
 
 // Shared battery/time/mail header
 void drawCommonFooter(OLEDDisplay *display, int16_t x, int16_t y);
+
+// Inline so non-compact boards fold this to a constant false at every call site, cost-free.
+static inline bool isCompactPanel(OLEDDisplay *display)
+{
+#if defined(OLED_COMPACT_UI)
+    // Covers both known compact panels (72x40 and 64x48).
+    return display->getWidth() <= 80 && display->getHeight() <= 48;
+#else
+    (void)display;
+    return false;
+#endif
+}
 
 const int *getTextPositions(OLEDDisplay *display);
 

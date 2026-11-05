@@ -13,6 +13,7 @@ class menuHandler
         LoraPicker,
         DeviceRolePicker,
         RadioPresetPicker,
+        TXEnabledMenu,
         FrequencySlot,
         NoTimeoutLoraPicker,
         TzPicker,
@@ -30,15 +31,21 @@ class menuHandler
         ResetNodeDbMenu,
         BuzzerModeMenuPicker,
         MuiPicker,
-        TftColorMenuPicker,
         BrightnessPicker,
         RebootMenu,
         ShutdownMenu,
         NodePickerMenu,
         ManageNodeMenu,
         RemoveFavorite,
+        WaypointBaseMenu,
+        GeofenceWaypointMenu,
+        GeofenceOptionsMenu,
+        RemoveWaypointMenu,
         TestMenu,
+        HostPowerOffMenu,
         NumberTest,
+        EnvironmentTelemetryMenu,
+        EnvironmentTelemetrySourceMenu,
         WifiToggleMenu,
         BluetoothToggleMenu,
         ScreenOptionsMenu,
@@ -55,16 +62,24 @@ class menuHandler
         NodeNameLengthMenu,
         FrameToggles,
         DisplayUnits,
-        MessageBubblesMenu
+        MessageBubblesMenu,
+        ThemeMenu,
+        HamModeConfirm,
+        LicensedToNormalConfirm,
+#if HAS_LORA_FEM
+        LoraFemLnaToggleMenu
+#endif
     };
     static screenMenus menuQueue;
     static uint32_t pickedNodeNum; // node selected by NodePicker for ManageNodeMenu
+    static meshtastic_Config_LoRaConfig_RegionCode pendingRegion;
 
     static void OnboardMessage();
     static void LoraRegionPicker(uint32_t duration = 30000);
     static void loraMenu();
     static void deviceRolePicker();
     static void radioPresetPicker();
+    static void txEnabledMenu();
     static void FrequencySlotPicker();
     static void handleMenuSwitch(OLEDDisplay *display);
     static void showConfirmationBanner(const char *message, std::function<void()> onConfirm);
@@ -89,7 +104,6 @@ class menuHandler
     static void GPSPositionBroadcastMenu();
     static void BuzzerModeMenu();
     static void switchToMUIMenu();
-    static void TFTColorPickerMenu(OLEDDisplay *display);
     static void nodeListMenu();
     static void resetNodeDBMenu();
     static void BrightnessPickerMenu();
@@ -99,9 +113,16 @@ class menuHandler
     static void manageNodeMenu();
     static void addFavoriteMenu();
     static void removeFavoriteMenu();
+    static void waypointBaseMenu();
+    static void geofenceWaypointMenu();
+    static void geofenceOptionsMenu();
+    static void removeWaypointMenu();
     static void traceRouteMenu();
     static void testMenu();
+    static void hostPowerOffMenu();
     static void numberTest();
+    static void environmentTelemetryMenu();
+    static void environmentTelemetrySourceMenu();
     static void wifiBaseMenu();
     static void wifiToggleMenu();
     static void screenOptionsMenu();
@@ -110,7 +131,22 @@ class menuHandler
     static void frameTogglesMenu();
     static void displayUnitsMenu();
     static void messageBubblesMenu();
+    static void themeMenu();
     static void textMessageMenu();
+    static void hamModeConfirmMenu();
+    static void licensedToNormalConfirmMenu();
+#if HAS_LORA_FEM
+    static void LoRaFEMLNAToggleMenu();
+#endif
+
+    // Lifted out of its banner-callback lambda so it is reachable without a Screen. The lambda only
+    // ever runs via screen->showOverlayBanner(), which is why nothing here was unit-testable.
+    static void toggleNodeMuted(uint32_t nodeNum); // uint32_t, matching pickedNodeNum above
+
+    // Preset a region selection should leave installed. `lora` is the config as it stands *before*
+    // the selection is written.
+    static meshtastic_Config_LoRaConfig_ModemPreset presetForRegionSelection(const meshtastic_Config_LoRaConfig &lora,
+                                                                             meshtastic_Config_LoRaConfig_RegionCode selected);
 
   private:
     static void saveUIConfig();
@@ -136,29 +172,19 @@ template <typename T> struct MenuOption {
     MenuOption(const char *labelIn, OptionsAction actionIn) : label(labelIn), action(actionIn), hasValue(false), value() {}
 };
 
-struct ScreenColor {
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-    bool useVariant;
-
-    explicit ScreenColor(uint8_t rIn = 0, uint8_t gIn = 0, uint8_t bIn = 0, bool variantIn = false)
-        : r(rIn), g(gIn), b(bIn), useVariant(variantIn)
-    {
-    }
-};
-
 using RadioPresetOption = MenuOption<meshtastic_Config_LoRaConfig_ModemPreset>;
 using LoraRegionOption = MenuOption<meshtastic_Config_LoRaConfig_RegionCode>;
 using TimezoneOption = MenuOption<const char *>;
 using CompassOption = MenuOption<meshtastic_CompassMode>;
-using ScreenColorOption = MenuOption<ScreenColor>;
 using GPSToggleOption = MenuOption<meshtastic_Config_PositionConfig_GpsMode>;
 using GPSFormatOption = MenuOption<meshtastic_DeviceUIConfig_GpsCoordinateFormat>;
 using NodeNameOption = MenuOption<bool>;
 using PositionMenuOption = MenuOption<int>;
 using ManageNodeOption = MenuOption<int>;
 using ClockFaceOption = MenuOption<bool>;
+#if HAS_LORA_FEM
+using LoRaFEMLNAToggleOption = MenuOption<meshtastic_Config_LoRaConfig_FEM_LNA_Mode>;
+#endif
 
 } // namespace graphics
 #endif
