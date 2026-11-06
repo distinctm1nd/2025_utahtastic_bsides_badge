@@ -1,19 +1,14 @@
 # Utah BSides 2025 badge ("UTAHtastic")
 
-Meshtastic firmware for the Utah BSides 2025 badge, kept as a **branch of a fork of
-[meshtastic/firmware](https://github.com/meshtastic/firmware)**. Everything badge-specific is
-in this folder, plus three small files elsewhere:
+Meshtastic firmware for the Utah BSides 2025 badge is a fork of
+[meshtastic/firmware](https://github.com/meshtastic/firmware)**. Everything Utah BSides badge specific is
+in the Utah Bsides variant folder:
 
 | File | What it is |
 |---|---|
 | `variants/esp32s3/utah_bsides/` | this folder: pins, keypad, LEDs, badge apps, games, scans, messages, web page |
 | `userPrefs.jsonc` | badge defaults: US region, MediumFast, the raven boot image |
 | `.github/workflows/badge_build.yml` | builds, signs and publishes the badge firmware on GitHub |
-
-**No Meshtastic source file is patched**, so a new Meshtastic release merges in cleanly. The
-badge reaches Meshtastic only through its public interfaces (and, in two places, reads a
-private screen value with a standard C++ technique instead of editing Meshtastic; see
-*Updating to a new Meshtastic release*).
 
 Contents: [TL;DR — get started](#tldr--get-started) · [What's new](#whats-new-compared-with-the-2025-firmware) ·
 [Using the badge](#using-the-badge) · [Messages](#messages) · [Fox hunt and scanning](#fox-hunt-and-scanning) ·
@@ -30,7 +25,7 @@ Contents: [TL;DR — get started](#tldr--get-started) · [What's new](#whats-new
 1. On a computer, open the **web installer** in **Chrome or Edge**:
    <https://distinctm1nd.github.io/2025_utahtastic_bsides_badge/> (live once a release is published).
 2. Plug the badge into USB and click **Install**. First install erases and reflashes (a 2025 badge
-   needs this one full install for the new memory layout).
+   needs this one full install for the new memory layout). Once you have updated once via web installer, you can continue with web installer for future updates or you can update via WiFi (see below). 
 3. That's it. To reflash or move to a newer build later, open the same page and Install again.
 
 (Developers can instead `pio run -e utah_bsides -t upload` — see [Building and installing](#building-and-installing).)
@@ -50,21 +45,21 @@ Contents: [TL;DR — get started](#tldr--get-started) · [What's new](#whats-new
 | **hold** centre or `*` | the badge menu |
 | **hold** a number | its shortcut |
 
+Note: The joystick is rotated 45 degrees. A generic correction has been applied but to fine tune the joystick for your badge, go to: Main Menu (Tiles) -> Settings and Setup -> Settings -> Joystick setup. Follow the onscreen instructions to calibrate your joystick. 
+
 From the home tiles: **Messages**, **Games**, **Fox hunt**, and more — move with the joystick, press
 `#` to open. Type with the number keys (tap again within a second for the next letter, e.g. `8 8` = u).
 
 **Update later without a cable:** menu → **Badge WiFi (phone)**, join the badge's WiFi, open the
-page, **Update**. (Only firmware signed by the badge team is accepted.)
+page, **Update**.
 
 ## What's new compared with the 2025 firmware
 
-The badges shipped with a copy of Meshtastic 2.5.12 with a patched LED thread, a keypad driver
-and a few games. This firmware is Meshtastic **2.7.26** plus the following, all in this folder.
+The badges shipped with a copy of Meshtastic 2.5.12 with a patched LED thread, and a keyboard driver. This firmware has been updated to the most recent version of Meshtastic **2.8.2** plus the following:
 
 **Messaging**
-- **Messages, like a phone**: a list of chats (each channel, each person), each chat on its
-  own, newest at the bottom, with a writing box under the conversation. Replaces Meshtastic's
-  mixed "newest first" page. Writing only ever goes to the open chat.
+- Updated keyboard controls and updated messaging features have made the badge a standalone off grid messaging device. It can still be used with the meshtastic phone app, but that is no longer a requirement for full messaging functionality. 
+- **Messages**: List of chats (each channel, each person), each chat on its own, newest at the bottom, with a writing box under the conversation. Writing only ever goes to the open chat.
 - **Clear privacy labels**: group or person icons, a closed or open lock, and words in the
   title bar ("private", "public group", "no key: can't DM").
 - **Private groups**: create or join channels on the badge; **invite another badge** (the key
@@ -85,6 +80,7 @@ and a few games. This firmware is Meshtastic **2.7.26** plus the following, all 
 - **Drone Remote ID**, a **turn-in-a-circle** direction finder, a **sub-GHz band scanner**,
   a **node radar** map, a **sightings log**, share-on-request, **be the fox**, **packet capture**
   for Wireshark.
+- **Packet Capture** for LoRa, WiFi and Bluetooth 
 
 **Security**
 - **Screen lock** with a PIN (salted hash); the badge re-locks after the boot intro, on sleep, and
@@ -107,7 +103,7 @@ and a few games. This firmware is Meshtastic **2.7.26** plus the following, all 
 **Lights**
 - 48 themed **LED scenes** with separate effects for keypad, sign, eyes and moon, smooth
   crossfades, **light shows** in sync across badges, typing lights, a message skull, a
-  **flashlight**, night mode, and a glitch-free LED driver.
+  **flashlight**, and night mode.
 
 **Everyday**
 - **Shortcuts**: hold a number key to jump anywhere (ten, configurable on the badge or the Badge WiFi *Home* tab).
@@ -122,13 +118,10 @@ and a few games. This firmware is Meshtastic **2.7.26** plus the following, all 
   the phone app.
 - **Badge WiFi**: the badge's own WiFi network and web page for pictures, settings, messages,
   the live scan, a map, backup and updates.
-- Menus that go back one level, that remember where you were, joystick setup for the angled
-  stick, achievements, a scavenger hunt, minibadge support.
 
 **Under the hood**
 - **Keyboard**: the old driver had no debounce, so a press often counted two or three times and
-  multi-tap typed the wrong letter. Each key now settles for 30 ms; `#` and `*` act on release
-  so holding them can do something else; the joystick only moves (matching the 2.7 menus).
+  multi-tap typed the wrong letter. 
 - **LEDs**: their own 50 Hz thread (was a patch inside Meshtastic's `AmbientLightingThread.h`
   that only animated while Ambient Lighting was on), and their own RMT driver (see *Lights*).
 - **LoRa**: the firmware finds either the stock LLCC68 module or an SX1262 module; DIO2 drives
@@ -207,9 +200,7 @@ Among Meshtastic's pages (joystick left/right) there's a *Badge* page with the e
 things: date and time, the latest message (who, when, the start of it; "New" while unread),
 the last node heard (with its signal when direct, hops otherwise), the background watch
 (marked devices near, trackers, anything following you) and whether the badge can send
-(region, preset, channel; a warning if the region isn't set). Meshtastic's home page also says
-*No GPS* (or *Fixed GPS*) now that GPS support is built in; the badge has no GPS module, and
-none is started.
+(region, preset, channel; a warning if the region isn't set).
 
 ### Joystick setup
 
@@ -234,7 +225,7 @@ switch for itself; it's also half of left.
 
 The badge's own messages, like a phone. It takes the place of Meshtastic's Messages page
 (which mixes every channel and person, newest first): flipping to that page opens this
-instead (Meshtastic's page is never drawn), and joystick left/right from here lands on the
+instead, and joystick left/right from here lands on the
 pages either side of it. Also: the **Messages** home tile, a shortcut, or tapping
 a number key on Meshtastic's pages.
 
@@ -648,8 +639,7 @@ lock off*.
   name tag (marked with `*` in this list); with none marked it cycles all the pictures. With *Name tag stays on* (the default) it keeps the screen on.
 - **Unlocking**: press any key and a PIN line appears at the bottom (that key doesn't count as a
   digit); then type the PIN. After 5 wrong PINs it makes you wait (30 s, doubling up to 8
-  minutes, kept across restarts). It **returns to whatever screen you were on** when it locked
-  (e.g. the WiFi + Bluetooth fox hunt), not the home tiles.
+  minutes, kept across restarts). 
 - **Hard to get around**: after a start the lock takes over before Meshtastic's first page is
   ever drawn; until the PIN screen is up the keys do nothing; no other badge screen can open
   while locked; anything that draws over it (e.g. Bluetooth pairing) is covered again within a
@@ -822,7 +812,7 @@ live preview.
 | Eyes | glow and blink, look around, candle flicker, demon flare, wink, colour cycle, ping-pong, eyes in the dark, coyote eyeshine |
 | Moon | phases, glow, circling halo, eclipse, star twinkle, aurora shimmer, clouds drifting past, howling moon, storm, dust haze |
 
-48 scenes, all named for the theme. **Old West**: Skinwalker, Shapeshifter, Coyote Moon,
+48 scenes: Skinwalker, Shapeshifter, Coyote Moon,
 Campfire, Saloon, Sheriff's Star, Wanted Poster, Dust Devil, Rattlesnake, Bone Orchard, Dead
 Man's Hand, Thunderbird, Ghost Town, Silver Mine, High Noon. Lightning (Thunderbird) strikes
 every couple of minutes, worked out from the scene time, so the keypad, sign and moon flash
@@ -989,7 +979,107 @@ The *Minibadges* screen has a second page (`#`): an **I2C scanner** of the main 
 the one the keypad shares). It lists the addresses that answer, with a guess at common parts (OLED,
 RTC, IMU, temp/humidity, ...); `#` rescans. Useful when wiring up an I2C sensor or a new minibadge.
 
+**Minibadge ideas.** Because the slots are I2C, a minibadge can be more than a light-and-button toy:
+it can carry a sensor or input the firmware can actually use. Each would need firmware support to be
+read, but the I2C scanner (page 2 above) confirms a new part is wired and answering first. Some that
+would extend the badge:
+
+- **Battery fuel gauge** (MAX17048): the AA pack isn't wired to the ESP32, so the badge can't show a
+  battery level today — an inline I2C gauge could.
+- **Real-time clock** (DS3231): an accurate clock of its own, so the Clock tile and message
+  timestamps are right without a phone or GPS.
+- **GPS** (I2C, e.g. u-blox MAX-M10S): a fix of its own, so the Nodes map works without the phone
+  sharing a location.
+- **Compass / magnetometer** (QMC5883L, LIS3MDL): a real heading for the node map and fox-hunt
+  direction instead of north-up only.
+- **Environment sensor** (BME280 / BME680): temperature, humidity, pressure and air quality to show
+  on-screen and share over the mesh as telemetry.
+- **Motion sensor / IMU** (LSM6DS3, MPU-6050): a step counter, shake-to-act, or tilt as an extra input.
+- **Haptic driver + motor** (DRV2605L): a buzz on a new message or a fox-hunt hit.
+- **NFC reader** (PN532): tap two badges to trade contacts, or tap a tag to unlock.
+- **Rotary encoder or extra keys** (an I2C GPIO expander like the TCA9535 already on the badge):
+  smoother scrolling and menu navigation.
+- **Ambient light / colour sensor** (VEML7700, TCS34725): auto-dim the screen and LEDs, or match the
+  LED colour to the room.
+- **Capacitive touch** (MPR121): touch pads as extra buttons or a slider.
+- **Second display** (a small I2C OLED, or an e-ink name tag): a persistent readout that doesn't tie
+  up the main screen.
+- **Buzzer / speaker**: richer alert tones for messages and games (the badge already drives beeps).
+
 ## Hardware notes
+
+### Dev pins (GPIO39–42)
+
+Four ESP32-S3 GPIOs — **39, 40, 41, 42** — are broken out as dev/expansion pins. The stock firmware
+leaves them free, so they're yours to build on (drive them from code in the badge folder). They are
+**3.3 V digital** lines: no ADC and no touch (on the S3 those are GPIO1–20), so they're for digital
+I/O and routed peripherals, not analog reads. None are strapping pins, so they're safe to pull or
+drive at boot. They are also the chip's external **JTAG** pins (MTCK / MTDO / MTDI / MTMS =
+39 / 40 / 41 / 42), so a JTAG probe (e.g. ESP-Prog) can use all four for hardware breakpoint
+debugging — and the built-in USB Serial/JTAG still works if you'd rather use them as plain GPIO.
+
+Through the ESP32-S3 GPIO matrix almost any digital peripheral can route to them. Project ideas:
+
+- **Hardware debugging:** wire a JTAG probe for breakpoints and single-stepping.
+- **Second serial port (UART):** talk to a GPS, another microcontroller, or a serial sensor; or a
+  wired debug console.
+- **Extra I2C (software):** the two hardware I2C controllers already run the main bus (GPIO1/2) and
+  the minibadge bus (GPIO5/6), but a bit-banged I2C bus works fine here for more sensors or a display.
+- **SPI (software, or a shared bus):** both hardware SPI controllers are already taken — LoRa on one,
+  the ST7735 display on SPI3 — so a third SPI device here uses bit-banged SPI (fine for an SD card or
+  a sensor, just slower), or wire it onto the display's bus with one of these pins as its chip-select.
+- **PWM outputs (LEDC):** servos, a motor driver, a piezo buzzer/speaker, or extra dimmable LEDs.
+- **Addressable LEDs (RMT):** drive a WS2812 strip for more lights.
+- **IR (RMT):** transmit/receive — a remote control, badge-to-badge IR, or a TV-B-Gone.
+- **Pulse counting (PCNT):** a rotary encoder as a scroll wheel, a Geiger counter, an anemometer, or
+  frequency measurement.
+- **Digital inputs:** buttons, switches, a reed/Hall sensor, a PIR motion sensor, or external
+  interrupt triggers.
+- **Switching outputs:** a relay or transistor to drive a load, trigger a camera, or signal another
+  device.
+- **More I/O:** a shift register or GPIO expander to get many more pins from just a few.
+
+Keep it to 3.3 V logic and modest current — switch anything bigger than an LED or a logic signal
+through a transistor or driver, and run motors or relays from their own supply with a shared ground.
+
+### UART (GPIO43 / GPIO44)
+
+A 4-pin serial header is broken out and is labeled UART on the badge. The four pins are:
+
+| Pin | Signal | ESP32-S3 pin | Notes |
+| --- | --- | --- | --- |
+| **3V3** | 3.3 V power | — (power rail, not a GPIO) | powers a small attached device |
+| **GND** | ground | — (ground) | common ground |
+| **TX** | transmit (out of the badge) | **GPIO43** (U0TXD) | wire to the other device's RX |
+| **RX** | receive (into the badge) | **GPIO44** (U0RXD) | wire to the other device's TX |
+
+Only TX and RX are GPIOs (43 and 44), fixed in firmware (`UART_TX` / `UART_RX`); 3V3 and GND are the
+power rails and have no GPIO number. 
+
+This is 3.3 V logic and the ESP32-S3's default **UART0** — the serial **console**: Meshtastic's boot
+and log messages come out on TX at **115200** baud (the USB port is the other console). Uses:
+
+- **Serial logs / console:** connect a 3.3 V USB-TTL adapter (badge TX → adapter RX, badge RX →
+  adapter TX, grounds common) and open it at 115200 (`pio device monitor -b 115200`, or any serial
+  terminal) to watch the boot and Meshtastic logs and type to the console.
+- **GPS:** wire a 3.3 V serial (NMEA) GPS and enable it in Meshtastic's position settings to give the
+  badge its own fix for the Nodes map — it ships with no GPS.
+- **Serial module:** Meshtastic's Serial module can send and receive mesh text over this port, proxy
+  it to another device, or emit NMEA — bridging the mesh to a computer or microcontroller.
+- **Another microcontroller or a serial sensor.**
+
+3.3 V only — don't wire 5 V or RS-232 levels straight in (use a 3.3 V adapter or a level shifter).
+Because it doubles as the log console, if you repurpose it for a device, set that up in Meshtastic's
+config and expect some log bytes on TX at boot.
+
+**Warning — the 3V3 pin is a power output, not a power input.** It is the badge's 3.3 V rail (the
+onboard regulator's output, fed by USB or the AA cells). Only *draw* from it to power a small
+attached device; do **not** feed an external supply into it while USB or batteries are connected.
+Two regulated sources tied to one rail back-feed each other and can damage the onboard regulator —
+and if the external source runs high, or someone applies 5 V here by mistake, it can damage the
+ESP32 and everything on the 3.3 V rail. To power the badge *from* this pin instead, use a single
+clean, current-limited 3.3 V source with USB unplugged and the AA cells removed, and never exceed
+3.3 V. Always share ground.
 
 ### Power
 
@@ -1086,16 +1176,9 @@ pio run -e utah_bsides -t upload
 
 Every signed build also makes `firmware-utah_bsides-*.update.bin`. On the badge: menu → **Badge
 WiFi (phone)**, join the network it shows, open the address, **Update**, send the file, then
-press **#** on the badge. The badge refuses files not signed with the badge team's key (Ed25519
-over the image's SHA-256), checks the image, and keeps all settings. If an update misbehaves,
+press **#** on the badge. If an update misbehaves,
 install over USB / the web installer.
 
-**The signing key** (`tools/update_key.py`): the private key is
-`~/.config/utah-bsides/update-signing.key` on the computer that made it, never in the repo;
-`BadgeUpdateKey.h` (committed) holds the public key the badges trust. Keep an offline backup.
-For GitHub Actions it's the `BADGE_SIGNING_KEY` secret in the `release` environment. Without the
-key a build still works, it just makes no `.update.bin`. Losing the key means the next update has
-to go over USB / the web installer with a new key's build.
 
 ## Updating to a new Meshtastic release
 
