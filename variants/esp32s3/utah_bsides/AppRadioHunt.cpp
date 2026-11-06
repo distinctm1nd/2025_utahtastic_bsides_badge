@@ -145,7 +145,9 @@ static int drawMaker(OLEDDisplay *d, int x, int y, int w, const char *name, bool
 class RadioHuntApp : public App
 {
   public:
-    bool numberShortcuts() const override { return !filter.editing(); }
+    // Digits are this app's own controls (3 = the device options, etc.), so don't let a held digit
+    // run a global shortcut - holding 3 used to fire the "ble" shortcut and relaunch the scan.
+    bool numberShortcuts() const override { return false; }
     bool typingLights() const override { return filter.editing(); }
     void setKind(ScanKind k) { kind = listKind = k; }
     const char *name() const override
@@ -267,8 +269,9 @@ class RadioHuntApp : public App
             ScanEntry sel;
             if (hunting) {
                 e = &target;
-            } else if (haveSel && selIndex() >= 0) {
-                sel = list[selIndex()];
+            } else if (count > 0) { // the highlighted device (the first one if you haven't moved yet)
+                int i = (haveSel && selIndex() >= 0) ? selIndex() : 0;
+                sel = list[i];
                 e = &sel;
             }
             if (e) {
