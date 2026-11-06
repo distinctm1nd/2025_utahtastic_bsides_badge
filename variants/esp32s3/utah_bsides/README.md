@@ -143,7 +143,7 @@ One rule on every screen:
 | hold joystick centre, or hold `*` | badge menu (inside a group chat: the group's menu) |
 | `*` | back / delete a letter |
 | tap a number key (on Meshtastic's pages) | Messages: pick a chat to write in |
-| **hold a number key** | its **shortcut** (Settings → *Shortcuts*; out of the box 1 sightings log … 0 flashlight) |
+| **hold a number key** | its **shortcut** (Settings → *Shortcuts*; out of the box 1 flashlight … 0 night mode) |
 | hold `#` | next LED scene |
 | `*` and `#` together (anywhere) | lock now (once a PIN is set) |
 
@@ -285,6 +285,15 @@ a number key on Meshtastic's pages.
 
 ## Fox hunt and scanning
 
+Scanning is for network troubleshooting, hobbyist radio listening, academic research, and security
+auditing. Laws on radio reception, wireless interception, location tracking, and privacy differ by
+country, state, and locality, and some of what these tools can do may be illegal where you are.
+Intercepting, decoding, logging, tracking, or interfering with communications or devices you do not
+own or are not authorized to test is your responsibility to avoid. These features are provided
+as-is, with no warranty; the badge's authors and contributors accept no liability for how you use
+them or for any unlawful, unauthorized, or harmful use. Use them only where you are permitted to,
+and at your own risk.
+
 Badge menu → *Fox hunt*, grouped top to bottom. **Scanners**: **LoRa node**, **WiFi network**,
 **Bluetooth device**, **WiFi + Bluetooth**, **Sub-GHz scanner**, **Node radar**, **Packet
 capture**. **Logs / watch / lists**: **Flagged devices**, **Sightings log**, **Scan stats**, and
@@ -297,7 +306,7 @@ settings**. Most of them are also shortcut choices (Settings → *Shortcuts*).
 | LoRa node hunt | `#` ping the fox now (it's pinged every 20 s anyway, and every packet heard from it counts), `0` reset the best-reading ticks, `*` done |
 | WiFi / Bluetooth / both list | joystick (or `2` / `8`) move, `0` search, `#` (or `5`) hunt the highlighted device, `*` done |
 | WiFi / Bluetooth hunt | the screen shows the best signal, how long since it was last and first heard; `#` details (including first and last seen as clock times), `9` turn in a circle, `1` share this sighting (asks first), `0` reset the best-reading tick, `*` back to the list; in details the joystick scrolls and `#` goes back |
-| any device (list or hunt) | **hold `*`**: its menu: nickname, trusted, alert when it turns up / when it's gone, make it beep (trackers), explore (Bluetooth) |
+| a device in a WiFi / Bluetooth scan (list or hunt) | **push joystick right**: its menu: nickname, trusted, alert when it turns up / when it's gone, make it beep (trackers), explore (Bluetooth) |
 | Flagged devices | joystick (or `2` / `8`) pick, `0` search, `#` details, `#` again hunt it, hold `*` its menu, `*` back / done |
 | Sub-GHz scanner | warning: `#` start, `*` cancel; band: joystick left / right move the marker (`4` / `6`: faster), `2` / `8` (up / down) change band, `#` meter there, `*` done; meter: `9` turn in a circle, `0` reset the best tick, `*` back to the band |
 | Node radar | joystick up / down zoom, left / right pick a node, `*` done |
@@ -305,7 +314,7 @@ settings**. Most of them are also shortcut choices (Settings → *Shortcuts*).
 | An alert message | any key closes it |
 
 In these screens, **tap** the number keys: they act when you let go, because holding a number
-runs its shortcut instead (holding `1` opens the sightings log rather than sharing).
+runs its shortcut instead (holding `1` runs the flashlight shortcut rather than sharing).
 
 **Search** (`0`) is on every list -- the LoRa node list, the WiFi / Bluetooth lists, flagged
 devices and the sightings log. Press `0`, type a few letters (multi-tap, like the message editor),
@@ -569,7 +578,7 @@ sighting or download the file.
 | `SHARED` | you shared this sighting with other badges |
 | `MESH` | another badge shared a sighting with you |
 
-**On the badge** (Fox hunt → *Sightings log*, or shortcut 1): newest first, two lines per entry.
+**On the badge** (Fox hunt → *Sightings log*, or shortcut 2): newest first, two lines per entry.
 The first has when (the time if the badge knows it, else boot number and uptime), the event, the
 mark and what it likely is; the second has the address, the signal (dBm) and the device's name or
 network name, with `@` if the badge's position was recorded. Joystick (or `2` / `8`) scrolls,
@@ -615,14 +624,14 @@ CHIP-8, Skinwalker Mine, badges, mesh settings, settings, badge menu, flagged de
 mode, scan alerts, packet capture, be the fox, next LED scene, night mode, flashlight, lock now)
 or a quick message (canned message 1–9, sent to the *Send messages to* channel after asking).
 
-Out of the box: 1 sightings log, 2 Bluetooth scan, 3 WiFi scan, 4 node radar, 5 Messages,
-6 Badge WiFi, 7 lights, 8 lock now, 9 night mode, 0 flashlight.
+Out of the box: 1 flashlight, 2 sightings log, 3 Bluetooth scan, 4 WiFi scan, 5 node radar,
+6 Messages, 7 Badge WiFi, 8 lights, 9 lock now, 0 night mode.
 
-They work on Meshtastic's pages and in most badge screens (name tag, Messages, scans, radar,
-sightings log, lights, Badge WiFi, flashlight...): there a quick tap of a number still does what
-that screen uses it for (when you let go), and holding it runs the shortcut. They don't work
-where numbers are typed or played: writing a message or a name, the PIN screens, joystick setup,
-the games and CHIP-8.
+They work on Meshtastic's pages, the tile home, and in most badge screens (name tag, Messages,
+scans, radar, sightings log, lights, Badge WiFi, flashlight, Explore...): there a quick tap of a
+number still does what that screen uses it for (when you let go), and holding it runs the shortcut.
+They don't work where numbers are typed or played (writing a message or a name, the PIN screens,
+joystick setup, the games and CHIP-8), or while a pop-up menu is open.
 
 ## Screen lock
 
@@ -837,7 +846,7 @@ still work in `!lights` and in saved settings.
 - **Light shows**: Lights → *Share now* sends your scene and its timing to every badge in range,
   and they all play it in step. *Lead show* re-sends it every minute; turn *Join shows* off to
   ignore other people's shows.
-- **Flashlight**: hold `0` (default shortcut) or badge menu → *Flashlight*.
+- **Flashlight**: hold `1` (default shortcut) or badge menu → *Flashlight*.
 - **Power**: Settings → *LEDs, screen asleep* (stay on / dim to 30% / off) and night mode cap
   them; the firmware also caps the total LED current, because a sagging supply makes the LEDs
   misread their data.

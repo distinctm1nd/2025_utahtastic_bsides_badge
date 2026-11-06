@@ -10,7 +10,7 @@
 //   hunt: # details (signal graph, everything known about it), 9 turn in a circle to find
 //         its direction, 1 share this sighting with other badges (asks first), 0 reset the
 //         best-reading tick, * back to the list; details: joystick scrolls
-//   hold * on a device (list or hunt): its menu (nickname, trusted, watchlist, make it beep)
+//   push the joystick right on a device (list or hunt): its menu (nickname, trusted, watchlist, make it beep)
 //   an alert message: any key closes it
 #include "configuration.h"
 
