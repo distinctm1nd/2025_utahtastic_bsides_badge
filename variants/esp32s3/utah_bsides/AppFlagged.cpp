@@ -1,16 +1,16 @@
 // Flagged devices: every marked device the scans came across, one row each: what's near now
 // (and anything following you) first, then the rest of the sightings log, newest first, plus
 // devices you've trusted, nicknamed or put on the watchlist.
-//   up/down pick (in details: scroll), # details (and again: hunt it), hold * the device's menu,
+//   up/down pick (in details: scroll), # details (and again: hunt it), push right: the device's menu,
 //   * back / done
 #include "configuration.h"
 
 #include "BadgeApp.h"
 #include "BadgeApps.h"
 #include "BadgeDeviceMenu.h"
-#include "BadgeListFilter.h"
 #include "BadgeDevices.h"
 #include "BadgeFollow.h"
+#include "BadgeListFilter.h"
 #include "BadgeLog.h"
 #include "BadgeTime.h"
 
@@ -132,10 +132,9 @@ class FlaggedApp : public App
             appRedraw();
             return;
         }
-        if (k == AK_STAR && a == KA_HOLD && vcount) {
+        if (k == AK_RIGHT && a == KA_PRESS && vcount) { // push right: the device's menu (as in the scanner)
             const Flagged &r = rows[vis[sel]];
             menu.show(r.mac, r.wifiKnown && r.wifi, !strcmp(r.code, "TAG"), false, devName(r.mac, r.name[0] ? r.name : r.title));
-            ignoreStarRelease = true;
             appRedraw();
             return;
         }
@@ -405,7 +404,10 @@ class FlaggedApp : public App
         line(b);
         snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X", r.mac[0], r.mac[1], r.mac[2], r.mac[3], r.mac[4], r.mac[5]);
         line(b);
-        snprintf(b, sizeof(b), "%s, seen %d time%s", r.following ? "Following you" : r.near ? "Near now" : "Not near now",
+        snprintf(b, sizeof(b), "%s, seen %d time%s",
+                 r.following ? "Following you"
+                 : r.near    ? "Near now"
+                             : "Not near now",
                  r.times, r.times == 1 ? "" : "s");
         line(b);
         if (r.firstKnown) {
@@ -423,10 +425,11 @@ class FlaggedApp : public App
         snprintf(b, sizeof(b), "Strongest: %d dBm%s", r.best, r.moved ? ", moved with you" : "");
         line(b);
         snprintf(b, sizeof(b), "%s%s%s", m && (m->flags & DEV_TRUSTED) ? "Trusted  " : "",
-                 m && (m->flags & DEV_WATCH_HERE) ? "Watch: turns up  " : "", m && (m->flags & DEV_WATCH_GONE) ? "Watch: gone" : "");
+                 m && (m->flags & DEV_WATCH_HERE) ? "Watch: turns up  " : "",
+                 m && (m->flags & DEV_WATCH_GONE) ? "Watch: gone" : "");
         if (b[0])
             line(b);
-        line("hold * : nickname, trust, watch, beep");
+        line("right: nickname, trust, watch, beep");
         int rows_ = (d->height() - lh - 2) / lh;
         if (detailTop > nl - rows_)
             detailTop = nl - rows_ > 0 ? nl - rows_ : 0;

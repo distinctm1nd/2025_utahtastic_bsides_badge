@@ -286,13 +286,9 @@ a number key on Meshtastic's pages.
 ## Fox hunt and scanning
 
 Scanning is for network troubleshooting, hobbyist radio listening, academic research, and security
-auditing. Laws on radio reception, wireless interception, location tracking, and privacy differ by
-country, state, and locality, and some of what these tools can do may be illegal where you are.
-Intercepting, decoding, logging, tracking, or interfering with communications or devices you do not
-own or are not authorized to test is your responsibility to avoid. These features are provided
-as-is, with no warranty; the badge's authors and contributors accept no liability for how you use
-them or for any unlawful, unauthorized, or harmful use. Use them only where you are permitted to,
-and at your own risk.
+auditing. You are responsible for using these features lawfully and only where you are permitted to.
+They are provided as-is, with no warranty; the badge's authors and contributors accept no liability
+for how you use them or for any unlawful, unauthorized, or harmful use. Use them at your own risk.
 
 Badge menu → *Fox hunt*, grouped top to bottom. **Scanners**: **LoRa node**, **WiFi network**,
 **Bluetooth device**, **WiFi + Bluetooth**, **Sub-GHz scanner**, **Node radar**, **Packet
@@ -307,7 +303,7 @@ settings**. Most of them are also shortcut choices (Settings → *Shortcuts*).
 | WiFi / Bluetooth / both list | joystick (or `2` / `8`) move, `0` search, `#` (or `5`) hunt the highlighted device, `*` done |
 | WiFi / Bluetooth hunt | the screen shows the best signal, how long since it was last and first heard; `#` details (including first and last seen as clock times), `9` turn in a circle, `1` share this sighting (asks first), `0` reset the best-reading tick, `*` back to the list; in details the joystick scrolls and `#` goes back |
 | a device in a WiFi / Bluetooth scan (list or hunt) | **push joystick right**: its menu: nickname, trusted, alert when it turns up / when it's gone, make it beep (trackers), explore (Bluetooth) |
-| Flagged devices | joystick (or `2` / `8`) pick, `0` search, `#` details, `#` again hunt it, hold `*` its menu, `*` back / done |
+| Flagged devices | joystick (or `2` / `8`) pick, `0` search, `#` details, `#` again hunt it, **joystick right** its menu, `*` back / done |
 | Sub-GHz scanner | warning: `#` start, `*` cancel; band: joystick left / right move the marker (`4` / `6`: faster), `2` / `8` (up / down) change band, `#` meter there, `*` done; meter: `9` turn in a circle, `0` reset the best tick, `*` back to the band |
 | Node radar | joystick up / down zoom, left / right pick a node, `*` done |
 | Sightings log | joystick (or `2` / `8`) scroll, `0` search, `#` download over Badge WiFi, hold `*` clear (asks first), `*` done |
