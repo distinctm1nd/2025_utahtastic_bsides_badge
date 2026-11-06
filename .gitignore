@@ -78,3 +78,6 @@ build/wasm-*.log
 
 # utah_bsides badge: generated symlink to the badge sources (see variants/esp32s3/utah_bsides/tools/link_badge_sources.py)
 /src/utah_bsides
+
+# downloaded installer packages (e.g. vscode.deb) - not part of the repo
+*.deb
