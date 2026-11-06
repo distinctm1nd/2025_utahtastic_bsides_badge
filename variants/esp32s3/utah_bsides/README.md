@@ -1,7 +1,7 @@
 # Utah BSides 2025 badge ("UTAHtastic")
 
 Meshtastic firmware for the Utah BSides 2025 badge is a fork of
-[meshtastic/firmware](https://github.com/meshtastic/firmware)**. Everything Utah BSides badge specific is
+[meshtastic/firmware](https://github.com/meshtastic/firmware). Everything Utah BSides badge specific is
 in the Utah Bsides variant folder:
 
 | File | What it is |
