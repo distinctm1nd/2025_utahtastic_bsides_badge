@@ -676,7 +676,12 @@ class BadgeMeshModule : public MeshModule, private concurrency::OSThread
         if (!decoded) // can't read the payload (another channel's key): the header was enough
             return ProcessMessage::CONTINUE;
 
-        capturePacket(mp);
+        // Don't log our own private messages (direct text messages addressed to this badge) to the
+        // capture file - they'd be stored as plain text. Public channel traffic, positions, telemetry
+        // and everything else is still captured.
+        bool privateDM = mp.decoded.portnum == meshtastic_PortNum_TEXT_MESSAGE_APP && isToUs(&mp) && !isBroadcast(mp.to);
+        if (!privateDM)
+            capturePacket(mp);
         if (hops >= 3)
             statsAchieve(ACH_FAR);
         checkNewBadge(mp.from);

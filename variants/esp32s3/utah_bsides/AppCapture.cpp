@@ -1,6 +1,7 @@
 // Packet capture to pcap files for Wireshark (download from Badge WiFi). Three independent
 // captures:
-//   Mesh (LoRa)  -> capture.pcap  -- passive, keeps running in the background once on.
+//   Mesh (LoRa)  -> capture.pcap  -- passive, keeps running in the background once on. Direct
+//                                    messages addressed to this badge are left out (see BadgeMesh).
 //   WiFi         -> wifi.pcap     -- 802.11 management frames + headers; needs this screen open.
 //   Bluetooth    -> ble.pcap      -- BLE advertisements; needs this screen open.
 // One 2.4 GHz radio, so WiFi and Bluetooth capture can't run at once (turning one on stops the
@@ -32,7 +33,7 @@ class CaptureApp : public App
     void begin() override
     {
         sel = 0;
-        confirm = starHeld = false;
+        confirm = starHeld = warnMesh = false;
     }
     void end() override
     {
@@ -58,6 +59,15 @@ class CaptureApp : public App
             if (a == KA_PRESS)
                 confirm = false;
             appRedraw();
+            return;
+        }
+        if (warnMesh) { // asked to confirm turning the mesh capture on (it records plain-text messages)
+            if (a == KA_PRESS) {
+                if (k == AK_HASH || k == AK_5)
+                    captureSet(true);
+                warnMesh = false;
+                appRedraw();
+            }
             return;
         }
         if (k == AK_STAR && a == KA_HOLD) {
@@ -89,6 +99,15 @@ class CaptureApp : public App
             drawCentered(d, x, y + 4 * lh, "# yes   any other key no", FONT_SMALL);
             return;
         }
+        if (warnMesh) {
+            drawCentered(d, x, y + lh, "WARNING", FONT_SMALL);
+            drawCentered(d, x, y + 2 * lh + 2, "Logs channel messages,", FONT_SMALL);
+            drawCentered(d, x, y + 3 * lh + 2, "positions and telemetry it", FONT_SMALL);
+            drawCentered(d, x, y + 4 * lh + 2, "can decrypt as plain text.", FONT_SMALL);
+            drawCentered(d, x, y + 5 * lh + 2, "Your private DMs are excluded.", FONT_SMALL);
+            drawCentered(d, x, y + d->height() - lh, "# turn on   any other: no", FONT_SMALL);
+            return;
+        }
         drawRow(d, x, y + lh + 3, 0, "Mesh (LoRa)", captureOn(), captureCount(), captureFull());
         drawRow(d, x, y + lh + 3 + 2 * lh, 1, "WiFi (802.11)", captureWifiOn(), captureWifiCount(), captureWifiFull());
         drawRow(d, x, y + lh + 3 + 4 * lh, 2, "Bluetooth adverts", captureBleOn(), captureBleCount(), captureBleFull());
@@ -97,12 +116,15 @@ class CaptureApp : public App
 
   private:
     int sel = 0;
-    bool confirm = false, starHeld = false;
+    bool confirm = false, starHeld = false, warnMesh = false;
 
     void toggle(int which)
     {
         if (which == 0) {
-            captureSet(!captureOn());
+            if (captureOn())
+                captureSet(false); // turning off needs no warning
+            else
+                warnMesh = true; // turning on: warn it records plain-text messages first
             return;
         }
         if (which == 1) {
