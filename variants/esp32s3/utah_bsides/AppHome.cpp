@@ -162,6 +162,9 @@ class HomeApp : public App
   public:
     const char *name() const override { return "Home"; }
     uint32_t frameMs() const override { return 200; } // repaint often so a stray Meshtastic frame is overwritten fast
+    // Hold a digit = its shortcut, here too (tap still navigates the tiles / 0 enters edit); off only
+    // while editing the tile order, where digits are used to move tiles.
+    bool numberShortcuts() const override { return !editing; }
     void begin() override { loadOrder(); }
     void key(int k, KeyAction a) override
     {

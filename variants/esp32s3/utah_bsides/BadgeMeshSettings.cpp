@@ -91,6 +91,7 @@ class InfoApp : public App
     const char *name() const override { return "Info"; }
     bool keepAwake() const override { return true; }
     uint32_t frameMs() const override { return 1000; }
+    bool numberShortcuts() const override { return true; } // hold a digit = its shortcut here too
     void key(int k, KeyAction a) override
     {
         if ((k == AK_STAR && a == KA_RELEASE) || (k == AK_HASH && a == KA_PRESS)) {

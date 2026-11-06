@@ -9,17 +9,17 @@ namespace badge
 
 bool lockEnabled();
 bool lockShowing();
-void lockNow();                          // show the lock screen (if a PIN is set)
-void lockAttract();                      // rest on the lock screen even with no PIN: any key -> home
-void lockBoot();                         // at startup: locked from the start if a PIN is set
-bool lockBootReady();                    // late enough in the boot screens to put the lock up
-bool lockLocked();                       // locked until the right PIN is typed
+void lockNow();       // show the lock screen (if a PIN is set)
+void lockAttract();   // rest on the lock screen even with no PIN: any key -> back to the last page
+void lockBoot();      // at startup: locked from the start if a PIN is set
+bool lockBootReady(); // late enough in the boot screens to put the lock up
+bool lockLocked();    // locked until the right PIN is typed
 class App;
-bool lockBlocks(const App *app);         // no other badge screen opens while locked
+bool lockBlocks(const App *app);            // no other badge screen opens while locked
 void lockPoll(uint32_t keys, uint32_t now); // keypad thread, every 10 ms: raw key state
-void openLockSetup();                    // set or change the PIN
+void openLockSetup();                       // set or change the PIN
 void lockTurnOff();
-const char *lockPicture();           // "@tag" (the name) or a picture name
+const char *lockPicture(); // "@tag" (the name) or a picture name
 void lockSetPicture(const char *what);
 
 } // namespace badge

@@ -604,7 +604,7 @@ static const Shortcut SHORTCUTS[] = {
     {"timer", "Stopwatch & timer", S_TIMER, nullptr},
     {"pages", "Meshtastic pages", S_PAGES, nullptr},
     {"home", "Home (tiles)", S_HOME, nullptr},
-    {"lock", "Lock now", S_NONE, [] { lockNow(); }},
+    {"lock", "Lock now", S_NONE, [] { lockEnabled() ? lockNow() : lockAttract(); }},
     {"games", "Games", S_GAMES, nullptr},
     {"chip8", "CHIP-8 arcade", S_CHIP8, nullptr},
     {"mine", "Skinwalker Mine", S_MINE, nullptr},

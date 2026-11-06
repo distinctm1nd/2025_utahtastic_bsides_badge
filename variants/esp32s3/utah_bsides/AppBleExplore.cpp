@@ -395,6 +395,7 @@ class BleExploreApp : public App
     const char *name() const override { return "Explore"; }
     uint32_t frameMs() const override { return 300; }
     bool keepAwake() const override { return true; }
+    bool numberShortcuts() const override { return true; } // hold a digit = its shortcut here too
     void setTarget(const uint8_t mac[6], bool pub, const char *nm, void (*cb)(const uint8_t[6], bool))
     {
         memcpy(exMac, mac, 6);

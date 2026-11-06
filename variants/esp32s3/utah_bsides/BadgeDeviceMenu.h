@@ -35,10 +35,10 @@ class DeviceMenu
     // a key while open; A_NICKNAME: the caller opens the editor
     Act key(int k, KeyAction a)
     {
-        if (showBeep) { // the beep result: any key closes it
-            if (a == KA_RELEASE && beepState() != BEEP_BUSY) {
+        if (showBeep) { // * exits any time (even mid-beep); any other key closes it once the beep is done
+            if (a == KA_RELEASE && (k == AK_STAR || beepState() != BEEP_BUSY)) {
                 showBeep = false;
-                beepClear();
+                beepClear(); // if still busy, the request just finishes in the background
             }
             return A_NONE;
         }
@@ -58,16 +58,28 @@ class DeviceMenu
         const DevMemo *d = devFind(mac);
         uint8_t f = d ? d->flags : 0;
         switch (item(sel)) {
-        case I_NICK: open = false; return A_NICKNAME;
-        case I_EXPLORE: open = false; return A_EXPLORE;
-        case I_TRUST: devSet(mac, f ^ DEV_TRUSTED, nullptr, wifi); break;
-        case I_HERE: devSet(mac, f ^ DEV_WATCH_HERE, nullptr, wifi); break;
-        case I_GONE: devSet(mac, f ^ DEV_WATCH_GONE, nullptr, wifi); break;
+        case I_NICK:
+            open = false;
+            return A_NICKNAME;
+        case I_EXPLORE:
+            open = false;
+            return A_EXPLORE;
+        case I_TRUST:
+            devSet(mac, f ^ DEV_TRUSTED, nullptr, wifi);
+            break;
+        case I_HERE:
+            devSet(mac, f ^ DEV_WATCH_HERE, nullptr, wifi);
+            break;
+        case I_GONE:
+            devSet(mac, f ^ DEV_WATCH_GONE, nullptr, wifi);
+            break;
         case I_BEEP:
             beepStart(mac, publicAddr);
             showBeep = true;
             break;
-        default: open = false; break;
+        default:
+            open = false;
+            break;
         }
         return A_NONE;
     }
@@ -97,8 +109,7 @@ class DeviceMenu
                 while (*m == ' ')
                     m++;
             }
-            if (beepState() != BEEP_BUSY)
-                drawCentered(d, x, y + H - lh - 2, "any key: back", FONT_SMALL);
+            drawCentered(d, x, y + H - lh - 2, beepState() == BEEP_BUSY ? "* back" : "any key: back", FONT_SMALL);
             return;
         }
         drawTitle(d, x, y, title, "#ok *back");
@@ -108,13 +119,27 @@ class DeviceMenu
         int n = itemCount();
         for (int i = 0; i < n; i++) {
             switch (item(i)) {
-            case I_NICK: snprintf(b, sizeof(b), "Nickname: %s", m && m->nick[0] ? m->nick : "(none)"); break;
-            case I_TRUST: snprintf(b, sizeof(b), "Trusted (no alerts): %s", f & DEV_TRUSTED ? "yes" : "no"); break;
-            case I_HERE: snprintf(b, sizeof(b), "Alert when it turns up: %s", f & DEV_WATCH_HERE ? "on" : "off"); break;
-            case I_GONE: snprintf(b, sizeof(b), "Alert when it's gone: %s", f & DEV_WATCH_GONE ? "on" : "off"); break;
-            case I_BEEP: snprintf(b, sizeof(b), "Make it beep"); break;
-            case I_EXPLORE: snprintf(b, sizeof(b), "Explore (read only)"); break;
-            default: snprintf(b, sizeof(b), "Back"); break;
+            case I_NICK:
+                snprintf(b, sizeof(b), "Nickname: %s", m && m->nick[0] ? m->nick : "(none)");
+                break;
+            case I_TRUST:
+                snprintf(b, sizeof(b), "Trusted (no alerts): %s", f & DEV_TRUSTED ? "yes" : "no");
+                break;
+            case I_HERE:
+                snprintf(b, sizeof(b), "Alert when it turns up: %s", f & DEV_WATCH_HERE ? "on" : "off");
+                break;
+            case I_GONE:
+                snprintf(b, sizeof(b), "Alert when it's gone: %s", f & DEV_WATCH_GONE ? "on" : "off");
+                break;
+            case I_BEEP:
+                snprintf(b, sizeof(b), "Make it beep");
+                break;
+            case I_EXPLORE:
+                snprintf(b, sizeof(b), "Explore (read only)");
+                break;
+            default:
+                snprintf(b, sizeof(b), "Back");
+                break;
             }
             int ry = y + lh + 2 + i * lh;
             if (i == sel) {

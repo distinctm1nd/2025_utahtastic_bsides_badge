@@ -145,9 +145,9 @@ static int drawMaker(OLEDDisplay *d, int x, int y, int w, const char *name, bool
 class RadioHuntApp : public App
 {
   public:
-    // Digits are this app's own controls (3 = the device options, etc.), so don't let a held digit
-    // run a global shortcut - holding 3 used to fire the "ble" shortcut and relaunch the scan.
-    bool numberShortcuts() const override { return false; }
+    // Shortcuts (hold a digit) work here too. The device options live on joystick-RIGHT, not a digit,
+    // so a held digit never clashes with them (except while typing in the search box).
+    bool numberShortcuts() const override { return !filter.editing(); }
     bool typingLights() const override { return filter.editing(); }
     void setKind(ScanKind k) { kind = listKind = k; }
     const char *name() const override
@@ -264,7 +264,7 @@ class RadioHuntApp : public App
             appRedraw();
             return;
         }
-        if (k == AK_3 && a == KA_PRESS) { // 3: the selected device's menu (nickname, watch, beep, Explore)
+        if (k == AK_RIGHT && a == KA_PRESS) { // push right: the device's menu (nickname, watch, beep, Explore)
             const ScanEntry *e = nullptr;
             ScanEntry sel;
             if (hunting) {
@@ -346,7 +346,7 @@ class RadioHuntApp : public App
                 detailTop++;
         } else if (k == AK_UP || k == AK_LEFT || k == AK_2) {
             move(-1);
-        } else if (k == AK_DOWN || k == AK_RIGHT || k == AK_8) {
+        } else if (k == AK_DOWN || k == AK_8) {
             move(1);
         } else if (k == AK_0 && a == KA_PRESS) {
             filter.open();
@@ -570,7 +570,7 @@ class RadioHuntApp : public App
                      : kind == SCAN_WIFI ? "WiFi"
                                          : "Bluetooth",
                      count);
-        drawTitle(d, x, y, title, filter.active() ? "#hunt 3opts" : "#hunt 3opts *done");
+        drawTitle(d, x, y, title, filter.active() ? "#hunt >opts" : "#hunt >opts *done");
         if (error) {
             drawCentered(d, x, y + 2 * lh, error, FONT_SMALL);
             return;

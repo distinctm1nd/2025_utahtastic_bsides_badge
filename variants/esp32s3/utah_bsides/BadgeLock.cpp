@@ -185,11 +185,16 @@ class LockApp : public App
     {
         if (a != KA_PRESS && a != KA_RELEASE)
             return;
-        if (attract) { // no PIN: the first key press leaves the attract loop for home
+        if (attract) { // no PIN: the first key press leaves the attract loop
             if (a == KA_PRESS) {
                 attract = false;
+                App *restore = beforeLock;
+                beforeLock = nullptr;
                 appClose();
-                homeGo();
+                if (restore)
+                    appOpen(restore); // back to the page you were on before it went idle
+                else
+                    homeGo(); // nothing to return to: the tile home
             }
             return;
         }
@@ -381,6 +386,8 @@ void lockAttract()
         lockNow();
         return;
     }
+    App *a = appActive();
+    beforeLock = (a && a != &lockApp) ? a : nullptr; // remember where to come back to on the first key
     attract = true;
     locked = false;
     graphics::NotificationRenderer::resetBanner();
