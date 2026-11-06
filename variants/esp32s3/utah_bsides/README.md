@@ -158,7 +158,7 @@ from Meshtastic's own screens use the same multi-tap straight into its text box.
 
 On login the badge shows its **tile launcher** -- a grid of the apps. The joystick moves around
 the grid (**left / right** between columns, **up / down** between rows), and **`#`** opens the
-highlighted tile. The tiles are: **Messages, Games, Fox hunt, Badges, Minibadges, BT remote, QR
+highlighted tile. The tiles are: **Messages, Games, Fox hunt, Badges, Minibadges, QR
 code, Timer, Flashlight, Nodes, Mesh pages, Clock, Settings**. "Mesh pages" opens an overlay menu
 (over the tiles) to jump straight to one of Meshtastic's own screens; "Clock" shows the time (`*`
 returns to the tiles). Closing any app returns to the tiles.
@@ -913,7 +913,7 @@ sky, the raven on the sign, gold keypad buttons; built into the firmware) has:
   lines), what shows at startup, the lock screen (clock / cycle / cycle pictures / cycle favourites
   / name / one chosen picture), lights, light speed, brightness, LEDs while the screen sleeps,
   screen colour, time zone, night mode, name tag stays on, welcome tips, home screen
-  (badge tiles vs Meshtastic pages), `!commands` by DM, canned messages, QR codes and BT remote macros.
+  (badge tiles vs Meshtastic pages), `!commands` by DM, canned messages and QR codes.
 - **Message**: type a message with the phone's keyboard and send it from the badge. The page warns
   that the phone's keyboard app may keep or upload what's typed, and that messages to the whole
   channel are readable by anyone with a Meshtastic radio.
