@@ -5,8 +5,7 @@
 #
 # This touches projenv (project sources only), NOT the global env: adding these globally would put
 # library headers like syscfg.h / os.h ahead of the ones the ESP-IDF components compile against and
-# break the framework build. NimBLE-Arduino is skipped for the same reason (it ships its own
-# syscfg/ and nimble/); the badge's files reach it through their direct #include instead.
+# break the framework build.
 import glob
 import json
 import os
@@ -16,7 +15,7 @@ Import("projenv")  # noqa: F821
 libdeps = os.path.join(projenv.subst("$PROJECT_LIBDEPS_DIR"), projenv.subst("$PIOENV"))  # noqa: F821
 paths = []
 for lib in sorted(glob.glob(os.path.join(libdeps, "*"))):
-    if not os.path.isdir(lib) or os.path.basename(lib) == "NimBLE-Arduino":
+    if not os.path.isdir(lib):
         continue
     cands = [lib, os.path.join(lib, "src"), os.path.join(lib, "include")]
     manifest = os.path.join(lib, "library.json")

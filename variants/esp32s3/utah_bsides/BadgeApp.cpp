@@ -126,13 +126,22 @@ void drawTitle(OLEDDisplay *d, int16_t x, int16_t y, const char *title, const ch
     d->fillRect(x, y, d->width(), h + 1);
     d->setColor(BLACK);
     d->setFont(FONT_SMALL);
-    d->setTextAlignment(TEXT_ALIGN_LEFT);
-    d->drawString(x + 2, y, title);
+    // Draw the right-hand hint first and reserve its width, then clip the title so a long title (e.g.
+    // a 2+ digit device count) can't run under the hint and garble it.
+    int rightW = 0;
     if (right) {
         d->setTextAlignment(TEXT_ALIGN_RIGHT);
         d->drawString(x + d->width() - 2, y, right);
-        d->setTextAlignment(TEXT_ALIGN_LEFT);
+        rightW = d->getStringWidth(right, strlen(right)) + 6; // hint width plus a small gap
     }
+    d->setTextAlignment(TEXT_ALIGN_LEFT);
+    char buf[48];
+    strncpy(buf, title, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = 0;
+    int maxW = d->width() - 4 - rightW;
+    while (buf[0] && (int)d->getStringWidth(buf, strlen(buf)) > maxW)
+        buf[strlen(buf) - 1] = 0; // drop trailing chars until the title fits the space left of the hint
+    d->drawString(x + 2, y, buf);
     d->setColor(WHITE);
 }
 

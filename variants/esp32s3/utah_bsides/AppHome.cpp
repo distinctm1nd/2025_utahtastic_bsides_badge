@@ -43,7 +43,7 @@ static void loadPref()
     homeWanted = homeOn;
 }
 
-enum Glyph { G_MSG, G_GAME, G_SIGNAL, G_STAR, G_CHIP, G_REMOTE, G_QR, G_TIMER, G_LIGHT, G_DOTS, G_GRID, G_CLOCK, G_GEAR };
+enum Glyph { G_MSG, G_GAME, G_SIGNAL, G_STAR, G_CHIP, G_QR, G_TIMER, G_LIGHT, G_DOTS, G_GRID, G_CLOCK, G_GEAR };
 
 void openClock();
 
@@ -59,7 +59,6 @@ static const Tile TILES[] = {
     {"fox", "Fox hunt", G_SIGNAL, menuOpenFox},
     {"badges", "Badges", G_STAR, openBadgesApp},
     {"minibadges", "Minibadges", G_CHIP, openMinibadgesApp},
-    {"remote", "BT remote", G_REMOTE, openBleRemote},
     {"qr", "QR code", G_QR, openQrCode},
     {"timer", "Timer", G_TIMER, openTimer},
     {"flashlight", "Flashlight", G_LIGHT, openFlashlight},
@@ -172,8 +171,14 @@ class HomeApp : public App
         }
         if (a == KA_HOLD && (k == AK_STAR || k == AK_HASH)) { // hold * / centre / # : settings menu
             menuOpen();
-            if (k == AK_HASH)
+            if (k == AK_HASH) {
                 hashHeld = true; // its release must not then also open a tile
+                armed = false;
+            }
+            return;
+        }
+        if (a == KA_PRESS && (k == AK_HASH || k == AK_5)) {
+            armed = true; // home saw this press, so its release is allowed to open a tile
             return;
         }
         // Open the selected tile on the release, not the press: opening on the press lets the
@@ -183,6 +188,9 @@ class HomeApp : public App
                 hashHeld = false;
                 return;
             }
+            if (!armed) // a release with no press seen here (e.g. the key that unlocked the screen)
+                return;
+            armed = false;
             if (nVis) {
                 menuClearReturn(); // opened from home: closing the app returns to home, not a menu
                 if (TILES[vis[sel]].open)
@@ -366,6 +374,7 @@ class HomeApp : public App
     static const int COLS = 2;
     bool editing = false, carrying = false;
     bool hashHeld = false;
+    bool armed = false; // saw a #/5 press while home was active; only then does its release open a tile
     uint8_t ed[NTILES];
     bool eshown[NTILES];
     int eSel = 0;
@@ -399,10 +408,6 @@ class HomeApp : public App
                 d->setPixel(gx, gy + 2 + i * 2);
                 d->setPixel(gx + 7, gy + 2 + i * 2);
             }
-            break;
-        case G_REMOTE:
-            d->drawRect(gx + 2, gy, 5, 8);
-            d->fillCircle(gx + 4, gy + 2, 1);
             break;
         case G_QR:
             d->drawRect(gx, gy, 3, 3);

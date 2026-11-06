@@ -8,7 +8,9 @@
 #include "mesh/Throttle.h"
 #include "mesh/wifi/WiFiAPClient.h"
 #include <Arduino.h>
-#include <NimBLEDevice.h>
+#include <BLEAdvertisedDevice.h>
+#include <BLEDevice.h>
+#include <BLEScan.h>
 #include <WiFi.h>
 #include <algorithm>
 #include <esp_heap_caps.h>
@@ -301,20 +303,21 @@ bool radioDroneGet(const uint8_t *mac, DroneInfo &out)
     return found;
 }
 
-class BleResults : public NimBLEScanCallbacks
+class BleResults : public BLEAdvertisedDeviceCallbacks
 {
-    void onResult(const NimBLEAdvertisedDevice *d) override
+    void onResult(BLEAdvertisedDevice d) override
     {
-        std::string n = d->haveName() ? d->getName() : std::string();
-        NimBLEAddress a = d->getAddress();
-        const uint8_t *le = a.getVal(); // little-endian
+        std::string n = d.haveName() ? std::string(d.getName().c_str()) : std::string();
+        BLEAddress a = d.getAddress();
+        const uint8_t *le = a.getNative(); // little-endian
         uint8_t mac[6];
         for (int i = 0; i < 6; i++)
             mac[i] = le[5 - i];
         uint16_t company = NO_COMPANY;
         std::string m;
-        if (d->haveManufacturerData()) {
-            m = d->getManufacturerData();
+        if (d.haveManufacturerData()) {
+            String md = d.getManufacturerData();
+            m.assign(md.c_str(), md.length()); // String built with an explicit length keeps the zero bytes
             if (m.size() >= 2)
                 company = (uint8_t)m[0] | ((uint8_t)m[1] << 8);
         }
@@ -330,27 +333,29 @@ class BleResults : public NimBLEScanCallbacks
         }
         bool popup = (company == 0x004C && (x.mfgByte == 0x07 || x.mfgByte == 0x0F)) || // Apple pairing / nearby action
                      (company == 0x0006 && x.mfgByte == 0x03);                          // Microsoft Swift Pair
-        for (uint8_t i = 0; i < d->getServiceUUIDCount(); i++) {
-            NimBLEUUID u = d->getServiceUUID(i);
+        for (int i = 0; i < d.getServiceUUIDCount(); i++) {
+            BLEUUID u = d.getServiceUUID(i);
             if (x.nServices < 3 && u.bitSize() == 16)
-                x.services[x.nServices++] = (uint16_t)(u.getValue()[0] | (u.getValue()[1] << 8));
+                x.services[x.nServices++] = u.getNative()->u16.value;
         }
-        for (uint8_t i = 0; i < d->getServiceDataCount(); i++) {
-            NimBLEUUID u = d->getServiceDataUUID(i);
+        for (int i = 0; i < d.getServiceDataCount(); i++) {
+            BLEUUID u = d.getServiceDataUUID(i);
             if (u.bitSize() != 16)
                 continue;
-            uint16_t v = (uint16_t)(u.getValue()[0] | (u.getValue()[1] << 8));
+            uint16_t v = u.getNative()->u16.value;
             if (x.nServices < 3)
                 x.services[x.nServices++] = v;
             if (v == 0xFFFA) {
-                std::string sd = d->getServiceData(i);
+                String sdS = d.getServiceData(i);
+                std::string sd(sdS.c_str(), sdS.length());
                 if (droneAdvert(mac, (const uint8_t *)sd.data(), sd.size()))
                     x.flags |= SF_DRONE;
             }
             if (v == 0xFE2C) // Google Fast Pair
                 popup = true;
             if (v == 0xFEAA) { // Eddystone; frame 0x40 / 0x41 = Find My Device network tracker
-                std::string sd = d->getServiceData(i);
+                String sdS = d.getServiceData(i);
+                std::string sd(sdS.c_str(), sdS.length());
                 uint8_t frame = sd.empty() ? 0 : (uint8_t)sd[0];
                 if (frame == 0x40 || frame == 0x41)
                     x.flags |= SF_FMDN;
@@ -364,9 +369,8 @@ class BleResults : public NimBLEScanCallbacks
             portEXIT_CRITICAL(&lock);
         }
         if (captureBleOn() || captureStreamKind() == STREAM_BLE)
-            capPush(1, d->getPayload().data(), (int)d->getPayload().size(), 0, mac, d->getAdvType(),
-                    a.getType() != BLE_ADDR_PUBLIC);
-        record(mac, n.c_str(), d->getRSSI(), 0, company, a.getType() == BLE_ADDR_PUBLIC, &x);
+            capPush(1, d.getPayload(), (int)d.getPayloadLength(), 0, mac, d.getAdvType(), a.getType() != BLE_ADDR_PUBLIC);
+        record(mac, n.c_str(), d.getRSSI(), 0, company, a.getType() == BLE_ADDR_PUBLIC, &x);
     }
 };
 static BleResults bleResults;
@@ -478,11 +482,16 @@ static int hops = 0;
 
 static const char *bleBegin(bool light)
 {
-    if (!NimBLEDevice::isInitialized())
+    if (!BLEDevice::getInitialized())
         return isWifiAvailable() ? "Bluetooth is off\nwhile WiFi is on" : "Bluetooth is off\n(Mesh settings)";
-    NimBLEScan *s = NimBLEDevice::getScan();
-    s->setScanCallbacks(&bleResults, true);
-    s->setMaxResults(0); // callbacks only, don't keep a list
+    BLEScan *s = BLEDevice::getScan();
+    // wantDuplicates=true so the lib keeps NO internal results map: with it false the lib stores every
+    // device and clearResults() (called from this UI thread) races the NimBLE host task writing that
+    // same map -> corruption and a reboot. We still want each device reported only once, so turn the
+    // CONTROLLER's duplicate filter on explicitly below - that cuts onResult (which copies the advert
+    // BY VALUE) to once per device per scan, keeping it responsive. The badge de-dups by MAC too.
+    s->setAdvertisedDeviceCallbacks(&bleResults, true, true);
+    s->setDuplicateFilter(true); // must follow the call above, which clears it based on wantDuplicates
     s->setActiveScan(true);
     s->setInterval(light ? 300 : 100);
     s->setWindow(light ? 30 : 60); // leave air time for Meshtastic's own Bluetooth link
@@ -491,12 +500,11 @@ static const char *bleBegin(bool light)
 
 static void bleEnd()
 {
-    if (!NimBLEDevice::isInitialized())
+    if (!BLEDevice::getInitialized())
         return;
-    NimBLEScan *s = NimBLEDevice::getScan();
+    BLEScan *s = BLEDevice::getScan();
     s->stop();
-    s->setScanCallbacks(nullptr);
-    s->setMaxResults(0xFF);
+    s->setAdvertisedDeviceCallbacks(nullptr);
     s->clearResults();
 }
 
@@ -598,8 +606,8 @@ static volatile bool held = false; // the radio is lent to something else (a bee
 void radioScanHold(bool hold)
 {
     held = hold;
-    if (hold && running && (active == SCAN_BLE || allBle) && NimBLEDevice::isInitialized())
-        NimBLEDevice::getScan()->stop();
+    if (hold && running && (active == SCAN_BLE || allBle) && BLEDevice::getInitialized())
+        BLEDevice::getScan()->stop();
 }
 
 void radioScanPoll()
@@ -610,14 +618,14 @@ void radioScanPoll()
         return;
     if (active == SCAN_ALL && allBle && allWifi) { // turns: one 3 s Bluetooth scan, one sweep of the channels
         if (phaseBle) {
-            if (!NimBLEDevice::isInitialized())
+            if (!BLEDevice::getInitialized())
                 return;
-            NimBLEScan *s = NimBLEDevice::getScan();
+            BLEScan *s = BLEDevice::getScan();
             if (s->isScanning())
                 return;
             if (!lastStart) {
                 lastStart = millis();
-                s->start(3000, false); // 2.x: duration is ms; scan-end handled by the callbacks
+                s->start(2, nullptr, false); // duration is seconds; async, scan-end handled by the callbacks
                 return;
             }
             phaseBle = false;
@@ -634,13 +642,13 @@ void radioScanPoll()
         }
     }
     if (active == SCAN_BLE || (active == SCAN_ALL && !allWifi)) {
-        if (!NimBLEDevice::isInitialized())
+        if (!BLEDevice::getInitialized())
             return;
-        NimBLEScan *s = NimBLEDevice::getScan();
+        BLEScan *s = BLEDevice::getScan();
         // 3 s scans: each end clears devices whose scan response never came
         if (!s->isScanning() && !Throttle::isWithinTimespanMs(lastStart, 500)) {
             lastStart = millis();
-            s->start(3000, false); // 2.x: duration is ms; scan-end handled by the callbacks
+            s->start(2, nullptr, false); // duration is seconds; async, scan-end handled by the callbacks
         }
         return;
     }

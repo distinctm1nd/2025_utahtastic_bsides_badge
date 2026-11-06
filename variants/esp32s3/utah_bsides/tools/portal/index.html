@@ -113,7 +113,6 @@ input.search{width:100%;box-sizing:border-box;background:#0e0e0d;border:1px soli
     <label>Canned messages (one per line; hold a digit on the badge to send)</label><textarea id="s-canned" spellcheck="false"></textarea>
     <label>QR code: Link (the "Link" card in QR code)</label><input type="text" id="s-qrlink" maxlength="199" placeholder="https://...">
     <label>QR code: Text (the "Text" card)</label><input type="text" id="s-qrtext" maxlength="199">
-    <label>Bluetooth remote macros (one per line, <code>name: body</code>; in the body \n=Enter \t=Tab \d=pause)</label><textarea id="s-macros" spellcheck="false" placeholder="wifi: Join SSID BSides\nhello: Hi from my badge\n"></textarea>
     <button class="go" id="setsave">Save to the badge</button><p id="setmsg"></p>
   </div>
 </section>
@@ -181,15 +180,20 @@ input.search{width:100%;box-sizing:border-box;background:#0e0e0d;border:1px soli
 </section>
 </main>
 <footer><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#a39d8f" d="M12 2C6.5 2 3 5.6 3 10.2c0 2.7 1.3 4.6 3 5.7V19c0 .6.4 1 1 1h1.5v-2h1.5v2h4v-2h1.5v2H17c.6 0 1-.4 1-1v-3.1c1.7-1.1 3-3 3-5.7C21 5.6 17.5 2 12 2zm-3.5 12a2.3 2.3 0 110-4.6 2.3 2.3 0 010 4.6zm3.5 2.5l-1.2-2h2.4zm3.5-2.5a2.3 2.3 0 110-4.6 2.3 2.3 0 010 4.6z"/></svg>Utah BSides &middot; the mesh is watching</footer>
+<div id="modal"><div class="box"><h3 id="mx-title">Device</h3><p id="mx-status" class="mut"></p><ul id="mx-lines"></ul><button class="go" id="mx-close">Close</button></div></div>
+<div id="offline"><h2>Badge stopped sharing</h2><p class="mut">This page is no longer live. The badge closed its WiFi (you pressed stop on the badge, it timed out after no one was connected, or it went out of range). Re-open <b>Badge WiFi</b> on the badge and rejoin to carry on.</p></div>
 <script>
 "use strict";
 const $=id=>document.getElementById(id);
 const TABS=[["home","Home"],["log","Sightings"],["pics","Pictures"],["set","Settings"],["msg","Message"],["live","Live"],["map","Map"],["rules","Rules"],["bak","Backup"],["upd","Update"]];
-let info={},liveTimer=0;
+let info={},liveTimer=0,misses=0;
+// Any answer from the badge means it's still here: clear the "stopped sharing" state. Called on
+// every successful request so active use (scanning, saving) never trips the offline banner.
+function markAlive(){misses=0;const d=$("dot");if(d)d.classList.remove("off");const o=$("offline");if(o)o.classList.remove("on")}
 function show(t){for(const[k]of TABS){$("t-"+k).classList.toggle("on",k===t);$("b-"+k).classList.toggle("on",k===t)}$("b-"+t).scrollIntoView({block:"nearest",inline:"nearest"});
   clearInterval(liveTimer);if(t==="live"){live();liveTimer=setInterval(live,2000)}if(t==="map"){loadMap();liveTimer=setInterval(loadMap,15000)}if(t==="pics")loadPics();if(t==="rules")loadRules();if(t==="home")loadHome();if(t==="set")loadSettings();if(t==="msg")loadNodes();if(t==="log")loadLog()}
 for(const[k,n]of TABS){const b=document.createElement("button");b.id="b-"+k;b.textContent=n;b.onclick=()=>show(k);$("tabs").appendChild(b)}
-const api=(u,o)=>fetch(u,o).then(r=>r.ok?r.json():r.text().then(t=>{throw new Error(t||r.statusText)}));
+const api=(u,o)=>fetch(u,o).then(r=>{markAlive();return r.ok?r.json():r.text().then(t=>{throw new Error(t||r.statusText)})});
 const post=(u,fields)=>api(u,{method:"POST",body:new URLSearchParams(fields)});
 // the browser's time zone as a POSIX TZ string (with its daylight-saving rule), for the badge
 function posixTZ(){const y=new Date().getFullYear(),off=t=>new Date(t).getTimezoneOffset();
@@ -213,11 +217,13 @@ api("/api/info").then(i=>{info=i;$("info").textContent=`${i.node} - firmware ${i
   $("u-ver").textContent=i.ota?`Running ${i.version}.`:"WiFi updates aren't set up in this firmware; update over USB.";show("log")}).catch(e=>$("info").textContent="Can't reach the badge: "+e.message);
 
 // ---- heartbeat: show clearly when the badge stops serving this page ----
-let misses=0;
-function ping(){const c=new AbortController(),t=setTimeout(()=>c.abort(),3500);
-  fetch("/api/info",{signal:c.signal}).then(r=>{clearTimeout(t);if(!r.ok)throw 0;misses=0;$("dot").classList.remove("off");$("offline").classList.remove("on")})
-    .catch(()=>{clearTimeout(t);if(++misses>=2){$("dot").classList.add("off");$("offline").classList.add("on")}})}
-setInterval(ping,4000);
+// The badge is single-threaded: while it's busy (a BLE scan on the Live tab, saving, etc.) a ping
+// can take several seconds, but the badge is still there. Only treat it as gone after a long run of
+// no answer at all, with a generous per-ping timeout, so leaving the page open to scan never trips it.
+function ping(){const c=new AbortController(),t=setTimeout(()=>c.abort(),9000);
+  fetch("/api/info",{signal:c.signal}).then(r=>{clearTimeout(t);if(!r.ok)throw 0;markAlive()})
+    .catch(()=>{clearTimeout(t);if(++misses>=6){$("dot").classList.add("off");$("offline").classList.add("on")}})}
+setInterval(ping,5000);
 
 // ---- sightings ----
 function loadLog(){api("/api/log").then(l=>{$("logfiles").innerHTML=l.files.length?l.files.map(f=>`<p><a href="/${f.name}" download>${f.name}</a> <span class="mut">${Math.ceil(f.size/1024)} KB</span></p>`).join(""):"<p class='mut'>Nothing logged yet.</p>"})}
@@ -307,11 +313,11 @@ window.picFav=(name,on)=>post("/api/pics/fav",{name,on}).then(loadPics).catch(e=
 window.picOp=(op,i,d)=>{if(op==="delete"&&!confirm("Delete this picture from the badge?"))return;post("/api/pics/"+op,{i,d:d||0}).then(loadPics).catch(e=>say("picmsg",e.message,1))};
 
 // ---- settings / backup ----
-const FIELDS=["name","tagline","font","size","startup","lockpic","scene","speed","bright","ledoff","colour","tz","scroll","night","tagawake","welcome","home","remote","canned","qrlink","qrtext","macros"];
+const FIELDS=["name","tagline","font","size","startup","lockpic","scene","speed","bright","ledoff","colour","tz","scroll","night","tagawake","welcome","home","remote","canned","qrlink","qrtext"];
 function fill(sel,list,val){$(sel).innerHTML=list.map((n,i)=>`<option value="${typeof n==="object"?esc(n.v):i}">${esc(typeof n==="object"?n.n:n)}</option>`).join("");$(sel).value=val}
 function loadSettings(){api("/api/settings").then(s=>{$("s-name").value=s.name;$("s-tagline").value=s.tagline;fill("s-font",s.fonts,s.font);fill("s-size",s.sizes,s.size);
   fill("s-startup",s.startups,s.startup);fill("s-lockpic",s.lockpics,s.lockpic);fill("s-scene",s.scenes,s.scene);fill("s-speed",s.speeds,s.speed);fill("s-bright",s.brights,s.bright);fill("s-ledoff",s.ledoffs,s.ledoff);fill("s-colour",s.colours,s.colour);fill("s-tz",s.tzs,s.tz);
-  $("s-scroll").checked=s.scroll;$("s-night").checked=s.night;$("s-tagawake").checked=s.tagawake;$("s-welcome").checked=s.welcome;$("s-home").checked=s.home;$("s-remote").checked=s.remote;$("s-canned").value=s.canned.split("|").join("\n");$("s-qrlink").value=s.qrlink||"";$("s-qrtext").value=s.qrtext||"";$("s-macros").value=s.macros||""})}
+  $("s-scroll").checked=s.scroll;$("s-night").checked=s.night;$("s-tagawake").checked=s.tagawake;$("s-welcome").checked=s.welcome;$("s-home").checked=s.home;$("s-remote").checked=s.remote;$("s-canned").value=s.canned.split("|").join("\n");$("s-qrlink").value=s.qrlink||"";$("s-qrtext").value=s.qrtext||""})}
 function formValues(){const v={};for(const f of FIELDS){const e=$("s-"+f);v[f]=e.type==="checkbox"?(e.checked?1:0):e.value}v.canned=v.canned.split("\n").map(s=>s.trim()).filter(Boolean).join("|");return v}
 $("setsave").onclick=()=>post("/api/settings",formValues()).then(()=>say("setmsg","Saved")).catch(e=>say("setmsg",e.message,1));
 $("bakget").onclick=()=>api("/api/settings").then(s=>{const keep={};for(const f of FIELDS)keep[f]=s[f];const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(keep,null,1)],{type:"application/json"}));a.download="badge-settings.json";a.click()});
@@ -330,7 +336,9 @@ function renderLive(){const q=$("livefind").value.trim().toLowerCase();
   const rows=liveList.filter(d=>!q||[d.name,d.maker,d.addr,d.code,d.title].some(s=>String(s||"").toLowerCase().includes(q)));
   $("live").innerHTML=rows.map(d=>`<tr class="live-row ${d.alert?"alert":""}" onclick="explore('${d.addr}',${d.pub?1:0})"><td>${esc(d.name||"(no name)")}<br><span class="mut">${esc(d.maker)} ${esc(d.addr)}</span></td><td>${d.rssi}</td><td>${d.code?`<span class="tag">${esc(d.code)}</span> ${esc(d.title)}${d.min?` (${d.min} min)`:""}`:""}</td></tr>`).join("")
     ||`<tr><td colspan=3 class='mut'>${liveList.length?"No match.":"Listening..."}</td></tr>`}
-function live(){api("/api/hunt").then(l=>{liveList=l;renderLive()}).catch(e=>{$("live").innerHTML=`<tr><td colspan=3 class="err">${esc(e.message)}</td></tr>`})}
+// Keep the last list on a transient error (e.g. the radio is briefly lent to Explore); only show an
+// error when we have nothing to show. Empty results (the scan was paused) keep the old list too.
+function live(){api("/api/hunt").then(l=>{if(l&&l.length){liveList=l;renderLive()}}).catch(e=>{if(!liveList.length)$("live").innerHTML=`<tr><td colspan=3 class="err">${esc(e.message)}</td></tr>`})}
 $("livefind").oninput=renderLive;
 
 // ---- explore one Bluetooth device from the page (read only; same as the badge's "Explore") ----
@@ -351,8 +359,8 @@ function loadRules(){api("/api/rules").then(l=>{$("rules").innerHTML=l.map((r,i)
 function delRule(i){post("/api/rules/delete",{i}).then(loadRules).catch(e=>say("r-msg",e.message,1))}
 let tileOrder=[],scOpts=[];
 function loadHome(){
-  api("/api/tiles").then(d=>{tileOrder=d.tiles;drawTiles()});
-  api("/api/shortcuts").then(d=>{scOpts=d.options;drawScuts(d.slots)});
+  api("/api/tiles").then(d=>{tileOrder=d.tiles;drawTiles()}).catch(e=>say("tilemsg","tiles: "+e.message,1));
+  api("/api/shortcuts").then(d=>{scOpts=d.options;drawScuts(d.slots)}).catch(e=>say("scutmsg","shortcuts: "+e.message,1));
 }
 function drawTiles(){
   $("tiles").innerHTML=tileOrder.map((t,i)=>`<p>${esc(t.label)} <button class="sm" onclick="moveTile(${i},-1)">&#9650;</button> <button class="sm" onclick="moveTile(${i},1)">&#9660;</button></p>`).join("");
@@ -403,7 +411,5 @@ $("u-send").onclick=async()=>{const buf=new Uint8Array(await $("u-file").files[0
   x.onload=x.onerror=()=>poll();x.open("POST",`/api/update?size=${img.length}&sig=${sig}`);x.send(fd);
   function poll(){api("/api/update").then(s=>{say("u-msg",s.msg+(s.version?` (${s.version})`:""),s.state==="failed");if(s.state==="confirm"||s.state==="receiving")setTimeout(poll,1500)}).catch(()=>say("u-msg","The badge is restarting. Reconnect to its WiFi if you want to check the version.",0))}};
 </script>
-<div id="modal"><div class="box"><h3 id="mx-title">Device</h3><p id="mx-status" class="mut"></p><ul id="mx-lines"></ul><button class="go" id="mx-close">Close</button></div></div>
-<div id="offline"><h2>Badge stopped sharing</h2><p class="mut">This page is no longer live. The badge closed its WiFi (you pressed stop on the badge, it timed out after no one was connected, or it went out of range). Re-open <b>Badge WiFi</b> on the badge and rejoin to carry on.</p></div>
 </body>
 </html>

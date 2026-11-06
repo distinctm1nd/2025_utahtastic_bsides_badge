@@ -55,7 +55,6 @@ enum Step {
     S_CHIP8,
     S_RADAR,
     S_FLASHLIGHT,
-    S_REMOTE,
     S_QR,
     S_TIMER,
     S_CAPTURE,
@@ -601,7 +600,6 @@ static const Shortcut SHORTCUTS[] = {
          scSay("Night mode", ledsNightMode());
      }},
     {"flash", "Flashlight", S_FLASHLIGHT, nullptr},
-    {"remote", "Bluetooth remote", S_REMOTE, nullptr},
     {"qr", "QR code", S_QR, nullptr},
     {"timer", "Stopwatch & timer", S_TIMER, nullptr},
     {"pages", "Meshtastic pages", S_PAGES, nullptr},
@@ -934,8 +932,7 @@ static void showQuick()
     static const char *items[] = {"Send", "Cancel"};
     banner(title, items, 2, 0, [](int sel) -> void {
         if (sel == 0) {
-            meshSendPrepare(); // the "Send messages to" channel, never whatever chat was last open
-            keypadInjectText(text, true);
+            meshSendTextDefault(text); // the "Send messages to" channel; no on-screen keyboard
         }
     });
 }
@@ -991,7 +988,7 @@ static bool stepOpensApp(Step s)
 {
     return isAppStep(s) || s == S_FOX_WIFI || s == S_FOX_BLE || s == S_FOX_RF || s == S_FOX_LOG || s == S_PORTAL ||
            s == S_CHIP8 || s == S_RADAR || s == S_FLASHLIGHT || s == S_MESSAGES || s == S_FLAGGED || s == S_FOX_ALL ||
-           s == S_REMOTE || s == S_QR || s == S_TIMER || s == S_CAPTURE || s == S_SCANSTATS || s == S_HOME;
+           s == S_QR || s == S_TIMER || s == S_CAPTURE || s == S_SCANSTATS || s == S_HOME;
 }
 
 bool menuBusy()
@@ -1079,9 +1076,6 @@ void menuPoll()
         break;
     case S_FLASHLIGHT:
         openFlashlight();
-        break;
-    case S_REMOTE:
-        openBleRemote();
         break;
     case S_QR:
         openQrCode();

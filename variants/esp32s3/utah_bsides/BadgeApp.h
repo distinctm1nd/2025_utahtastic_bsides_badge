@@ -4,12 +4,12 @@
 // alone until we close it) and every keypad key. Close with appClose(); most apps do that on
 // a long press of '*'. The joystick centre button stays with Meshtastic.
 #pragma once
-#include <esp_heap_caps.h>
-#include <new>
-#include <stdlib.h>
 #include "BadgeKeypadLogic.h"
 #include "BadgeScenes.h"
+#include <esp_heap_caps.h>
+#include <new>
 #include <stdint.h>
+#include <stdlib.h>
 
 class OLEDDisplay;
 
@@ -23,16 +23,20 @@ class App
     virtual const char *name() const = 0;
     virtual void begin() {}
     virtual void end() {}
-    virtual void key(int k, KeyAction a) = 0;     // AppKey values
+    virtual void key(int k, KeyAction a) = 0;      // AppKey values
     virtual void tick(uint32_t now) { (void)now; } // every 10 ms while open
     virtual void draw(OLEDDisplay *d, int16_t x, int16_t y) = 0;
     virtual uint32_t frameMs() const { return 250; } // how often to redraw by itself
-    virtual bool keepAwake() const { return false; }  // keep the screen from sleeping
+    virtual bool keepAwake() const { return false; } // keep the screen from sleeping
     // may appTick re-assert this app's alert frame if Meshtastic steals it? off for full-screen
     // animations (name tag, lock) whose redraw is heavy enough that re-asserting it in a tight loop
     // would starve the CPU; those lean on homePoll/lockPoll's slower reclaim instead
     virtual bool reclaimScreen() const { return true; }
     virtual bool typingLights() const { return false; } // light the keys up to read them (editors)
+    // true while the app is capturing text (a compose/editor): the keypad then keeps routing keys to
+    // this app even if an overlay banner flag is briefly set, so a keypress can't leak to Meshtastic
+    // and pop up its own on-screen keyboard over ours.
+    virtual bool holdsKeys() const { return false; }
     // holding a number key runs its shortcut here (taps still reach the app, on release); off
     // where numbers are typed or played with: editors, the PIN, games
     virtual bool numberShortcuts() const { return false; }
@@ -63,10 +67,10 @@ template <class T> T *psramArray(size_t n)
 void appOpen(App *app);
 void appClose();
 App *appActive();
-void appRedraw();             // draw again soon
+void appRedraw(); // draw again soon
 void appKey(int k, KeyAction a);
-void appTick(uint32_t now);   // from the keypad thread
-uint32_t appLastPaintMs();    // millis() when the open app was last drawn
+void appTick(uint32_t now); // from the keypad thread
+uint32_t appLastPaintMs();  // millis() when the open app was last drawn
 
 // small drawing helpers shared by the apps
 void drawTitle(OLEDDisplay *d, int16_t x, int16_t y, const char *title, const char *right = nullptr);

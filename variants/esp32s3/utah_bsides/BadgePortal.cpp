@@ -264,9 +264,6 @@ static void settingsGet()
     qrGet(true, qrl, sizeof(qrl));
     qrGet(false, qrt, sizeof(qrt));
     o += ",\"qrlink\":" + js(qrl) + ",\"qrtext\":" + js(qrt);
-    static char macs[1024];
-    macrosGet(macs, sizeof(macs));
-    o += ",\"macros\":" + js(macs);
     o += ",\"startup\":" + js(picStartup()) +
          ",\"startups\":[{\"v\":\"\",\"n\":\"Animated raven intro\"},{\"v\":\"@tag\",\"n\":\"Name tag\"}";
     for (int i = 0; i < BADGE_IMAGE_COUNT; i++)
@@ -326,11 +323,6 @@ static void settingsPost()
         qrSet(true, server->arg("qrlink").substring(0, 199).c_str());
     if (server->hasArg("qrtext"))
         qrSet(false, server->arg("qrtext").substring(0, 199).c_str());
-    if (server->hasArg("macros")) {
-        String m = server->arg("macros");
-        if (m.length() < 1024)
-            macrosSet(m.c_str());
-    }
     if (server->hasArg("canned") && cannedMessageModule) {
         String c = server->arg("canned");
         if (c.length() < sizeof(cannedMessageModuleConfig.messages) && c.length())

@@ -6,6 +6,7 @@
 #include "BadgeApp.h"
 #include "BadgeApps.h"
 #include "BadgeKeypad.h"
+#include "BadgeMesh.h"
 #include "BadgeMeshSettings.h"
 #include "BadgeStats.h"
 #include "BadgeTextEntry.h"
@@ -71,6 +72,7 @@ class EditorApp : public App
     }
     uint32_t frameMs() const override { return 120; }
     bool typingLights() const override { return true; }
+    bool holdsKeys() const override { return true; } // a text editor: keep keys off Meshtastic
     void tick(uint32_t now) override
     {
         bool before = te.pendingLetters() != nullptr;
@@ -181,10 +183,9 @@ class EditorApp : public App
         msg[sizeof(msg) - 1] = 0;
         appClose();
         if (replying)
-            meshSendPrepareTo(replyDest, replyCh);
+            meshSendTextDM(replyDest, msg, replyCh);
         else
-            meshSendPrepare();       // to the channel picked in Mesh settings (primary unless changed)
-        keypadInjectText(msg, true); // Meshtastic sends it and keeps it in its history
+            meshSendTextDefault(msg); // to the channel picked in Mesh settings; no on-screen keyboard
         statsMessageSent();
     }
 

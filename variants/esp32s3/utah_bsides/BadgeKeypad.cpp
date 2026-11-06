@@ -134,8 +134,18 @@ class MeshtasticHooks : public KeypadHooks
             screen->showSimpleBanner("Konami code!\nYou win.", 4000);
         statsAchieve(ACH_KONAMI);
     }
-    // while an overlay menu (banner) is up, input drives the menu, not the app underneath it
-    bool appOpen() override { return appActive() != nullptr && !(screen && screen->isOverlayBannerShowing()); }
+    // while an overlay menu (banner) is up, input drives the menu, not the app underneath it -
+    // except an app that holdsKeys() (a compose/editor) keeps focus, so a keypress can't leak to
+    // Meshtastic and open its on-screen keyboard over ours.
+    bool appOpen() override
+    {
+        App *a = appActive();
+        if (!a)
+            return false;
+        if (a->holdsKeys())
+            return true;
+        return !(screen && screen->isOverlayBannerShowing());
+    }
     void appKey(int k, KeyAction a) override { badge::appKey(k, a); }
     void openCompose(int firstKey) override { badge::openCompose(firstKey); }
     void quickSend(int digit) override { menuShortcut(digit); } // hold a number: its shortcut
@@ -233,18 +243,6 @@ void keypadPokeAwake()
 {
     if (keypad && inputBroker)
         keypad->emitNow(KP_NONE, 0); // counts as input, so the screen stays on
-}
-
-void keypadInjectText(const char *text, bool send)
-{
-    if (!keypad || !text)
-        return;
-    // type it into Meshtastic's text box (opens it), then Enter
-    for (const char *c = text; *c; c++)
-        if (*c >= 32 && *c <= 126)
-            keypad->emitNow(KP_ANYKEY, (uint8_t)*c);
-    if (send)
-        keypad->emitNow(KP_SELECT, 0);
 }
 
 void keypadSetJoystick(int steps, bool lean, bool save)

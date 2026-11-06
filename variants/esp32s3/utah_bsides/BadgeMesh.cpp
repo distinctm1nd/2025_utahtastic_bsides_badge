@@ -15,13 +15,16 @@
 #include "MeshModule.h"
 #include "MeshService.h"
 #include "MeshTypes.h"
+#include "MessageStore.h"
 #include "NodeDB.h"
 #include "Router.h"
 #include "airtime.h"
 #include "concurrency/OSThread.h"
+#include "gps/RTC.h"
 #include "graphics/Screen.h"
 #include "mesh/Channels.h"
 #include "mesh/RadioLibInterface.h"
+#include "mesh/mesh-pb-constants.h"
 #include "modules/NodeInfoModule.h"
 #include <Preferences.h>
 #include <ctype.h>
@@ -42,6 +45,15 @@ namespace badge
 {
 
 static const meshtastic_PortNum BADGE_PORT = meshtastic_PortNum_PRIVATE_APP; // 256
+
+// A text message we just sent, so the badge can show Meshtastic's two-stage feedback: "Sending..."
+// right away, then "Message sent to #<channel>" (or "failed") when the routing ACK for this packet
+// comes back. Mirrors CannedMessageModule's native banners without opening the on-screen keyboard.
+static uint32_t pendingSendId = 0;   // 0 = not waiting
+static uint32_t pendingSendDest = 0; // who it went to (NODENUM_BROADCAST or a node)
+static uint8_t pendingSendCh = 0;    // channel index it went out on
+static uint32_t pendingSendAt = 0;   // millis() at send, to expire a stale wait
+static const uint32_t PENDING_SEND_TIMEOUT_MS = 30000;
 
 static bool remoteCmds = true;
 static bool joinShows = true;
@@ -145,7 +157,43 @@ bool meshSendTextDM(uint32_t to, const char *text, uint8_t channel)
     p->decoded.portnum = meshtastic_PortNum_TEXT_MESSAGE_APP;
     memcpy(p->decoded.payload.bytes, text, len);
     p->decoded.payload.size = (pb_size_t)len;
+
+    // Remember this packet so the routing ACK can turn "Sending..." into "Message sent to #<channel>"
+    pendingSendId = p->id;
+    pendingSendDest = to;
+    pendingSendCh = channel;
+    pendingSendAt = millis();
+
     service->sendToMesh(p, RX_SRC_LOCAL, true);
+
+    // sendToMesh() doesn't echo our own outgoing text into the message store (only the phone's
+    // handleToRadio path does, and only for DMs), so the badge's own thread would stay empty.
+    // Add it ourselves, the way CannedMessageModule does for messages typed on the device.
+    StoredMessage sm;
+    uint32_t nowSecs = getValidTime(RTCQuality::RTCQualityDevice, true);
+    sm.timestamp = (nowSecs > 0) ? nowSecs : millis() / 1000;
+    sm.isBootRelative = (nowSecs == 0);
+    sm.sender = nodeDB ? nodeDB->getNodeNum() : 0; // us
+    sm.channelIndex = channel;
+    sm.textOffset = MessageStore::storeText(text, len);
+    sm.textLength = len;
+    if (to == NODENUM_BROADCAST) {
+        sm.dest = NODENUM_BROADCAST;
+        sm.type = MessageType::BROADCAST;
+    } else {
+        sm.dest = to;
+        sm.type = MessageType::DM_TO_US;
+    }
+    sm.ackStatus = AckStatus::NONE;
+    messageStore.addLiveMessage(std::move(sm));
+
+    // Stage one of the feedback: show "Sending..." straight away (like Meshtastic's own text send)
+    if (screen) {
+        graphics::BannerOverlayOptions opts;
+        opts.message = "Sending...";
+        opts.durationMs = 2000;
+        screen->showOverlayBanner(opts);
+    }
     return true;
 }
 
@@ -550,6 +598,27 @@ bool meshLastHeard(uint32_t &node, int &rssi, float &snr, int &hops, uint32_t &a
     return true;
 }
 
+// Stage two of the send feedback: the routing ACK (or NACK) for the packet we were waiting on turns
+// "Sending..." into "Message sent to #<channel>" / "DM sent to @<name>" (or the "failed" variants).
+static void showSendResultBanner(bool ok)
+{
+    if (!screen)
+        return;
+    static char buf[96];
+    if (pendingSendDest == NODENUM_BROADCAST) {
+        const char *ch = channels.getName(pendingSendCh);
+        snprintf(buf, sizeof(buf), ok ? "Message sent to\n#%s" : "Message failed to\n#%s", (ch && ch[0]) ? ch : "unknown");
+    } else {
+        char name[40];
+        meshNodeName(pendingSendDest, name, sizeof(name));
+        snprintf(buf, sizeof(buf), ok ? "DM sent to\n@%s" : "DM failed to\n@%s", name[0] ? name : "unknown");
+    }
+    graphics::BannerOverlayOptions opts;
+    opts.message = buf;
+    opts.durationMs = 3000;
+    screen->showOverlayBanner(opts);
+}
+
 class BadgeMeshModule : public MeshModule, private concurrency::OSThread
 {
   public:
@@ -575,6 +644,17 @@ class BadgeMeshModule : public MeshModule, private concurrency::OSThread
 
     ProcessMessage handleReceived(const meshtastic_MeshPacket &mp) override
     {
+        // Routing ACK/NACK for a text message we just sent: finish the "Sending..." feedback.
+        if (pendingSendId && mp.which_payload_variant == meshtastic_MeshPacket_decoded_tag &&
+            mp.decoded.portnum == meshtastic_PortNum_ROUTING_APP && mp.decoded.request_id == pendingSendId) {
+            meshtastic_Routing r = meshtastic_Routing_init_default;
+            pb_decode_from_bytes(mp.decoded.payload.bytes, mp.decoded.payload.size, &meshtastic_Routing_msg, &r);
+            showSendResultBanner(r.error_reason == meshtastic_Routing_Error_NONE);
+            pendingSendId = 0;
+        } else if (pendingSendId && (uint32_t)(millis() - pendingSendAt) > PENDING_SEND_TIMEOUT_MS) {
+            pendingSendId = 0; // gave up waiting (e.g. a lone badge with no neighbours to ACK)
+        }
+
         if (isFromUs(&mp))
             return ProcessMessage::CONTINUE;
 

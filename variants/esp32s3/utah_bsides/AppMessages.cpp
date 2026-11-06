@@ -286,6 +286,9 @@ class MessagesApp : public App
     const char *name() const override { return "Messages"; }
     uint32_t frameMs() const override { return composing ? 120 : 5000; } // cursor blink / "5m ago"
     bool typingLights() const override { return composing; }
+    // Hold key focus whenever Messages is the active app (not just while composing): a letter in the
+    // chat view must start the badge's own composer, never leak to Meshtastic and open its keyboard.
+    bool holdsKeys() const override { return true; }
     void begin() override
     {
         mode = M_LIST;
@@ -348,6 +351,11 @@ class MessagesApp : public App
                 shareSel = 0;
                 return;
             }
+            if (a == KA_HOLD && k == AK_STAR && chat.dm) { // hold *: remove this DM from the badge
+                ignoreStarRelease = true;
+                mode = M_LEAVE;
+                return;
+            }
             if (a == KA_PRESS && appKeyDigit(k) >= 0) { // a digit: start writing, with that letter
                 startCompose();
                 te.key(k, a, millis());
@@ -368,9 +376,20 @@ class MessagesApp : public App
                 mode = M_CHAT;
             return;
         }
-        if (mode == M_LEAVE) { // # leaves, * keeps it
+        if (mode == M_LEAVE) { // # leaves/deletes, * keeps it
             if (a == KA_RELEASE && k == AK_HASH) {
                 static char b[48];
+                if (chat.dm) { // a DM: forget its messages, which is all that keeps it on the list
+                    char who[28];
+                    chatName(chat, who, sizeof(who));
+                    messageStore.deleteAllMessagesWithPeer(chat.peer);
+                    snprintf(b, sizeof(b), "Deleted chat with %s", who);
+                    chat = {false, 0, 0};
+                    mode = M_LIST;
+                    listSel = 0;
+                    say(b);
+                    return;
+                }
                 char g[16];
                 snprintf(g, sizeof(g), "%s", channels.getName(chat.ch));
                 const char *why = meshLeaveChannel(chat.ch);
@@ -424,11 +443,11 @@ class MessagesApp : public App
         if (k != AK_HASH)
             return;
         if (mode == M_LIST) {
-            if (listSel == 0) {
+            if (listSel == nChats) { // the "+ New chat" row at the bottom
                 mode = M_NEW;
                 newSel = 0;
-            } else if (listSel - 1 < nChats) {
-                openChat(chats[listSel - 1]);
+            } else if (listSel < nChats) {
+                openChat(chats[listSel]);
             }
         } else if (mode == M_NEW) {
             if (newSel == 0) {
@@ -525,8 +544,17 @@ class MessagesApp : public App
     {
         char cn[28], b[48];
         chatName(chat, cn, sizeof(cn));
-        drawTitle(d, x, y, "Leave group?");
         int lh = fontHeight(FONT_SMALL);
+        if (chat.dm) { // deleting a one-to-one chat
+            drawTitle(d, x, y, "Delete chat?");
+            snprintf(b, sizeof(b), "Delete chat with %s?", cn);
+            drawCentered(d, x, y + 2 * lh, b, FONT_SMALL);
+            drawCentered(d, x, y + 3 * lh + 4, "Its messages are", FONT_SMALL);
+            drawCentered(d, x, y + 4 * lh + 4, "removed from the badge.", FONT_SMALL);
+            drawCentered(d, x, y + d->height() - lh - 2, "#: delete   *: keep it", FONT_SMALL);
+            return;
+        }
+        drawTitle(d, x, y, "Leave group?");
         snprintf(b, sizeof(b), "Leave %s?", cn);
         drawCentered(d, x, y + 2 * lh, b, FONT_SMALL);
         drawCentered(d, x, y + 3 * lh + 4, "Its messages stop coming.", FONT_SMALL);
@@ -828,11 +856,11 @@ class MessagesApp : public App
         drawTitle(d, x, y, "Chats", "#open *back");
         drawRows(d, x, y, nChats + 1, listSel, [](MessagesApp *me, int i, char *l, size_t ln, char *r, size_t rn) {
             r[0] = 0;
-            if (i == 0) {
+            if (i == me->nChats) { // "+ New chat" sits at the bottom, below the chats
                 snprintf(l, ln, "+ New chat");
                 return;
             }
-            int j = i - 1;
+            int j = i;
             chatName(me->chats[j], l, ln);
             me->rowIcon = (me->chats[j].dm ? 0 : 1) | (chatPrivacy(me->chats[j]) == P_PRIVATE ? 2 : 0);
             int *s = seenFor(me->chats[j], me->countIn[j]);
@@ -996,8 +1024,9 @@ class MessagesApp : public App
         static char msg[TextEntry::MAX + 1];
         strncpy(msg, te.text(), sizeof(msg));
         msg[sizeof(msg) - 1] = 0;
-        meshSendPrepareTo(chat.dm ? chat.peer : NODENUM_BROADCAST, chat.ch); // only ever to this chat
-        keypadInjectText(msg, true);                                         // Meshtastic sends it and adds it to the messages
+        // Send the original way (Meshtastic's text path): shows "Sending..." then "Message sent to
+        // #<channel>", echoes into the thread store, no on-screen keyboard.
+        meshSendTextDM(chat.dm ? chat.peer : NODENUM_BROADCAST, msg, chat.ch);
         statsMessageSent();
         fromBottom = 0;
         appRedraw();

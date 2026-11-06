@@ -14,7 +14,8 @@
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
 #include <Arduino.h>
-#include <NimBLEDevice.h>
+#include <BLEDevice.h>
+#include <host/ble_gatt.h> // raw GATT client read (plainRead) + os_mbuf, independent of the wrapper
 #include <stdio.h>
 #include <string.h>
 
@@ -119,7 +120,7 @@ static const char *service16(uint16_t u)
     }
 }
 
-static const char *service128(const NimBLEUUID &u)
+static const char *service128(const BLEUUID &u)
 {
     struct Known {
         const char *uuid, *name;
@@ -135,7 +136,7 @@ static const char *service128(const NimBLEUUID &u)
         {"9fa480e0-4967-4542-9390-d343dc5d04ae", "Apple Nearby"},
     };
     for (const Known &k : KNOWN)
-        if (u == NimBLEUUID(k.uuid))
+        if (u == BLEUUID(k.uuid))
             return k.name;
     return nullptr;
 }
@@ -215,10 +216,10 @@ static int onRead(uint16_t, const struct ble_gatt_error *err, struct ble_gatt_at
 }
 
 // 0: read; otherwise the ATT / host error (locked values come back as an ATT error)
-static int plainRead(NimBLEClient *c, uint16_t handle)
+static int plainRead(BLEClient *c, uint16_t handle)
 {
     xSemaphoreTake(rd.done, 0);
-    if (ble_gattc_read(c->getConnHandle(), handle, onRead, nullptr) != 0)
+    if (ble_gattc_read(c->getConnId(), handle, onRead, nullptr) != 0)
         return -1;
     if (xSemaphoreTake(rd.done, pdMS_TO_TICKS(3000)) != pdTRUE)
         return -2;
@@ -240,15 +241,11 @@ static void valueText(const uint8_t *v, int n, char *out, size_t size)
         o += snprintf(out + o, size - o, "%02X", v[i]);
 }
 
-class NoPairing : public NimBLEClientCallbacks
-{
-    // never accept a pairing this way
-    void onConfirmPasskey(NimBLEConnInfo &connInfo, uint32_t) override { NimBLEDevice::injectConfirmPasskey(connInfo, false); }
-    void onPassKeyEntry(NimBLEConnInfo &connInfo) override { NimBLEDevice::injectPassKey(connInfo, 0); }
-};
-static NoPairing noPairing;
+// No client callbacks are installed: plainRead() uses a raw ble_gattc_read that never initiates
+// pairing (a locked value just returns an ATT error), and connect() alone does not pair, so there
+// is nothing to reject. (The framework BLEClientCallbacks has no passkey hooks to override anyway.)
 
-static void readInfo(NimBLEClient *c)
+static void readInfo(BLEClient *c)
 {
     struct Field {
         uint16_t uuid;
@@ -257,11 +254,12 @@ static void readInfo(NimBLEClient *c)
     static const Field FIELDS[] = {{0x2A00, "Name"},     {0x2A29, "Maker"},    {0x2A24, "Model"},
                                    {0x2A25, "Serial"},   {0x2A27, "Hardware"}, {0x2A26, "Firmware"},
                                    {0x2A28, "Software"}, {0x2A19, "Battery"},  {0x2A01, "Looks like"}};
-    const std::vector<NimBLERemoteService *> &svcs = c->getServices(true);
+    std::map<std::string, BLERemoteService *> *svcs = c->getServices();
     int locked = 0;
     for (const Field &f : FIELDS)
-        for (NimBLERemoteService *s : svcs) {
-            NimBLERemoteCharacteristic *ch = s->getCharacteristic(NimBLEUUID(f.uuid));
+        for (auto &kv : *svcs) {
+            BLERemoteService *s = kv.second;
+            BLERemoteCharacteristic *ch = s->getCharacteristic(BLEUUID(f.uuid));
             if (!ch || !ch->canRead())
                 continue;
             int st = plainRead(c, ch->getHandle());
@@ -307,26 +305,28 @@ static const char *secLabel(int st)
     }
 }
 
-static void listServices(NimBLEClient *c)
+static void listServices(BLEClient *c)
 {
-    const std::vector<NimBLERemoteService *> &svcs = c->getServices(false);
-    addLine("Services (%d):", (int)svcs.size());
+    std::map<std::string, BLERemoteService *> *svcs = c->getServices();
+    addLine("Services (%d):", (int)svcs->size());
     int openReadable = 0, protReadable = 0, probes = 0;
-    for (NimBLERemoteService *s : svcs) {
-        NimBLEUUID u = s->getUUID();
-        uint16_t u16 = u.bitSize() == 16 ? (uint16_t)(u.getValue()[0] | (u.getValue()[1] << 8)) : 0;
+    for (auto &kv : *svcs) {
+        BLERemoteService *s = kv.second;
+        BLEUUID u = s->getUUID();
+        uint16_t u16 = u.bitSize() == 16 ? u.getNative()->u16.value : 0;
         if (u16 == 0x1800 || u16 == 0x1801) // every device has these
             continue;
         const char *name = u16 ? service16(u16) : service128(u);
-        const std::vector<NimBLERemoteCharacteristic *> &chs = s->getCharacteristics(true);
+        std::map<std::string, BLERemoteCharacteristic *> *chs = s->getCharacteristics();
         bool r = false, w = false, n = false;
-        for (NimBLERemoteCharacteristic *ch : chs) {
+        for (auto &ckv : *chs) {
+            BLERemoteCharacteristic *ch = ckv.second;
             r |= ch->canRead();
             w |= ch->canWrite() || ch->canWriteNoResponse();
             n |= ch->canNotify() || ch->canIndicate();
         }
         char what[24];
-        snprintf(what, sizeof(what), "%d: %s%s%s", (int)chs.size(), r ? "R" : "", w ? "W" : "", n ? "N" : "");
+        snprintf(what, sizeof(what), "%d: %s%s%s", (int)chs->size(), r ? "R" : "", w ? "W" : "", n ? "N" : "");
         if (name)
             addLine(" %s (%s)", name, what);
         else if (u16)
@@ -334,7 +334,8 @@ static void listServices(NimBLEClient *c)
         else
             addLine(" %.8s.. (%s)", u.toString().c_str(), what);
         // probe each readable characteristic to see what security it demands
-        for (NimBLERemoteCharacteristic *ch : chs) {
+        for (auto &ckv : *chs) {
+            BLERemoteCharacteristic *ch = ckv.second;
             if (!ch->canRead() || probes >= 50)
                 continue;
             probes++;
@@ -343,8 +344,8 @@ static void listServices(NimBLEClient *c)
                 openReadable++;
             else
                 protReadable++;
-            NimBLEUUID cu = ch->getUUID();
-            uint16_t c16 = cu.bitSize() == 16 ? (uint16_t)(cu.getValue()[0] | (cu.getValue()[1] << 8)) : 0;
+            BLEUUID cu = ch->getUUID();
+            uint16_t c16 = cu.bitSize() == 16 ? cu.getNative()->u16.value : 0;
             if (c16)
                 addLine("  %04X: %s", c16, secLabel(st));
             else
@@ -365,14 +366,13 @@ static void exploreTask(void *)
     char addr[18];
     snprintf(addr, sizeof(addr), "%02x:%02x:%02x:%02x:%02x:%02x", exMac[0], exMac[1], exMac[2], exMac[3], exMac[4], exMac[5]);
     bool ok = false;
-    if (!NimBLEDevice::isInitialized()) {
+    if (!BLEDevice::getInitialized()) {
         snprintf(exStatus, sizeof(exStatus), "Bluetooth is off");
-    } else if (NimBLEClient *c = NimBLEDevice::createClient()) {
-        c->setClientCallbacks(&noPairing, false);
-        c->setConnectTimeout(8);
-        // the scan's address type first; flagged devices may not know it
-        ok = c->connect(NimBLEAddress(std::string(addr), exPublic ? BLE_ADDR_PUBLIC : BLE_ADDR_RANDOM)) ||
-             c->connect(NimBLEAddress(std::string(addr), exPublic ? BLE_ADDR_RANDOM : BLE_ADDR_PUBLIC));
+    } else if (BLEClient *c = BLEDevice::createClient()) {
+        const uint8_t t1 = exPublic ? BLE_ADDR_PUBLIC : BLE_ADDR_RANDOM;
+        const uint8_t t2 = exPublic ? BLE_ADDR_RANDOM : BLE_ADDR_PUBLIC;
+        // the scan's address type first; flagged devices may not know it (8 s connect timeout)
+        ok = c->connect(BLEAddress(String(addr), t1), t1, 8000) || c->connect(BLEAddress(String(addr), t2), t2, 8000);
         if (ok) {
             snprintf(exStatus, sizeof(exStatus), "Reading...");
             readInfo(c);
@@ -382,7 +382,7 @@ static void exploreTask(void *)
         } else {
             snprintf(exStatus, sizeof(exStatus), "Couldn't connect (out of range, not connectable, or new address)");
         }
-        NimBLEDevice::deleteClient(c);
+        delete c;
     }
     radioScanHold(false);
     exState = EX_DONE;

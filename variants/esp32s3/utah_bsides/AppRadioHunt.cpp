@@ -18,15 +18,15 @@
 #include "BadgeApps.h"
 #include "BadgeDeviceMenu.h"
 #include "BadgeDevices.h"
-#include "BadgeTime.h"
-#include "gps/RTC.h"
 #include "BadgeFollow.h"
 #include "BadgeFox.h"
 #include "BadgeListFilter.h"
 #include "BadgeRadioScan.h"
-#include <algorithm>
 #include "BadgeRules.h"
+#include "BadgeTime.h"
 #include "BadgeVendors.h"
+#include "gps/RTC.h"
+#include <algorithm>
 
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
@@ -262,7 +262,7 @@ class RadioHuntApp : public App
             appRedraw();
             return;
         }
-        if (k == AK_STAR && a == KA_HOLD) { // hold *: the device's menu
+        if (k == AK_3 && a == KA_PRESS) { // 3: the selected device's menu (nickname, watch, beep, Explore)
             const ScanEntry *e = nullptr;
             ScanEntry sel;
             if (hunting) {
@@ -275,7 +275,6 @@ class RadioHuntApp : public App
                 RuleHit h;
                 bool tracker = ruleMatch(*e, isWifi(*e), h) && !strcmp(h.code, "TAG");
                 menu.show(e->mac, isWifi(*e), tracker, e->publicAddr, devName(e->mac, e->name));
-                ignoreStarRelease = true;
                 appRedraw();
             }
             return;
@@ -407,7 +406,7 @@ class RadioHuntApp : public App
     RuleHit hits[MAXLIST];
     bool hasHit[MAXLIST];
     int count = 0, alertCount = 0;
-    int alertNear = 0; // 0 none, 1 trackers only, 2 other alert devices, 3 following you
+    int alertNear = 0;      // 0 none, 1 trackers only, 2 other alert devices, 3 following you
     int followMin[MAXLIST]; // minutes an alert device has been with you, -1 if not tracked
     bool followYes[MAXLIST];
     char popup[128] = "";
@@ -451,8 +450,8 @@ class RadioHuntApp : public App
         makerText(e, maker, sizeof(maker), true);
         macText(e.mac, addr, sizeof(addr));
         const DevMemo *m = devFind(e.mac);
-        snprintf(hay, sizeof(hay), "%s %s %s %s %s %s", m && m->nick[0] ? m->nick : "", e.name, maker, addr,
-                 h ? h->code : "", h ? h->title : "");
+        snprintf(hay, sizeof(hay), "%s %s %s %s %s %s", m && m->nick[0] ? m->nick : "", e.name, maker, addr, h ? h->code : "",
+                 h ? h->title : "");
         for (char *c = hay; *c; c++)
             *c = (char)tolower(*c);
         return hay;
@@ -557,12 +556,18 @@ class RadioHuntApp : public App
         else
             refresh();
         if (alertCount)
-            snprintf(title, sizeof(title), "%s %d  !%d", kind == SCAN_ALL ? "All" : kind == SCAN_WIFI ? "WiFi" : "BT", count,
-                     alertCount);
+            snprintf(title, sizeof(title), "%s %d  !%d",
+                     kind == SCAN_ALL    ? "All"
+                     : kind == SCAN_WIFI ? "WiFi"
+                                         : "BT",
+                     count, alertCount);
         else
-            snprintf(title, sizeof(title), "%s (%d)", kind == SCAN_ALL ? "WiFi+BT" : kind == SCAN_WIFI ? "WiFi" : "Bluetooth",
+            snprintf(title, sizeof(title), "%s (%d)",
+                     kind == SCAN_ALL    ? "WiFi+BT"
+                     : kind == SCAN_WIFI ? "WiFi"
+                                         : "Bluetooth",
                      count);
-        drawTitle(d, x, y, title, filter.active() ? "#hunt 0find" : "#hunt 0find *done");
+        drawTitle(d, x, y, title, filter.active() ? "#hunt 3opts" : "#hunt 3opts *done");
         if (error) {
             drawCentered(d, x, y + 2 * lh, error, FONT_SMALL);
             return;

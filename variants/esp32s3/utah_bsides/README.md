@@ -18,7 +18,7 @@ private screen value with a standard C++ technique instead of editing Meshtastic
 Contents: [TL;DR — get started](#tldr--get-started) · [What's new](#whats-new-compared-with-the-2025-firmware) ·
 [Using the badge](#using-the-badge) · [Messages](#messages) · [Fox hunt and scanning](#fox-hunt-and-scanning) ·
 [Mesh settings](#mesh-settings-no-phone-needed) · [Shortcuts](#shortcuts) ·
-[Screen lock](#screen-lock) · [Name tag](#name-tag) · [Games](#games) · [Lights](#lights) · [Bluetooth remote](#bluetooth-remote) · [QR code](#qr-code) · [Stopwatch](#stopwatch--timer) ·
+[Screen lock](#screen-lock) · [Name tag](#name-tag) · [Games](#games) · [Lights](#lights) · [QR code](#qr-code) · [Stopwatch](#stopwatch--timer) ·
 [Time](#time) · [Badge WiFi](#badge-wifi-phone) · [Other mesh features](#other-mesh-features) ·
 [Hardware notes](#hardware-notes) · [Building and installing](#building-and-installing) ·
 [Updating Meshtastic](#updating-to-a-new-meshtastic-release) · [Third-party code](#third-party-code-and-data)
@@ -111,11 +111,9 @@ and a few games. This firmware is Meshtastic **2.7.26** plus the following, all 
 
 **Everyday**
 - **Shortcuts**: hold a number key to jump anywhere (ten, configurable on the badge or the Badge WiFi *Home* tab).
-- **Bluetooth remote**: pairs with your laptop or phone as an ordinary wireless mouse, slide
-  clicker (for a talk) or media keys.
 - **Explore** a Bluetooth device from a scan (read only): what services and details it offers.
 - **QR code** on the screen: your contact card, a link or any text, for people to scan.
-- **Stopwatch & countdown timer** (a talk timer), and **keystroke macros** on the Bluetooth remote.
+- **Stopwatch & countdown timer** (a talk timer).
 - A **Badge page** among Meshtastic's screens: time, last message, last node heard, scan
   summary, whether the badge can send.
 - **Time without a clock chip**: from the phone app, the Badge WiFi page, GPS nodes or other
@@ -199,7 +197,7 @@ are on the home tiles.
   reset.
 - **Key help**.
 
-The apps (**Games, Fox hunt, Badges & achievements, Minibadges, Bluetooth remote, QR code,
+The apps (**Games, Fox hunt, Badges & achievements, Minibadges, QR code,
 Stopwatch & timer, Flashlight, Messages, Nodes, Meshtastic pages**) are on the **home tiles**, not
 here. `*` goes back a level, and closing an app returns to the home tiles.
 
@@ -880,33 +878,6 @@ stays hidden until the time is known.
 
 Settings → *Time zone* (the same list as Meshtastic's). With none set the badge uses US Mountain
 time (Utah).
-
-## Bluetooth remote
-
-Badge menu → *Bluetooth remote* (or a shortcut): the badge turns into an ordinary Bluetooth
-mouse / keyboard for your own laptop or phone -- useful as a trackpad or, more to the point, a
-slide clicker for a talk. It is a standard BLE HID peripheral (it shows up as "badge" with a
-mouse icon); your computer pairs and bonds with it the same way as any shop-bought Bluetooth
-mouse, and nothing is sent until it does. The HID service is only offered while this screen is
-open, and taken away again (disconnecting the computer) when you leave.
-
-`#` switches mode, `*` leaves. The keys for each mode are shown on screen:
-
-- **Mouse**: the joystick moves the pointer, `1` left-click (press again to drop a drag), `3`
-  right-click, `2` / `8` scroll, `5` changes pointer speed.
-- **Slide clicker**: right / down / `6` next slide, left / up / `4` previous, `5` start the show
-  (F5), `0` end it (Esc), `7` blank the screen (B).
-- **Media**: `5` play / pause, `4` / `6` previous / next track, `2` / `8` volume, `0` mute.
-- **Type text**: type a line on the badge (multi-tap, like the message editor) and `#` sends it to
-  the paired computer as keystrokes -- your contact details, the mesh join link, a canned note. `*`
-  deletes; `*` on an empty line goes to Macros. Nothing is typed until a computer is paired.
-- **Macros**: saved keystroke scripts. `2` / `8` pick one, `#` sends it to the paired computer, `*`
-  back to Mouse. You write the macros on the Badge WiFi page (*Settings* tab), one per line as
-  `name: body`; in the body `\n` = Enter, `\t` = Tab, `\d` = a short pause. Handy for a login line,
-  a URL, or a demo. Pairing-gated, so nothing fires on its own -- the badge's take on BadUSB.
-
-It uses Meshtastic's own Bluetooth, so Bluetooth must be on (Mesh settings). The phone app can't
-be connected to the badge over Bluetooth at the same time.
 
 ## QR code
 

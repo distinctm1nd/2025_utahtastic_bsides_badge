@@ -7,6 +7,7 @@
 #include "BadgeBase64.h"
 #include "BadgeHome.h"
 #include "BadgeMenu.h"
+#include "BadgeMesh.h"
 #include "BadgeMeshSettings.h"
 
 #include "MeshService.h"
@@ -498,15 +499,11 @@ const char *meshSendChannelName()
 {
     return channels.getName((size_t)sendChannel());
 }
-void meshSendPrepareTo(uint32_t dest, uint8_t channel)
+// Send straight through the mesh service (no on-screen keyboard) to the chosen "Send messages to"
+// channel. Driving Meshtastic's freetext UI to send would pop up its on-screen keyboard on 2.8.
+bool meshSendTextDefault(const char *text)
 {
-    if (cannedMessageModule)
-        cannedMessageModule->LaunchFreetextWithDestination(dest, channel);
-}
-void meshSendPrepare()
-{
-    if (cannedMessageModule)
-        cannedMessageModule->LaunchFreetextWithDestination(NODENUM_BROADCAST, (uint8_t)sendChannel());
+    return meshSendTextDM(NODENUM_BROADCAST, text, (uint8_t)sendChannel());
 }
 static void showSendTo()
 {

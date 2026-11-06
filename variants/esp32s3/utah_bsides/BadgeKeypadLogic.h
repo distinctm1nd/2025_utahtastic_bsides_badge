@@ -113,10 +113,7 @@ class KeypadLogic
     //   lean   a push that closes only one switch lands on a diagonal after an odd number of
     //          steps; lean picks which neighbour it becomes
     // A push that closes two neighbouring switches at once is the direction between them.
-    explicit KeypadLogic(KeypadHooks &h, int joySteps = 0, bool joyLean = false) : hooks(h)
-    {
-        setJoystick(joySteps, joyLean);
-    }
+    explicit KeypadLogic(KeypadHooks &h, int joySteps = 0, bool joyLean = false) : hooks(h) { setJoystick(joySteps, joyLean); }
     void setJoystick(int steps, bool lean)
     {
         joySteps = ((steps % 8) + 8) % 8;
@@ -255,17 +252,28 @@ class KeypadLogic
     static const char *lettersFor(int bit)
     {
         switch (bit) {
-        case 11: return ".,?!'-@:+/=1"; // 1 (+ / = for channel keys)
-        case 10: return "abc2";
-        case 9: return "def3";
-        case 8: return "ghi4";
-        case 7: return "jkl5";
-        case 6: return "mno6";
-        case 5: return "pqrs7";
-        case 4: return "tuv8";
-        case 3: return "wxyz9";
-        case 1: return " 0";
-        default: return nullptr;
+        case 11:
+            return ".,?!'-@:+/=1"; // 1 (+ / = for channel keys)
+        case 10:
+            return "abc2";
+        case 9:
+            return "def3";
+        case 8:
+            return "ghi4";
+        case 7:
+            return "jkl5";
+        case 6:
+            return "mno6";
+        case 5:
+            return "pqrs7";
+        case 4:
+            return "tuv8";
+        case 3:
+            return "wxyz9";
+        case 1:
+            return " 0";
+        default:
+            return nullptr;
         }
     }
     static char digitFor(int bit)
@@ -284,10 +292,11 @@ class KeypadLogic
     bool joyLean = false;
     bool joyMapSet = false;
     int8_t joyMap[16] = {};
-    int joyDir = -1;          // direction being held, -1 none
-    uint8_t joyTarget = 0;    // where it went: 0 Meshtastic, 1 badge app, 2 used up
+    int joyDir = -1;       // direction being held, -1 none
+    uint8_t joyTarget = 0; // where it went: 0 Meshtastic, 1 badge app, 2 used up
     uint32_t joyCand = 0, joyDownAt = 0, joyRepeatAt = 0;
-    uint8_t joyMax = 0; // every switch the push closed so far
+    uint32_t lastJoyMs = 0; // last time any joystick direction switch was seen closed
+    uint8_t joyMax = 0;     // every switch the push closed so far
     static const int NKEYS = 17;
     uint32_t stable = 0;
     uint32_t swallow = 0;  // keys whose press was used up (woke the screen, closed the welcome)
@@ -341,6 +350,8 @@ class KeypadLogic
     void joyUpdate(uint32_t now)
     {
         uint8_t m = (uint8_t)((stable >> 12) & 0xF);
+        if (m)
+            lastJoyMs = now; // remember recent direction activity so a co-fired centre press is ignored
         if (joyDir < 0) {
             if (!m) {
                 // let go before the wait was over: a quick tap, go with what it closed
@@ -413,6 +424,15 @@ class KeypadLogic
     void onPress(int b, uint32_t now)
     {
         uint32_t m = 1u << b;
+        // Pushing the joystick in a direction can also close its centre switch on this hardware, and
+        // the direction bit often flickers off at that instant - so key off *recent* direction
+        // activity, not the live state. Ignore a centre press (and, via swallow, its release) that
+        // lands within 250 ms of any joystick direction, so a direction (e.g. up to change case)
+        // can't double as centre = HASH = "send/done".
+        if (b == CENTER_BIT && (joyDir >= 0 || joyCand || (uint32_t)(now - lastJoyMs) < 250)) {
+            swallow |= m;
+            return;
+        }
         downAt[b] = now;
         lastRepeat[b] = now;
         holdDone[b] = false;
