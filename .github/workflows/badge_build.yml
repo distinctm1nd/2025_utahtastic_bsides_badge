@@ -9,10 +9,10 @@ name: Build Utah BSides badge firmware
 # only given to the small sign job, never to the build (which runs a lot of third-party code).
 on:
   push:
-    branches: [utah-bsides-badge]
+    branches: [utah-bsides-2.8.2]
     tags: ["badge-v*"]
   pull_request:
-    branches: [utah-bsides-badge]
+    branches: [utah-bsides-2.8.2]
   workflow_dispatch:
     inputs:
       env:
