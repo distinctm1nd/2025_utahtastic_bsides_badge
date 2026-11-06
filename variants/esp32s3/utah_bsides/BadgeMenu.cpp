@@ -624,7 +624,10 @@ static const Shortcut SHORTCUTS[] = {
 };
 static const int NSHORTCUTS = sizeof(SHORTCUTS) / sizeof(SHORTCUTS[0]);
 // hold a number key on Meshtastic's pages: that number's shortcut (NVS "sc0".."sc9")
-static const char *const SC_DEFAULTS[10] = {"flash", "log", "ble", "wifi", "radar", "msgs", "web", "lights", "lock", "night"};
+// Indexed by the digit held (SC_DEFAULTS[n] is the default for "hold n"), so slot 0 is hold-0 and
+// slots 1..9 are hold-1..hold-9: 1 flash, 2 log, 3 ble, 4 wifi, 5 radar, 6 msgs, 7 web, 8 lights,
+// 9 lock, 0 night. (Kept 1-aligned here on purpose; a 1-based list would make hold-3 open WiFi.)
+static const char *const SC_DEFAULTS[10] = {"night", "flash", "log", "ble", "wifi", "radar", "msgs", "web", "lights", "lock"};
 static int scSlot = 1; // the number being changed
 
 static int shortcutAt(int n) // n 0..9 -> index in SHORTCUTS
