@@ -94,6 +94,7 @@ struct KeypadHooks {
     virtual void quickSend(int digit) = 0;              // hold a digit on a Meshtastic screen: its shortcut
     virtual void menuBack() {}                          // * is about to close a menu: reopen its parent
     virtual void lockNow() {}                           // * and # together, anywhere
+    virtual bool goHome() { return false; }             // * on a Meshtastic page: back to the tile home; true if handled
 };
 
 class KeypadLogic
@@ -565,12 +566,13 @@ class KeypadLogic
             return;
         if (b == KEY_STAR_BIT) {
             tapBit = -1;
-            // in a Meshtastic menu * closes it (badge menus then reopen the one above);
-            // otherwise backspace (or back when nothing typed)
+            // in a Meshtastic menu * closes it (badge menus then reopen the one above); on a plain
+            // Meshtastic page * returns to the tile home (if that's the badge's home); otherwise
+            // backspace (or back when nothing typed)
             if (hooks.bannerShowing()) {
                 hooks.menuBack();
                 hooks.emit(KP_CANCEL, 0x08);
-            } else {
+            } else if (!hooks.goHome()) {
                 hooks.emit(KP_BACK, 0x08);
             }
         } else if (b == KEY_HASH_BIT || b == CENTER_BIT) {

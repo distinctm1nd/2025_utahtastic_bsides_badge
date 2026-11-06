@@ -162,6 +162,15 @@ class MeshtasticHooks : public KeypadHooks
         else if (screen)
             screen->showSimpleBanner("No PIN set yet:\nSettings > Screen lock", 2500);
     }
+    // * on a plain Meshtastic page (no badge app, no menu): go back to the tile home, if the badge's
+    // home is the tiles. Returns true when it handled the key, so * isn't also sent to Meshtastic.
+    bool goHome() override
+    {
+        if (!homeEnabled())
+            return false; // Meshtastic is the home; let * do its normal thing
+        homeGo();
+        return true;
+    }
 
   private:
     Observable<const InputEvent *> *source;
