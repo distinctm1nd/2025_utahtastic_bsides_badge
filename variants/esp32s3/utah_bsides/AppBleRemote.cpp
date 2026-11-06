@@ -13,8 +13,11 @@
 #include "BadgeTextEntry.h"
 #include "BluetoothCommon.h"
 
+#include "MeshService.h"
+#include "NodeDB.h"
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
+#include "main.h"
 #include <Arduino.h>
 #include <NimBLEDevice.h>
 #include <Preferences.h>
@@ -294,7 +297,8 @@ class BleRemoteApp : public App
         held = 0;
         buttons = 0;
         speed = 6;
-        error = NimBLEDevice::isInitialized() ? nullptr : "Turn on Bluetooth first\n(Mesh settings)";
+        btEnabling = false;
+        error = NimBLEDevice::isInitialized() ? nullptr : "off";
         if (!error) {
             buildHid();
             setHid(true);
@@ -344,6 +348,18 @@ class BleRemoteApp : public App
             appClose();
             return;
         }
+        if (error) { // Bluetooth is off: 5 turns it on. ESP32 frees the BT controller memory at boot
+            // when BT is disabled, so it can only come back with a restart (same as the Mesh settings
+            // toggle) - but from here, without leaving the page first.
+            if (k == AK_5 && a == KA_PRESS && !btEnabling) {
+                config.bluetooth.enabled = true;
+                service->reloadConfig(SEGMENT_CONFIG);
+                rebootAtMsec = millis() + DEFAULT_REBOOT_SECONDS * 1000;
+                btEnabling = true;
+                appRedraw();
+            }
+            return;
+        }
         if ((k == AK_HASH) && a == KA_PRESS) {
             mode = (Mode)((mode + 1) % MODE_COUNT);
             held = 0;
@@ -357,8 +373,6 @@ class BleRemoteApp : public App
             appRedraw();
             return;
         }
-        if (error)
-            return;
         bool down = a == KA_PRESS, up = a == KA_RELEASE;
         if (mode == MODE_MOUSE) {
             if (k == AK_LEFT || k == AK_RIGHT || k == AK_UP || k == AK_DOWN) {
@@ -426,7 +440,14 @@ class BleRemoteApp : public App
         snprintf(title, sizeof(title), "BT remote: %s", NAMES[mode]);
         drawTitle(d, x, y, title, "#mode *done");
         if (error) {
-            drawCentered(d, x, y + 2 * lh, error, FONT_SMALL);
+            if (btEnabling) {
+                drawCentered(d, x, y + 2 * lh, "Turning on Bluetooth", FONT_SMALL);
+                drawCentered(d, x, y + 3 * lh + 2, "Restarting...", FONT_SMALL);
+            } else {
+                drawCentered(d, x, y + lh + 2, "Bluetooth is off", FONT_SMALL);
+                drawCentered(d, x, y + 2 * lh + 4, "Press 5 to turn it on", FONT_SMALL);
+                drawCentered(d, x, y + 3 * lh + 6, "(the badge restarts)", FONT_SMALL);
+            }
             return;
         }
         bool linked = hostConn != 0xFFFF;
@@ -463,6 +484,7 @@ class BleRemoteApp : public App
     uint8_t buttons = 0;
     int speed = 6;
     const char *error = nullptr;
+    bool btEnabling = false; // user pressed "turn on Bluetooth"; a restart is on its way
     TextEntry te;
     char outbuf[201] = "";
     int outPos = 0;
