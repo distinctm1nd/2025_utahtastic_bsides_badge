@@ -57,6 +57,9 @@ static const Tile TILES[] = {
     {"messages", "Messages", G_MSG, openMessages},
     {"games", "Games", G_GAME, menuOpenGames},
     {"fox", "Fox hunt", G_SIGNAL, menuOpenFox},
+#if BADGE_OFFENSIVE
+    {"research", "Research", G_SIGNAL, openResearch}, // research build only: active WiFi/BT tools
+#endif
     {"badges", "Badges", G_STAR, openBadgesApp},
     {"minibadges", "Minibadges", G_CHIP, openMinibadgesApp},
     {"qr", "QR code", G_QR, openQrCode},

@@ -74,6 +74,17 @@ class BadgeStartup : public concurrency::OSThread
         case 0: // let Meshtastic's boot screens play (logo, then the static raven), then take over
             if (!badge::lockBootReady())
                 return 20;
+#if BADGE_OFFENSIVE
+            // research build: a full-screen "RESEARCH BUILD" page plays HERE, after the raven and
+            // before the lock/gifs. It is a badge app, so it covers Meshtastic's page; stage 3 waits
+            // for it to auto-close, then runs the normal startup.
+            if (researchBanner) {
+                researchBanner = false;
+                badge::openResearchBoot();
+                stage = 3;
+                return 50;
+            }
+#endif
             // only when the wearer has explicitly chosen a startup picture does one play here;
             // by default we go straight to the cycling lock screen (no separate raven intro)
             if (badge::picStartup()[0] && badge::nametagShowStartup()) {
@@ -89,6 +100,18 @@ class BadgeStartup : public concurrency::OSThread
             badge::lockAttract();
             disable();
             return INT32_MAX;
+#if BADGE_OFFENSIVE
+        case 3: // the RESEARCH BUILD page is up; once it auto-closes, run the normal startup (pic or lock)
+            if (badge::appActive())
+                return 50;
+            if (badge::picStartup()[0] && badge::nametagShowStartup()) {
+                stage = 1;
+                return 50;
+            }
+            badge::lockAttract();
+            disable();
+            return INT32_MAX;
+#endif
         }
         disable();
         return INT32_MAX;
@@ -97,6 +120,9 @@ class BadgeStartup : public concurrency::OSThread
   private:
     bool first = true;
     int stage = 0;
+#if BADGE_OFFENSIVE
+    bool researchBanner = true;
+#endif
 };
 static BadgeStartup *startupThread = nullptr;
 

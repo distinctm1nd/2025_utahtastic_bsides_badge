@@ -70,6 +70,11 @@ void qrSet(bool link, const char *val);
 void openBadgesApp();     // AppBadges.cpp: badges met, achievements, hunt flags
 void openMinibadgesApp(); // AppBadges.cpp: minibadges on the I2C bus
 
+#if BADGE_OFFENSIVE
+void openResearch();      // AppResearch.cpp: opt-in active WiFi/BT tools (research build only)
+void openResearchBoot();  // AppResearch.cpp: full-screen "RESEARCH BUILD" page at startup
+#endif
+
 // name tag text (NVS "utah": "tagname", "tagline"); the name starts as the Meshtastic name
 const char *nametagName();
 bool nametagNameSet(); // true only when a custom badge name has been typed in
