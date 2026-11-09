@@ -172,9 +172,10 @@ static void record(const uint8_t *mac, const char *name, int rssi, uint8_t chan,
 struct Hit {
     uint32_t id, ms;
 };
-static Hit deauths[64], popups[64];
-static int deauthHead = 0, popupHead = 0;
+static Hit deauths[64], popups[64], pwns[64], flips[64];
+static int deauthHead = 0, popupHead = 0, pwnHead = 0, flipHead = 0;
 static uint8_t deauthChan = 0;
+static const uint8_t PWN_MAC[6] = {0xde, 0xad, 0xbe, 0xef, 0xde, 0xad}; // pwnagotchi beacon source
 
 static void addHit(Hit *ring, int &head, uint32_t id, bool distinct)
 {
@@ -209,6 +210,16 @@ int radioDeauthRecent(uint8_t *channel)
 int radioPopupSpamRecent()
 {
     return countHits(popups);
+}
+
+int radioPwnagotchiRecent()
+{
+    return countHits(pwns);
+}
+
+int radioFlipperRecent()
+{
+    return countHits(flips);
 }
 
 // ---- Bluetooth -----------------------------------------------------------------------------
@@ -368,6 +379,11 @@ class BleResults : public BLEAdvertisedDeviceCallbacks
             addHit(popups, popupHead, hash32(mac, 6), true);
             portEXIT_CRITICAL(&lock);
         }
+        if (company == 0x0FBA) { // Flipper Zero (BLE manufacturer ID 0x0FBA)
+            portENTER_CRITICAL(&lock);
+            addHit(flips, flipHead, hash32(mac, 6), true);
+            portEXIT_CRITICAL(&lock);
+        }
         if (captureBleOn() || captureStreamKind() == STREAM_BLE)
             capPush(1, d.getPayload(), (int)d.getPayloadLength(), 0, mac, d.getAdvType(), a.getType() != BLE_ADDR_PUBLIC);
         record(mac, n.c_str(), d.getRSSI(), 0, company, a.getType() == BLE_ADDR_PUBLIC, &x);
@@ -437,6 +453,12 @@ static void IRAM_ATTR wifiFrame(void *buf, wifi_promiscuous_pkt_type_t type)
     }
     if ((subtype != 0x8 && subtype != 0x5) || len < 36) // beacon / probe response
         return;
+    if (subtype == 0x8 && memcmp(p + 10, PWN_MAC, 6) == 0) { // pwnagotchi beacon (source de:ad:be:ef:de:ad)
+        portENTER_CRITICAL_ISR(&lock);
+        addHit(pwns, pwnHead, millis(), false);
+        portEXIT_CRITICAL_ISR(&lock);
+        return;
+    }
     const uint8_t *bssid = p + 16;
     uint16_t capability = p[34] | (p[35] << 8);
     char ssid[33] = "";

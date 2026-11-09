@@ -123,7 +123,7 @@ class ScanStatsApp : public App
 
     void drawWifi(OLEDDisplay *d, int16_t x, int ry, int lh, const ScanEntry *list, int n, char *b, size_t nb)
     {
-        int open = 0, hidden = 0, twin = 0, drone = 0, alert = 0;
+        int open = 0, hidden = 0, twin = 0, drone = 0, karma = 0, alert = 0;
         int chan[14] = {0};
         Vt v[24];
         int vn = 0;
@@ -139,6 +139,8 @@ class ScanStatsApp : public App
                 twin++;
             if (e.flags & SF_DRONE)
                 drone++;
+            if (e.flags & SF_MANYNAMES)
+                karma++;
             if (e.channel >= 1 && e.channel <= 13)
                 chan[e.channel]++;
             RuleHit h;
@@ -159,14 +161,14 @@ class ScanStatsApp : public App
         d->drawString(x + 2, ry + lh, b);
         snprintf(b, nb, "Busiest ch %d (%d)", busy, busyN);
         d->drawString(x + 2, ry + 2 * lh, b);
-        snprintf(b, nb, "Evil twins %d   Drones %d", twin, drone);
+        snprintf(b, nb, "Twins %d Drones %d Karma %d", twin, drone, karma);
         d->drawString(x + 2, ry + 3 * lh, b);
         if (deauth)
             snprintf(b, nb, "! Deauths %d (ch %d, 10s)", deauth, dchan);
         else
             snprintf(b, nb, "Deauths: none");
         d->drawString(x + 2, ry + 4 * lh, b);
-        snprintf(b, nb, "Flagged now: %d", alert);
+        snprintf(b, nb, "Flagged %d   Pwn %d", alert, radioPwnagotchiRecent());
         d->drawString(x + 2, ry + 5 * lh, b);
         char top[64];
         topVendors(v, vn, top, sizeof(top));
@@ -214,7 +216,7 @@ class ScanStatsApp : public App
         d->drawString(x + 2, ry + 2 * lh, b);
         snprintf(b, nb, "Trackers %d (away %d)", trackers, away);
         d->drawString(x + 2, ry + 3 * lh, b);
-        snprintf(b, nb, "Find My / FMDN: %d", findmy);
+        snprintf(b, nb, "FindMy %d   Flipper %d", findmy, radioFlipperRecent());
         d->drawString(x + 2, ry + 4 * lh, b);
         if (spam)
             snprintf(b, nb, "! Pairing spam: %d (10s)", spam);

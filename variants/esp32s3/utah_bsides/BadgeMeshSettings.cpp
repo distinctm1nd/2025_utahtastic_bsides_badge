@@ -43,6 +43,15 @@ enum MsStep {
     MS_SENDTO,
     MS_TXPOWER,
     MS_HOPS,
+    MS_RADIO,    // submenu: power / hops / region-preset-role
+    MS_BEHAVIOR, // submenu: rebroadcast / node-info / neighbor / telemetry
+    MS_POWER,    // submenu: power saving / shutdown timer
+    MS_POWERSAVE,
+    MS_SHUTDOWN,
+    MS_REBROADCAST,
+    MS_NODEINFO,
+    MS_NEIGHBOR,
+    MS_TELEMETRY,
     MS_CANNED,
     MS_CANNED_ITEM,
     MS_LORA,
@@ -565,7 +574,7 @@ static void showTxPower()
             note("Saved. Restarting...", 3000);
             return;
         }
-        queue(MS_MAIN);
+        queue(MS_RADIO);
     });
 }
 static void showHops()
@@ -578,7 +587,162 @@ static void showHops()
             service->reloadConfig(SEGMENT_CONFIG);
             note("Hop limit saved");
         }
-        queue(MS_MAIN);
+        queue(MS_RADIO);
+    });
+}
+
+// ---- rebroadcast mode (how/whether this node repeats others' packets) ------------------------
+static const uint8_t RB_MODES[] = {
+    meshtastic_Config_DeviceConfig_RebroadcastMode_ALL,
+    meshtastic_Config_DeviceConfig_RebroadcastMode_LOCAL_ONLY,
+    meshtastic_Config_DeviceConfig_RebroadcastMode_KNOWN_ONLY,
+    meshtastic_Config_DeviceConfig_RebroadcastMode_CORE_PORTNUMS_ONLY,
+    meshtastic_Config_DeviceConfig_RebroadcastMode_NONE,
+};
+static const char *const RB_NAMES[] = {"All (default)", "Local only", "Known only", "Core only", "None"};
+static const int NRB = sizeof(RB_MODES) / sizeof(RB_MODES[0]);
+static const char *rbName()
+{
+    for (int i = 0; i < NRB; i++)
+        if ((uint8_t)config.device.rebroadcast_mode == RB_MODES[i])
+            return RB_NAMES[i];
+    return "Custom";
+}
+static void showRebroadcast()
+{
+    static const char *items[NRB + 1];
+    items[0] = "Back";
+    int selected = 1;
+    for (int i = 0; i < NRB; i++) {
+        items[i + 1] = RB_NAMES[i];
+        if ((uint8_t)config.device.rebroadcast_mode == RB_MODES[i])
+            selected = i + 1;
+    }
+    banner("Rebroadcast\n(repeat others' packets)", items, NRB + 1, selected, [](int sel) -> void {
+        if (sel > 0 && (uint8_t)config.device.rebroadcast_mode != RB_MODES[sel - 1]) {
+            config.device.rebroadcast_mode = (meshtastic_Config_DeviceConfig_RebroadcastMode)RB_MODES[sel - 1];
+            service->reloadConfig(SEGMENT_CONFIG);
+            note("Rebroadcast saved");
+        }
+        queue(MS_BEHAVIOR);
+    });
+}
+
+// ---- node-info broadcast interval (how often this node announces itself) ----------------------
+static const uint32_t NI_SECS[] = {3600, 10800, 21600, 43200, 86400};
+static const char *const NI_NAMES[] = {"1 hour", "3 hours (default)", "6 hours", "12 hours", "24 hours"};
+static const int NNI = sizeof(NI_SECS) / sizeof(NI_SECS[0]);
+static const char *niName()
+{
+    uint32_t v = config.device.node_info_broadcast_secs;
+    for (int i = 0; i < NNI; i++)
+        if (v == NI_SECS[i])
+            return NI_NAMES[i];
+    static char b[16];
+    if (v % 3600 == 0)
+        snprintf(b, sizeof(b), "%u hr", (unsigned)(v / 3600));
+    else
+        snprintf(b, sizeof(b), "%u min", (unsigned)((v + 59) / 60));
+    return b;
+}
+static void showNodeInfo()
+{
+    static const char *items[NNI + 1];
+    items[0] = "Back";
+    int selected = 2; // default = 3 hours
+    for (int i = 0; i < NNI; i++) {
+        items[i + 1] = NI_NAMES[i];
+        if (config.device.node_info_broadcast_secs == NI_SECS[i])
+            selected = i + 1;
+    }
+    banner("Node-info interval\n(how often you announce)", items, NNI + 1, selected, [](int sel) -> void {
+        if (sel > 0 && config.device.node_info_broadcast_secs != NI_SECS[sel - 1]) {
+            config.device.node_info_broadcast_secs = NI_SECS[sel - 1];
+            service->reloadConfig(SEGMENT_CONFIG);
+            note("Node-info interval saved");
+        }
+        queue(MS_BEHAVIOR);
+    });
+}
+
+// ---- neighbor info (periodically shares this node's direct-neighbour list) --------------------
+// A moduleConfig setting, so it persists via nodeDB->saveToDisk(SEGMENT_MODULECONFIG) (same path
+// the brand-colour / ambient-lighting setting uses), not service->reloadConfig(SEGMENT_CONFIG).
+static const uint32_t NB_SECS[] = {0, 21600, 43200, 86400}; // index 0 = off
+static const char *const NB_NAMES[] = {"Off (default)", "On - 6 hours", "On - 12 hours", "On - 24 hours"};
+static const int NNB = sizeof(NB_SECS) / sizeof(NB_SECS[0]);
+static const char *nbName()
+{
+    if (!moduleConfig.neighbor_info.enabled)
+        return "Off";
+    uint32_t v = moduleConfig.neighbor_info.update_interval;
+    for (int i = 1; i < NNB; i++)
+        if (v == NB_SECS[i])
+            return NB_NAMES[i];
+    static char b[16];
+    snprintf(b, sizeof(b), "On %us", (unsigned)v);
+    return b;
+}
+static void showNeighbor()
+{
+    static const char *items[NNB + 1];
+    items[0] = "Back";
+    int selected = 1; // off
+    bool on = moduleConfig.neighbor_info.enabled;
+    for (int i = 0; i < NNB; i++) {
+        items[i + 1] = NB_NAMES[i];
+        if ((i == 0 && !on) || (i > 0 && on && moduleConfig.neighbor_info.update_interval == NB_SECS[i]))
+            selected = i + 1;
+    }
+    banner("Neighbor info\n(shares your neighbours)", items, NNB + 1, selected, [](int sel) -> void {
+        if (sel > 0) {
+            bool enable = sel > 1;
+            moduleConfig.neighbor_info.enabled = enable;
+            if (enable)
+                moduleConfig.neighbor_info.update_interval = NB_SECS[sel - 1];
+            nodeDB->saveToDisk(SEGMENT_MODULECONFIG);
+            note("Neighbor info saved");
+        }
+        queue(MS_BEHAVIOR);
+    });
+}
+
+// ---- device telemetry interval (how often this node reports battery / uptime) -----------------
+static const uint32_t TM_SECS[] = {900, 1800, 3600, 7200, 21600};
+static const char *const TM_NAMES[] = {"15 min", "30 min", "1 hour", "2 hours", "6 hours"};
+static const int NTM = sizeof(TM_SECS) / sizeof(TM_SECS[0]);
+static const char *tmName()
+{
+    uint32_t v = moduleConfig.telemetry.device_update_interval;
+    if (v == 0)
+        return "default";
+    for (int i = 0; i < NTM; i++)
+        if (v == TM_SECS[i])
+            return TM_NAMES[i];
+    static char b[16];
+    if (v % 3600 == 0)
+        snprintf(b, sizeof(b), "%u hr", (unsigned)(v / 3600));
+    else
+        snprintf(b, sizeof(b), "%u min", (unsigned)((v + 59) / 60));
+    return b;
+}
+static void showTelemetry()
+{
+    static const char *items[NTM + 1];
+    items[0] = "Back";
+    int selected = 1;
+    for (int i = 0; i < NTM; i++) {
+        items[i + 1] = TM_NAMES[i];
+        if (moduleConfig.telemetry.device_update_interval == TM_SECS[i])
+            selected = i + 1;
+    }
+    banner("Telemetry interval\n(battery / uptime reports)", items, NTM + 1, selected, [](int sel) -> void {
+        if (sel > 0 && moduleConfig.telemetry.device_update_interval != TM_SECS[sel - 1]) {
+            moduleConfig.telemetry.device_update_interval = TM_SECS[sel - 1];
+            nodeDB->saveToDisk(SEGMENT_MODULECONFIG);
+            note("Telemetry interval saved");
+        }
+        queue(MS_BEHAVIOR);
     });
 }
 
@@ -712,10 +876,169 @@ static void showCannedItem()
     });
 }
 
+// ---- grouped submenus (keep the top Mesh settings list short) --------------------------------
+static int radioSel = 1, behaviorSel = 1;
+static void showRadio()
+{
+    enum { R_BACK, R_TX, R_HOPS, R_LORA, R_RXGAIN, R_IGNOREMQTT, R_COUNT };
+    static char lbl[R_COUNT][48];
+    static const char *items[R_COUNT];
+    snprintf(lbl[R_BACK], 48, "Back");
+    snprintf(lbl[R_TX], 48, "Transmit power: %s", txName());
+    snprintf(lbl[R_HOPS], 48, "Hop limit: %u", (unsigned)config.lora.hop_limit);
+    snprintf(lbl[R_LORA], 48, "Region, preset, role");
+    snprintf(lbl[R_RXGAIN], 48, "RX boosted gain: %s", config.lora.sx126x_rx_boosted_gain ? "On" : "Off");
+    snprintf(lbl[R_IGNOREMQTT], 48, "Ignore MQTT: %s", config.lora.ignore_mqtt ? "On" : "Off");
+    for (int i = 0; i < R_COUNT; i++)
+        items[i] = lbl[i];
+    banner("Radio", items, R_COUNT, radioSel, [](int sel) -> void {
+        if (sel > 0)
+            radioSel = sel;
+        switch (sel) {
+        case R_TX:
+            queue(MS_TXPOWER);
+            break;
+        case R_HOPS:
+            queue(MS_HOPS);
+            break;
+        case R_LORA:
+            queue(MS_LORA);
+            break;
+        case R_RXGAIN: // better RX sensitivity for a little more current; toggle in place
+            config.lora.sx126x_rx_boosted_gain = !config.lora.sx126x_rx_boosted_gain;
+            service->reloadConfig(SEGMENT_CONFIG);
+            queue(MS_RADIO);
+            break;
+        case R_IGNOREMQTT: // drop packets that arrived via MQTT (LoRa-only mesh)
+            config.lora.ignore_mqtt = !config.lora.ignore_mqtt;
+            service->reloadConfig(SEGMENT_CONFIG);
+            queue(MS_RADIO);
+            break;
+        default:
+            queue(MS_MAIN);
+            break;
+        }
+    });
+}
+static void showBehavior()
+{
+    enum { B_BACK, B_REBROADCAST, B_NODEINFO, B_NEIGHBOR, B_TELEMETRY, B_COUNT };
+    static char lbl[B_COUNT][48];
+    static const char *items[B_COUNT];
+    snprintf(lbl[B_BACK], 48, "Back");
+    snprintf(lbl[B_REBROADCAST], 48, "Rebroadcast: %s", rbName());
+    snprintf(lbl[B_NODEINFO], 48, "Node-info every: %s", niName());
+    snprintf(lbl[B_NEIGHBOR], 48, "Neighbor info: %s", nbName());
+    snprintf(lbl[B_TELEMETRY], 48, "Telemetry every: %s", tmName());
+    for (int i = 0; i < B_COUNT; i++)
+        items[i] = lbl[i];
+    banner("Mesh behavior", items, B_COUNT, behaviorSel, [](int sel) -> void {
+        if (sel > 0)
+            behaviorSel = sel;
+        switch (sel) {
+        case B_REBROADCAST:
+            queue(MS_REBROADCAST);
+            break;
+        case B_NODEINFO:
+            queue(MS_NODEINFO);
+            break;
+        case B_NEIGHBOR:
+            queue(MS_NEIGHBOR);
+            break;
+        case B_TELEMETRY:
+            queue(MS_TELEMETRY);
+            break;
+        default:
+            queue(MS_MAIN);
+            break;
+        }
+    });
+}
+
+// ---- power / sleep ----------------------------------------------------------------------------
+static void showPowerSave()
+{
+    static const char *items[] = {"Back", "Off (default)", "On"};
+    banner("Power saving\n(sleep between activity)", items, 3, config.power.is_power_saving ? 2 : 1,
+           [](int sel) -> void {
+               if (sel > 0) {
+                   bool want = sel == 2;
+                   if (config.power.is_power_saving != want) {
+                       config.power.is_power_saving = want;
+                       service->reloadConfig(SEGMENT_CONFIG);
+                       note("Power saving saved");
+                   }
+               }
+               queue(MS_POWER);
+           });
+}
+static const uint32_t SD_SECS[] = {0, 1800, 3600, 7200, 14400}; // 0 = never
+static const char *const SD_NAMES[] = {"Never", "30 min", "1 hour", "2 hours", "4 hours"};
+static const int NSD = sizeof(SD_SECS) / sizeof(SD_SECS[0]);
+static const char *sdName()
+{
+    uint32_t v = config.power.on_battery_shutdown_after_secs;
+    for (int i = 0; i < NSD; i++)
+        if (v == SD_SECS[i])
+            return SD_NAMES[i];
+    static char b[16];
+    if (v % 3600 == 0)
+        snprintf(b, sizeof(b), "%u hr", (unsigned)(v / 3600));
+    else
+        snprintf(b, sizeof(b), "%u min", (unsigned)((v + 59) / 60));
+    return b;
+}
+static void showShutdown()
+{
+    static const char *items[NSD + 1];
+    items[0] = "Back";
+    int selected = 1;
+    for (int i = 0; i < NSD; i++) {
+        items[i + 1] = SD_NAMES[i];
+        if (config.power.on_battery_shutdown_after_secs == SD_SECS[i])
+            selected = i + 1;
+    }
+    banner("Shutdown on battery\n(auto power-off)", items, NSD + 1, selected, [](int sel) -> void {
+        if (sel > 0 && config.power.on_battery_shutdown_after_secs != SD_SECS[sel - 1]) {
+            config.power.on_battery_shutdown_after_secs = SD_SECS[sel - 1];
+            service->reloadConfig(SEGMENT_CONFIG);
+            note("Shutdown timer saved");
+        }
+        queue(MS_POWER);
+    });
+}
+static int powerSel = 1;
+static void showPower()
+{
+    enum { P_BACK, P_SAVE, P_SHUTDOWN, P_COUNT };
+    static char lbl[P_COUNT][48];
+    static const char *items[P_COUNT];
+    snprintf(lbl[P_BACK], 48, "Back");
+    snprintf(lbl[P_SAVE], 48, "Power saving: %s", config.power.is_power_saving ? "On" : "Off");
+    snprintf(lbl[P_SHUTDOWN], 48, "Shutdown on batt: %s", sdName());
+    for (int i = 0; i < P_COUNT; i++)
+        items[i] = lbl[i];
+    banner("Power", items, P_COUNT, powerSel, [](int sel) -> void {
+        if (sel > 0)
+            powerSel = sel;
+        switch (sel) {
+        case P_SAVE:
+            queue(MS_POWERSAVE);
+            break;
+        case P_SHUTDOWN:
+            queue(MS_SHUTDOWN);
+            break;
+        default:
+            queue(MS_MAIN);
+            break;
+        }
+    });
+}
+
 // ---- the menu ---------------------------------------------------------------------------------
 static void showMain()
 {
-    enum { I_BACK, I_LONG, I_SHORT, I_CHANNELS, I_SENDTO, I_TX, I_HOPS, I_CANNED, I_LORA, I_BT, I_COUNT };
+    enum { I_BACK, I_LONG, I_SHORT, I_CHANNELS, I_SENDTO, I_RADIO, I_BEHAVIOR, I_POWER, I_CANNED, I_BT, I_COUNT };
     static char lbl[I_COUNT][48];
     static const char *items[I_COUNT];
     snprintf(lbl[I_BACK], 48, "Back");
@@ -723,10 +1046,10 @@ static void showMain()
     snprintf(lbl[I_SHORT], 48, "Short name: %s", owner.short_name);
     snprintf(lbl[I_CHANNELS], 48, "Channels");
     snprintf(lbl[I_SENDTO], 48, "Send messages to: %s", meshSendChannelName());
-    snprintf(lbl[I_TX], 48, "Transmit power: %s", txName());
-    snprintf(lbl[I_HOPS], 48, "Hop limit: %u", (unsigned)config.lora.hop_limit);
+    snprintf(lbl[I_RADIO], 48, "Radio (power, hops, region)");
+    snprintf(lbl[I_BEHAVIOR], 48, "Mesh behavior");
+    snprintf(lbl[I_POWER], 48, "Power");
     snprintf(lbl[I_CANNED], 48, "Quick-send messages");
-    snprintf(lbl[I_LORA], 48, "Region, preset, role");
     snprintf(lbl[I_BT], 48, "Bluetooth on/off");
     for (int i = 0; i < I_COUNT; i++)
         items[i] = lbl[i];
@@ -747,18 +1070,18 @@ static void showMain()
         case I_SENDTO:
             queue(MS_SENDTO);
             break;
-        case I_TX:
-            queue(MS_TXPOWER);
+        case I_RADIO:
+            queue(MS_RADIO);
             break;
-        case I_HOPS:
-            queue(MS_HOPS);
+        case I_BEHAVIOR:
+            queue(MS_BEHAVIOR);
+            break;
+        case I_POWER:
+            queue(MS_POWER);
             break;
         case I_CANNED:
             cannedListSel = 1;
             queue(MS_CANNED);
-            break;
-        case I_LORA:
-            queue(MS_LORA);
             break;
         case I_BT:
             queue(MS_BT);
@@ -803,11 +1126,38 @@ void meshSettingsPoll()
     case MS_SENDTO:
         showSendTo();
         break;
+    case MS_RADIO:
+        showRadio();
+        break;
+    case MS_BEHAVIOR:
+        showBehavior();
+        break;
+    case MS_POWER:
+        showPower();
+        break;
+    case MS_POWERSAVE:
+        showPowerSave();
+        break;
+    case MS_SHUTDOWN:
+        showShutdown();
+        break;
     case MS_TXPOWER:
         showTxPower();
         break;
     case MS_HOPS:
         showHops();
+        break;
+    case MS_REBROADCAST:
+        showRebroadcast();
+        break;
+    case MS_NODEINFO:
+        showNodeInfo();
+        break;
+    case MS_NEIGHBOR:
+        showNeighbor();
+        break;
+    case MS_TELEMETRY:
+        showTelemetry();
         break;
     case MS_CANNED:
         showCanned();

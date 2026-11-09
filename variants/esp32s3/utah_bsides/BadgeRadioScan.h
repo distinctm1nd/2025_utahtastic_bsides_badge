@@ -72,5 +72,7 @@ bool radioDroneGet(const uint8_t *mac, DroneInfo &out);
 // last one), and distinct addresses sending pairing pop-up adverts in the last 10 s
 int radioDeauthRecent(uint8_t *channel);
 int radioPopupSpamRecent();
+int radioPwnagotchiRecent(); // pwnagotchi beacons heard recently (WiFi)
+int radioFlipperRecent();    // distinct Flipper Zeros heard recently (BLE)
 
 } // namespace badge

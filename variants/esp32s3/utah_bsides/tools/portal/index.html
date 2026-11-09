@@ -115,6 +115,23 @@ input.search{width:100%;box-sizing:border-box;background:#0e0e0d;border:1px soli
     <label>QR code: Text (the "Text" card)</label><input type="text" id="s-qrtext" maxlength="199">
     <button class="go" id="setsave">Save to the badge</button><p id="setmsg"></p>
   </div>
+  <div class="card" id="meshform">
+    <b>Meshtastic network</b>
+    <p class="mut">WiFi and MQTT &mdash; type them here instead of the phone app. <b>WiFi changes take effect after the badge reboots</b>, and turning WiFi on disables Bluetooth on this badge.</p>
+    <label><input type="checkbox" id="mc-wifiEnabled"> WiFi enabled</label>
+    <label>WiFi network (SSID)</label><input type="text" id="mc-wifiSsid" maxlength="32">
+    <label>WiFi password</label><input type="text" id="mc-wifiPsk" maxlength="64">
+    <label>NTP server</label><input type="text" id="mc-ntp" maxlength="32" placeholder="pool.ntp.org">
+    <label><input type="checkbox" id="mc-mqttEnabled"> MQTT enabled</label>
+    <label>MQTT server</label><input type="text" id="mc-mqttAddr" maxlength="63" placeholder="mqtt.meshtastic.org">
+    <label>MQTT username</label><input type="text" id="mc-mqttUser" maxlength="63">
+    <label>MQTT password</label><input type="text" id="mc-mqttPass" maxlength="31">
+    <label>MQTT root topic</label><input type="text" id="mc-mqttRoot" maxlength="31" placeholder="msh">
+    <label><input type="checkbox" id="mc-mqttTls"> MQTT use TLS</label>
+    <label><input type="checkbox" id="mc-mqttJson"> MQTT JSON output</label>
+    <label><input type="checkbox" id="mc-mqttEncrypt"> MQTT encryption enabled</label>
+    <button class="go" id="meshsave">Save to the badge</button><p id="meshmsg"></p>
+  </div>
 </section>
 
 <section id="t-msg">
@@ -191,7 +208,7 @@ let info={},liveTimer=0,misses=0;
 // every successful request so active use (scanning, saving) never trips the offline banner.
 function markAlive(){misses=0;const d=$("dot");if(d)d.classList.remove("off");const o=$("offline");if(o)o.classList.remove("on")}
 function show(t){for(const[k]of TABS){$("t-"+k).classList.toggle("on",k===t);$("b-"+k).classList.toggle("on",k===t)}$("b-"+t).scrollIntoView({block:"nearest",inline:"nearest"});
-  clearInterval(liveTimer);if(t==="live"){live();liveTimer=setInterval(live,2000)}if(t==="map"){loadMap();liveTimer=setInterval(loadMap,15000)}if(t==="pics")loadPics();if(t==="rules")loadRules();if(t==="home")loadHome();if(t==="set")loadSettings();if(t==="msg")loadNodes();if(t==="log")loadLog()}
+  clearInterval(liveTimer);if(t==="live"){live();liveTimer=setInterval(live,2000)}if(t==="map"){loadMap();liveTimer=setInterval(loadMap,15000)}if(t==="pics")loadPics();if(t==="rules")loadRules();if(t==="home")loadHome();if(t==="set"){loadSettings();loadMeshConfig()}if(t==="msg")loadNodes();if(t==="log")loadLog()}
 for(const[k,n]of TABS){const b=document.createElement("button");b.id="b-"+k;b.textContent=n;b.onclick=()=>show(k);$("tabs").appendChild(b)}
 const api=(u,o)=>fetch(u,o).then(r=>{markAlive();return r.ok?r.json():r.text().then(t=>{throw new Error(t||r.statusText)})});
 const post=(u,fields)=>api(u,{method:"POST",body:new URLSearchParams(fields)});
@@ -320,6 +337,9 @@ function loadSettings(){api("/api/settings").then(s=>{$("s-name").value=s.name;$
   $("s-scroll").checked=s.scroll;$("s-night").checked=s.night;$("s-tagawake").checked=s.tagawake;$("s-welcome").checked=s.welcome;$("s-home").checked=s.home;$("s-remote").checked=s.remote;$("s-canned").value=s.canned.split("|").join("\n");$("s-qrlink").value=s.qrlink||"";$("s-qrtext").value=s.qrtext||""})}
 function formValues(){const v={};for(const f of FIELDS){const e=$("s-"+f);v[f]=e.type==="checkbox"?(e.checked?1:0):e.value}v.canned=v.canned.split("\n").map(s=>s.trim()).filter(Boolean).join("|");return v}
 $("setsave").onclick=()=>post("/api/settings",formValues()).then(()=>say("setmsg","Saved")).catch(e=>say("setmsg",e.message,1));
+const MC_STR=["wifiSsid","wifiPsk","ntp","mqttAddr","mqttUser","mqttPass","mqttRoot"],MC_BOOL=["wifiEnabled","mqttEnabled","mqttTls","mqttJson","mqttEncrypt"];
+function loadMeshConfig(){api("/api/meshconfig").then(s=>{for(const f of MC_STR)$("mc-"+f).value=s[f]||"";for(const f of MC_BOOL)$("mc-"+f).checked=!!s[f]}).catch(e=>say("meshmsg",e.message,1))}
+$("meshsave").onclick=()=>{const v={};for(const f of MC_STR)v[f]=$("mc-"+f).value;for(const f of MC_BOOL)v[f]=$("mc-"+f).checked?1:0;post("/api/meshconfig",v).then(()=>say("meshmsg","Saved — reboot the badge to apply")).catch(e=>say("meshmsg",e.message,1))};
 $("bakget").onclick=()=>api("/api/settings").then(s=>{const keep={};for(const f of FIELDS)keep[f]=s[f];const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(keep,null,1)],{type:"application/json"}));a.download="badge-settings.json";a.click()});
 $("bakfile").onchange=()=>$("bakput").disabled=!$("bakfile").files.length;
 $("bakput").onclick=async()=>{try{const s=JSON.parse(await $("bakfile").files[0].text()),v={};for(const f of FIELDS)if(f in s)v[f]=typeof s[f]==="boolean"?(s[f]?1:0):s[f];await post("/api/settings",v);say("bakmsg","Restored")}catch(e){say("bakmsg",e.message,1)}};

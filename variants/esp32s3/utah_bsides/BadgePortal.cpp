@@ -332,6 +332,54 @@ static void settingsPost()
     sendJson("{}");
 }
 
+// Meshtastic network config (WiFi + MQTT) — the text-entry settings that are painful on the 12-key
+// pad, typed here from a browser so the phone app is optional. Saved to flash; WiFi/MQTT take
+// effect after the badge reboots.
+static void copyArg(const char *name, char *dst, size_t n)
+{
+    if (server->hasArg(name))
+        strlcpy(dst, server->arg(name).c_str(), n);
+}
+static void meshConfigGet()
+{
+    auto &n = config.network;
+    auto &m = moduleConfig.mqtt;
+    String o = "{";
+    o += String("\"wifiEnabled\":") + (n.wifi_enabled ? "true" : "false");
+    o += ",\"wifiSsid\":" + js(n.wifi_ssid);
+    o += ",\"wifiPsk\":" + js(n.wifi_psk);
+    o += ",\"ntp\":" + js(n.ntp_server);
+    o += String(",\"mqttEnabled\":") + (m.enabled ? "true" : "false");
+    o += ",\"mqttAddr\":" + js(m.address);
+    o += ",\"mqttUser\":" + js(m.username);
+    o += ",\"mqttPass\":" + js(m.password);
+    o += ",\"mqttRoot\":" + js(m.root);
+    o += String(",\"mqttTls\":") + (m.tls_enabled ? "true" : "false");
+    o += String(",\"mqttJson\":") + (m.json_enabled ? "true" : "false");
+    o += String(",\"mqttEncrypt\":") + (m.encryption_enabled ? "true" : "false");
+    sendJson(o + "}");
+}
+static void meshConfigPost()
+{
+    auto &n = config.network;
+    auto &m = moduleConfig.mqtt;
+    n.wifi_enabled = argInt("wifiEnabled", 0, 1, n.wifi_enabled);
+    copyArg("wifiSsid", n.wifi_ssid, sizeof(n.wifi_ssid));
+    copyArg("wifiPsk", n.wifi_psk, sizeof(n.wifi_psk));
+    copyArg("ntp", n.ntp_server, sizeof(n.ntp_server));
+    m.enabled = argInt("mqttEnabled", 0, 1, m.enabled);
+    copyArg("mqttAddr", m.address, sizeof(m.address));
+    copyArg("mqttUser", m.username, sizeof(m.username));
+    copyArg("mqttPass", m.password, sizeof(m.password));
+    copyArg("mqttRoot", m.root, sizeof(m.root));
+    m.tls_enabled = argInt("mqttTls", 0, 1, m.tls_enabled);
+    m.json_enabled = argInt("mqttJson", 0, 1, m.json_enabled);
+    m.encryption_enabled = argInt("mqttEncrypt", 0, 1, m.encryption_enabled);
+    nodeDB->saveToDisk(SEGMENT_CONFIG | SEGMENT_MODULECONFIG);
+    note("Mesh network saved");
+    sendJson("{}");
+}
+
 // ---- message -------------------------------------------------------------------------------
 static void nodes()
 {
@@ -619,6 +667,8 @@ const char *portalStart(char *ssid, size_t ns, char *pass, size_t np, char *addr
     server->on("/api/pics/fav", HTTP_POST, picFav);
     server->on("/api/settings", HTTP_GET, settingsGet);
     server->on("/api/settings", HTTP_POST, settingsPost);
+    server->on("/api/meshconfig", HTTP_GET, meshConfigGet);
+    server->on("/api/meshconfig", HTTP_POST, meshConfigPost);
     server->on("/api/nodes", HTTP_GET, nodes);
     server->on("/api/message", HTTP_POST, message);
     server->on("/api/hunt", HTTP_GET, hunt);
