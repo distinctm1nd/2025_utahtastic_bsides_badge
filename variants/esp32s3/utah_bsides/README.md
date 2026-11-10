@@ -93,7 +93,9 @@ The badges shipped with a copy of Meshtastic 2.5.12 with a patched LED thread, a
 - **Drone Remote ID**, a **turn-in-a-circle** direction finder, a **sub-GHz band scanner**,
   a **node radar** map, a **sightings log**, share-on-request, **be the fox**, **packet capture**
   for Wireshark.
-- **Packet Capture** for LoRa, WiFi and Bluetooth 
+- **Packet Capture** for LoRa, WiFi and Bluetooth
+- An opt-in, build-it-yourself **research build** with active WiFi/BT tools for learning and
+  authorized testing — never shipped, compiled out of the default badge (see *Research build*).
 
 **Security**
 - **Screen lock** with a PIN (salted hash); the badge re-locks after the boot intro, on sleep, and
@@ -1208,6 +1210,39 @@ Every signed build also makes `firmware-utah_bsides-*.update.bin`. On the badge:
 WiFi (phone)**, join the network it shows, open the address, **Update**, send the file, then
 press **#** on the badge. If an update misbehaves,
 install over USB / the web installer.
+
+### Research build (opt-in — authorized testing only)
+
+The badge is first and foremost a **defensive** tool. There is a separate, opt-in **research
+build** that adds ACTIVE WiFi/Bluetooth tools, for learning how the matching attacks work and for
+**authorized** security testing. It is **not** in the firmware served by the web flasher and is
+**not** a release download — it is never shipped. It exists only when you build it yourself.
+
+**Educational and authorized use only.** Use these tools only on networks and devices you own or
+have written permission to test. You alone are responsible for how you use them and for obeying all
+laws and event rules. The software is provided AS IS, with no warranty; the developer assumes **no
+liability** for misuse or any resulting damage. The firmware repeats this on a boot page and on a
+disclaimer gate you must accept before any tool runs.
+
+Build the `utah_bsides_research` PlatformIO env (the only thing that sets `BADGE_OFFENSIVE`) and
+flash over USB:
+
+```
+pio run -e utah_bsides_research
+pio run -e utah_bsides_research -t upload --upload-port /dev/ttyACM0
+```
+
+Research images are **unsigned by design**, so they can't be installed over WiFi/OTA (the badge
+only accepts updates signed by the badge team) — every update is a manual USB reflash. The default
+signed badge contains none of this code: it is compiled out entirely unless `BADGE_OFFENSIVE` is
+set, so a badge flashed from the web installer cannot run these tools.
+
+Tools, each behind the disclaimer plus a hold-to-fire confirmation: **targeted deauth**, **beacon
+spam** (fun names / rick-roll / clone-nearby), **probe flood**, **BLE pairing spam**, **probe
+sniffer** (device MAC + vendor, logs to `/badge/probes.csv`, with an active-lure line), **handshake
+grab**, **packet monitor**, and **wardrive** (`/badge/wardrive.csv`). The passive detectors that
+*spot* these attacks are in every build (see *Fox hunt and scanning*); only the active/transmit
+side is here.
 
 
 ## Updating to a new Meshtastic release
