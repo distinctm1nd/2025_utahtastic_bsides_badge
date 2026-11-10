@@ -1,3 +1,4 @@
+<!-- shown as the GitHub landing page via the .github/README.md symlink -->
 # Utah BSides 2025 badge ("UTAHtastic")
 
 Meshtastic firmware for the Utah BSides 2025 badge is a fork of
