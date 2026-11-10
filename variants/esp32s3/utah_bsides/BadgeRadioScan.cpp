@@ -11,6 +11,7 @@
 #include <BLEAdvertisedDevice.h>
 #include <BLEDevice.h>
 #include <BLEScan.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <algorithm>
 #include <esp_heap_caps.h>
@@ -115,6 +116,26 @@ static uint32_t hash32(const uint8_t *p, size_t n)
     return h | 1;
 }
 
+// Rough "does this SSID look like junk rather than a real network name?" test, to tell a scattershot
+// beacon-spam list (long / gibberish / emoji names) from the plausible names an evil-twin or karma
+// rig would clone. Not exact; it is only a lean.
+static bool looksJunkName(const char *s)
+{
+    if (!s || !s[0])
+        return false; // hidden/empty: no opinion
+    int len = 0, vowels = 0;
+    for (const char *p = s; *p; p++, len++) {
+        uint8_t c = (uint8_t)*p;
+        if (c < 0x20 || c >= 0x7F)
+            return true; // control / emoji / non-ASCII byte: spam-list flavour
+        if (strchr("aeiouAEIOU", c))
+            vowels++;
+    }
+    if (len > 24)
+        return true;                   // real SSIDs are rarely this long
+    return len >= 6 && vowels == 0;    // a longish name with no vowels reads as random gibberish
+}
+
 static void record(const uint8_t *mac, const char *name, int rssi, uint8_t chan, uint16_t company, bool publicAddr,
                    const Extra *x)
 {
@@ -157,6 +178,8 @@ static void record(const uint8_t *mac, const char *name, int rssi, uint8_t chan,
         if (x->ssidHash && x->ssidHash != e.ssidHash) {
             if (e.names < 255)
                 e.names++;
+            if (looksJunkName(e.name) && e.junkNames < 255)
+                e.junkNames++; // tally junk-looking names so the UI can lean spam vs evil-twin
             e.ssidHash = x->ssidHash;
         }
         if (e.names >= 3)
@@ -172,10 +195,28 @@ static void record(const uint8_t *mac, const char *name, int rssi, uint8_t chan,
 struct Hit {
     uint32_t id, ms;
 };
-static Hit deauths[64], popups[64], pwns[64], flips[64];
-static int deauthHead = 0, popupHead = 0, pwnHead = 0, flipHead = 0;
+static Hit deauths[64], popups[64], pwns[64], flips[64], findmys[64];
+static int deauthHead = 0, popupHead = 0, pwnHead = 0, flipHead = 0, findmyHead = 0;
 static uint8_t deauthChan = 0;
+static uint8_t deauthBssid[6] = {0}; // BSSID of the last deauth/disassoc (the AP being spoofed/attacked)
+static uint8_t deauthDest[6] = {0};  // addr1 of the last deauth: broadcast = mass, else a targeted victim
 static const uint8_t PWN_MAC[6] = {0xde, 0xad, 0xbe, 0xef, 0xde, 0xad}; // pwnagotchi beacon source
+
+// lure watch (all builds): recently beaconed (SSID-hash, BSSID) pairs; a device probing for one of
+// these names while its BSSID is beaconing 3+ names (karma-suspect) is an active lure in progress.
+struct BHash {
+    uint32_t hash;
+    uint8_t bssid[6];
+    uint32_t ms;
+};
+static BHash g_bhash[24];
+struct LureSeen {
+    char ssid[33];
+    uint8_t bssid[6];
+    uint32_t ms;
+    bool set;
+};
+static LureSeen g_lure = {};
 
 static void addHit(Hit *ring, int &head, uint32_t id, bool distinct)
 {
@@ -207,6 +248,120 @@ int radioDeauthRecent(uint8_t *channel)
     return countHits(deauths);
 }
 
+bool radioDeauthTarget(uint8_t *mac)
+{
+    if (countHits(deauths) == 0)
+        return false;
+    if (mac)
+        memcpy(mac, deauthBssid, 6); // the spoofed/attacked AP from the most recent deauth
+    return true;
+}
+
+bool radioDeauthDest(uint8_t *dest)
+{
+    if (countHits(deauths) == 0)
+        return false;
+    if (dest)
+        memcpy(dest, deauthDest, 6);
+    static const uint8_t BCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    return memcmp(deauthDest, BCAST, 6) != 0; // true = aimed at one client (targeted), not a mass deauth
+}
+
+bool radioLureRecent(char *ssid, size_t n, uint8_t *bssid)
+{
+    if (!g_lure.set || !Throttle::isWithinTimespanMs(g_lure.ms, 30000))
+        return false;
+    if (ssid && n)
+        snprintf(ssid, n, "%s", g_lure.ssid);
+    if (bssid)
+        memcpy(bssid, g_lure.bssid, 6);
+    return true;
+}
+
+// Known attack-tool default SSIDs: catches a lazily-configured rig by name before it trips the
+// multi-name karma threshold. Case-insensitive substring match; returns the tool name or nullptr.
+const char *rogueApTool(const char *ssid)
+{
+    if (!ssid || !ssid[0])
+        return nullptr;
+    static const struct {
+        const char *needle, *tool;
+    } SIGS[] = {{"pineapple", "Pineapple"}, {"pineap", "Pineapple"}, {"mana", "MANA"},
+                {"evilportal", "EvilPortal"}, {"evil portal", "EvilPortal"}, {"wifipumpkin", "wifipumpkin"},
+                {"wifiphisher", "Wifiphisher"}, {"fluxion", "Fluxion"}, {"airbase", "airbase-ng"}};
+    char low[33];
+    int i = 0;
+    for (; ssid[i] && i < 32; i++)
+        low[i] = (ssid[i] >= 'A' && ssid[i] <= 'Z') ? ssid[i] + 32 : ssid[i];
+    low[i] = 0;
+    for (auto &s : SIGS)
+        if (strstr(low, s.needle))
+            return s.tool;
+    return nullptr;
+}
+
+// ---- "my networks" (targeted evil-twin watch) ----------------------------------------------
+// A newline-separated list of SSIDs the user owns, set via the Badge WiFi portal and kept in NVS.
+static char g_myNets[200]; // cached copy of the NVS list; myNetMatch runs per-AP, so avoid flash reads
+static bool g_myNetsLoaded = false;
+static void myNetsLoad()
+{
+    if (g_myNetsLoaded)
+        return;
+    g_myNets[0] = 0;
+    Preferences p;
+    if (p.begin("utah", true)) {
+        p.getString("mynets", g_myNets, sizeof(g_myNets));
+        p.end();
+    }
+    g_myNetsLoaded = true;
+}
+void myNetsGet(char *out, size_t n)
+{
+    myNetsLoad();
+    snprintf(out, n, "%s", g_myNets);
+}
+void myNetsSet(const char *csv)
+{
+    snprintf(g_myNets, sizeof(g_myNets), "%s", csv ? csv : "");
+    g_myNetsLoaded = true; // keep the cache in step with what we just wrote
+    Preferences p;
+    if (p.begin("utah", false)) {
+        p.putString("mynets", g_myNets);
+        p.end();
+    }
+}
+// The one canonical threat-type list + index. evIndex (events.csv dedup) and typeIndex (LED mask)
+// both call this, so they can never drift out of step and dedupe the wrong types.
+int threatTypeIndex(const char *t)
+{
+    static const char *const codes[THREAT_TYPE_COUNT] = {"DEAUTH", "KARMA",  "SPAM", "TWIN",
+                                                         "FLOOD",  "FOLLOW", "PWN",  "PAIR",
+                                                         "HID",    "LURE",   "ROGUE", "MYTWIN"};
+    for (int i = 0; i < THREAT_TYPE_COUNT; i++)
+        if (!strcmp(t, codes[i]))
+            return i;
+    return THREAT_TYPE_COUNT - 1;
+}
+
+bool myNetMatch(const char *ssid)
+{
+    if (!ssid || !ssid[0])
+        return false;
+    myNetsLoad();
+    if (!g_myNets[0])
+        return false;
+    char list[200];
+    snprintf(list, sizeof(list), "%s", g_myNets); // strtok needs a mutable copy
+    for (char *tok = strtok(list, "\r\n"); tok; tok = strtok(nullptr, "\r\n")) {
+        while (*tok == ' ')
+            tok++;
+        if (*tok && strcmp(tok, ssid) == 0) // exact SSID match (case-sensitive, like real SSIDs)
+            return true;
+    }
+    return false;
+}
+
 int radioPopupSpamRecent()
 {
     return countHits(popups);
@@ -220,6 +375,35 @@ int radioPwnagotchiRecent()
 int radioFlipperRecent()
 {
     return countHits(flips);
+}
+
+int radioFindMyRecent()
+{
+    return countHits(findmys);
+}
+
+// The live AP beaconing the most different network names (karma / Pineapple / MANA signature: one
+// radio answering as many SSIDs). Returns that name count, 0 if none is flagged, and fills in the
+// worst offender's BSSID and channel. A legit multi-SSID router sits at a few names and stays
+// there; a karma/MANA rig keeps inventing names, so the count itself is the severity.
+int radioKarmaWorst(uint8_t *mac, uint8_t *channel)
+{
+    int worst = 0, wi = -1;
+    portENTER_CRITICAL(&lock);
+    for (int i = 0; i < used; i++)
+        if ((table[i].flags & SF_MANYNAMES) && Throttle::isWithinTimespanMs(table[i].seenMs, STALE_MS) &&
+            table[i].names > worst) {
+            worst = table[i].names;
+            wi = i;
+        }
+    if (wi >= 0) {
+        if (mac)
+            memcpy(mac, table[wi].mac, 6);
+        if (channel)
+            *channel = table[wi].channel;
+    }
+    portEXIT_CRITICAL(&lock);
+    return worst;
 }
 
 // ---- Bluetooth -----------------------------------------------------------------------------
@@ -344,10 +528,18 @@ class BleResults : public BLEAdvertisedDeviceCallbacks
         }
         bool popup = (company == 0x004C && (x.mfgByte == 0x07 || x.mfgByte == 0x0F)) || // Apple pairing / nearby action
                      (company == 0x0006 && x.mfgByte == 0x03);                          // Microsoft Swift Pair
+        // HID peripheral advertising nearby (keyboard/mouse) = possible BLE keystroke-injection rig.
+        if (d.haveAppearance() && (d.getAppearance() & 0xFFC0) == 0x03C0) // 0x03C0-03FF: HID category
+            x.flags |= SF_HID;
         for (int i = 0; i < d.getServiceUUIDCount(); i++) {
             BLEUUID u = d.getServiceUUID(i);
-            if (x.nServices < 3 && u.bitSize() == 16)
-                x.services[x.nServices++] = u.getNative()->u16.value;
+            if (u.bitSize() == 16) {
+                uint16_t v16 = u.getNative()->u16.value;
+                if (v16 == 0x1812) // Human Interface Device service
+                    x.flags |= SF_HID;
+                if (x.nServices < 3)
+                    x.services[x.nServices++] = v16;
+            }
         }
         for (int i = 0; i < d.getServiceDataCount(); i++) {
             BLEUUID u = d.getServiceDataUUID(i);
@@ -382,6 +574,11 @@ class BleResults : public BLEAdvertisedDeviceCallbacks
         if (company == 0x0FBA) { // Flipper Zero (BLE manufacturer ID 0x0FBA)
             portENTER_CRITICAL(&lock);
             addHit(flips, flipHead, hash32(mac, 6), true);
+            portEXIT_CRITICAL(&lock);
+        }
+        if (x.flags & (SF_FINDMY | SF_FMDN)) { // count distinct Find My advertisers, to spot a spoof flood
+            portENTER_CRITICAL(&lock);
+            addHit(findmys, findmyHead, hash32(mac, 6), true);
             portEXIT_CRITICAL(&lock);
         }
         if (captureBleOn() || captureStreamKind() == STREAM_BLE)
@@ -428,6 +625,31 @@ static void nanFrame(const uint8_t *p, int len, int rssi, uint8_t chan)
     }
 }
 
+// How many different names a BSSID has beaconed (its karma name count), from the scan table.
+static int bssidNames(const uint8_t *mac)
+{
+    for (int i = 0; i < used; i++)
+        if (memcmp(table[i].mac, mac, 6) == 0)
+            return table[i].names;
+    return 0;
+}
+// Remember a beaconed (SSID-hash, BSSID) pair for the lure cross-check (call under lock).
+static void bhashPush(uint32_t hash, const uint8_t *bssid, uint32_t now)
+{
+    int oldest = 0;
+    for (int i = 0; i < 24; i++) {
+        if (g_bhash[i].hash == hash && memcmp(g_bhash[i].bssid, bssid, 6) == 0) {
+            g_bhash[i].ms = now; // already have it: refresh
+            return;
+        }
+        if (g_bhash[i].ms < g_bhash[oldest].ms)
+            oldest = i;
+    }
+    g_bhash[oldest].hash = hash;
+    memcpy(g_bhash[oldest].bssid, bssid, 6);
+    g_bhash[oldest].ms = now;
+}
+
 static void IRAM_ATTR wifiFrame(void *buf, wifi_promiscuous_pkt_type_t type)
 {
     const wifi_promiscuous_pkt_t *pkt = (const wifi_promiscuous_pkt_t *)buf;
@@ -444,7 +666,31 @@ static void IRAM_ATTR wifiFrame(void *buf, wifi_promiscuous_pkt_type_t type)
         portENTER_CRITICAL_ISR(&lock);
         addHit(deauths, deauthHead, millis(), false);
         deauthChan = pkt->rx_ctrl.channel;
+        memcpy(deauthBssid, p + 16, 6); // addr3 = BSSID the frame claims to come from (the attacked AP)
+        memcpy(deauthDest, p + 4, 6);   // addr1 = who it is aimed at (broadcast = mass; else one victim)
         portEXIT_CRITICAL_ISR(&lock);
+        return;
+    }
+    if (subtype == 0x4) { // probe request: lure cross-check (passive, all builds)
+        if (len >= 26 && p[24] == 0x00) {
+            int slen = p[25];
+            if (slen > 0 && slen <= 32 && len >= 26 + slen) {
+                uint32_t ph = hash32(p + 26, slen);
+                uint32_t now = millis();
+                portENTER_CRITICAL_ISR(&lock);
+                for (int i = 0; i < 24; i++)
+                    if (g_bhash[i].hash == ph && Throttle::isWithinTimespanMs(g_bhash[i].ms, 60000) &&
+                        bssidNames(g_bhash[i].bssid) >= 3) {
+                        memcpy(g_lure.ssid, p + 26, slen); // a karma-suspect AP is beaconing a probed name
+                        g_lure.ssid[slen] = 0;
+                        memcpy(g_lure.bssid, g_bhash[i].bssid, 6);
+                        g_lure.ms = now;
+                        g_lure.set = true;
+                        break;
+                    }
+                portEXIT_CRITICAL_ISR(&lock);
+            }
+        }
         return;
     }
     if (subtype == 0xD) { // action frame: Remote ID over WiFi NAN
@@ -485,6 +731,11 @@ static void IRAM_ATTR wifiFrame(void *buf, wifi_promiscuous_pkt_type_t type)
     x.flags = ((capability & 0x0010) ? 0 : SF_OPEN) | (drone ? SF_DRONE : 0);
     x.ssidHash = ssid[0] ? hash32((const uint8_t *)ssid, strlen(ssid)) : 0;
     record(bssid, ssid, pkt->rx_ctrl.rssi, chan, NO_COMPANY, !(bssid[0] & 0x02), &x);
+    if (x.ssidHash) { // feed the lure cross-check: this BSSID is beaconing this name right now
+        portENTER_CRITICAL_ISR(&lock);
+        bhashPush(x.ssidHash, bssid, millis());
+        portEXIT_CRITICAL_ISR(&lock);
+    }
 }
 
 static void sniffStart()

@@ -725,8 +725,8 @@ static void showAlertSettings()
                 {AC_POLICE, "Police gear"}, {AC_SKIMMERS, "Skimmers"}, {AC_DRONES, "Drones"},
                 {AC_ATTACKS, "Attacks"}};
     static const int NCATS = sizeof(CATS) / sizeof(CATS[0]);
-    static char l[6 + NCATS][44];
-    static const char *items[6 + NCATS];
+    static char l[7 + NCATS][44];
+    static const char *items[7 + NCATS];
     int k = 0;
     snprintf(l[k++], 44, "Back");
     snprintf(l[k++], 44, "Alerts: %s", watchAlerts() ? "on" : "off");
@@ -745,6 +745,7 @@ static void showAlertSettings()
     else
         snprintf(l[k++], 44, "Quiet hours: %02d:00-%02d:00", qs, watchQuietEnd());
     snprintf(l[k++], 44, "Lists show faint devices: %s", watchListFaint() ? "yes" : "no");
+    snprintf(l[k++], 44, "Attack scan (bg): %s", watchAttackScan() ? "on" : "off");
     for (int i = 0; i < k; i++)
         items[i] = l[i];
     static int total;
@@ -775,8 +776,10 @@ static void showAlertSettings()
                 watchSetQuiet(21, 6);
             else
                 watchSetQuiet(-1, 7);
-        } else {
+        } else if (sel == 5 + NCATS) {
             watchSetListFaint(!watchListFaint());
+        } else {
+            watchSetAttackScan(!watchAttackScan()); // light background WiFi attack sweeps
         }
         queue(S_ALERTSET);
     });

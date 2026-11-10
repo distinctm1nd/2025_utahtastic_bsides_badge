@@ -30,6 +30,7 @@ struct Flagged {
     char code[6], title[44], name[34];
     bool near, following, moved, wifiKnown, wifi;
     int8_t best;
+    int8_t trend; // recent-vs-baseline RSSI, dB: >0 getting closer
     int times;        // SEEN / AGAIN entries in the log
     uint32_t lastAgo; // seconds since last seen (0 = now / unknown)
     bool agoKnown;
@@ -232,6 +233,7 @@ class FlaggedApp : public App
             r->following = tv[i].following;
             r->moved = tv[i].moved;
             r->best = tv[i].best;
+            r->trend = tv[i].trend;
             r->wifiKnown = true;
             r->wifi = tv[i].wifi;
             r->lastAgo = tv[i].agoMs / 1000;
@@ -422,7 +424,10 @@ class FlaggedApp : public App
         } else if (!r.firstKnown) {
             line("Seen: time unknown (no clock then)");
         }
-        snprintf(b, sizeof(b), "Strongest: %d dBm%s", r.best, r.moved ? ", moved with you" : "");
+        const char *trendTxt = (r.near && r.trend >= 6)    ? ", getting closer"
+                               : (r.near && r.trend <= -6)  ? ", moving away"
+                                                            : "";
+        snprintf(b, sizeof(b), "Strongest: %d dBm%s%s", r.best, r.moved ? ", moved with you" : "", trendTxt);
         line(b);
         snprintf(b, sizeof(b), "%s%s%s", m && (m->flags & DEV_TRUSTED) ? "Trusted  " : "",
                  m && (m->flags & DEV_WATCH_HERE) ? "Watch: turns up  " : "",

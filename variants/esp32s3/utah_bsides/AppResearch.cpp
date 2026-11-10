@@ -45,8 +45,31 @@
 #include <esp_wifi.h>
 #include <string.h>
 
+#include "oui_vendors.h" // curated OUI->vendor table for the probe-sniffer device-ID view
+
 namespace badge
 {
+
+// Return a short vendor name for a MAC's OUI, or nullptr when it is a randomized (locally
+// administered) address or the OUI is not in the curated table. Binary search over OUI_TABLE.
+static const char *ouiVendor(const uint8_t mac[6])
+{
+    if (mac[0] & 0x02) // locally administered => randomized MAC, OUI is meaningless
+        return nullptr;
+    uint32_t oui = ((uint32_t)mac[0] << 16) | ((uint32_t)mac[1] << 8) | mac[2];
+    int lo = 0, hi = OUI_TABLE_LEN - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        uint32_t e = OUI_TABLE[mid] >> 8;
+        if (e == oui)
+            return OUI_VENDORS[OUI_TABLE[mid] & 0xFF];
+        if (e < oui)
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return nullptr;
+}
 
 // ---- disclaimer consent (NVS "utah" / "rschack") -------------------------------------------
 static bool disclaimerEverAccepted()
@@ -139,6 +162,21 @@ static const char *const BEACON_SSIDS[] = {
 };
 static const int NUM_BEACON_SSIDS = sizeof(BEACON_SSIDS) / sizeof(BEACON_SSIDS[0]);
 
+static const char *const RICK_ROLL_LYRICS[] = {
+    "01 Never gonna give you up",
+    "02 Never gonna let you down",
+    "03 Never gonna run around",
+    "04 and desert you",
+    "05 Never gonna make you cry",
+    "06 Never gonna say goodbye",
+    "07 Never gonna tell a lie",
+    "08 and hurt you"
+};
+static const int NUM_RICK_ROLL_LYRICS = sizeof(RICK_ROLL_LYRICS) / sizeof(RICK_ROLL_LYRICS[0]);
+
+static const char *const BEACON_MODES[] = {"Fun Names", "Rick Roll", "Clone Nearby"};
+static const int NUM_BEACON_MODES = sizeof(BEACON_MODES) / sizeof(BEACON_MODES[0]);
+
 // One 802.11 beacon (subtype 8) advertising `ssid` from `bssid` on `channel`.
 static int beaconOnce(const uint8_t bssid[6], const char *ssid, uint8_t channel)
 {
@@ -175,6 +213,49 @@ static int beaconOnce(const uint8_t bssid[6], const char *ssid, uint8_t channel)
     f[n++] = channel; // DS param (channel)
     return esp_wifi_80211_tx(WIFI_IF_STA, f, n, false) == ESP_OK ? 1 : 0;
 }
+
+static int probeFloodOnce(const uint8_t bssid[6], const char *ssid, uint8_t channel)
+{
+    esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+    uint8_t f[128];
+    int n = 0;
+    
+    // 802.11 Probe Request Header Setup: 
+    // Frame Control: 0x40 (Mgmt / Subtype 4), Duration: 0x0000, Destination: Broadcast (FF:FF:FF:FF:FF:FF)
+    const uint8_t hdr[] = {0x40, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    memcpy(f, hdr, sizeof(hdr));
+    n = sizeof(hdr);
+    
+    // Addr2: Source MAC address (Spoofed client MAC)
+    memcpy(f + n, bssid, 6);
+    n += 6; 
+    
+    // Addr3: BSSID Wildcard / Broadcast (FF:FF:FF:FF:FF:FF)
+    memset(f + n, 0xFF, 6);
+    n += 6; 
+    
+    // Sequence Control (0x0000)
+    f[n++] = 0x00;
+    f[n++] = 0x00; 
+    
+    // Information Element: SSID (ID: 0x00)
+    int slen = (int)strlen(ssid);
+    if (slen > 32)
+        slen = 32;
+    f[n++] = 0x00; // Element ID 0
+    f[n++] = (uint8_t)slen;
+    memcpy(f + n, ssid, slen);
+    n += slen; 
+    
+    // Information Element: Supported Rates (ID: 0x01)
+    const uint8_t rates[] = {0x01, 0x08, 0x82, 0x84, 0x8b, 0x96, 0x24, 0x30, 0x48, 0x6c};
+    memcpy(f + n, rates, sizeof(rates));
+    n += sizeof(rates); 
+    
+    // Transmit raw frame directly over the Station interface
+    return esp_wifi_80211_tx(WIFI_IF_STA, f, n, false) == ESP_OK ? 1 : 0;
+}
+
 
 // ---- BLE pairing-popup spam (NimBLE) -------------------------------------------------------
 // Apple "nearby action" / Google Fast Pair adverts with a fresh random address each time, so
@@ -309,15 +390,80 @@ struct Probe {
     uint8_t mac[6];
     int8_t rssi;
 };
-static const int MAX_PROBES = 24;
+static const int MAX_PROBES = 32;
 static Probe g_probes[MAX_PROBES];
 static volatile int g_nProbes = 0;
 static portMUX_TYPE g_probeLock = portMUX_INITIALIZER_UNLOCKED;
+
+// Dedup for the on-flash probe log (/badge/probes.csv): one hash per (MAC,SSID) already written
+// this session, so a pair is logged once. When the table fills, logging continues without dedup
+// (at worst a few duplicate rows the host can sort/uniq).
+static uint32_t g_probeLogged[512];
+static int g_probeLoggedCount = 0;
+static uint32_t probePairHash(const uint8_t mac[6], const char *ssid)
+{
+    uint32_t h = 2166136261u; // FNV-1a over MAC then SSID
+    for (int i = 0; i < 6; i++)
+        h = (h ^ mac[i]) * 16777619u;
+    for (const char *s = ssid; *s; s++)
+        h = (h ^ (uint8_t)*s) * 16777619u;
+    return h;
+}
+
+static uint32_t ssidHash32(const uint8_t *s, int n)
+{
+    uint32_t h = 2166136261u; // FNV-1a over the SSID bytes only (to match probes against beacons)
+    for (int i = 0; i < n; i++)
+        h = (h ^ s[i]) * 16777619u;
+    return h | 1;
+}
+
+// ---- active-lure cross-check ---------------------------------------------------------------
+// While sniffing probe requests we also watch beacons / probe responses: a ring of recently
+// beaconed (BSSID, SSID-hash) pairs. If a device probes for a name that a BSSID beaconing 3+
+// different names (karma-suspect) is advertising right now, that is an active lure in progress.
+struct BeaconSeen {
+    uint8_t bssid[6];
+    uint32_t hash;
+    uint32_t ms;
+};
+static const int MAX_BSEEN = 64;
+static BeaconSeen g_bseen[MAX_BSEEN];
+static volatile int g_nBseen = 0;
+struct LureHit {
+    char ssid[33];
+    uint8_t bssid[6];
+    uint32_t ms;
+};
+static volatile bool g_lureSet = false;
+static LureHit g_lure;
+
+// Count distinct SSID hashes a BSSID has beaconed (its karma "name count") within the ring.
+static int bssidNameCount(const uint8_t bssid[6])
+{
+    uint32_t seen[8];
+    int ns = 0;
+    for (int i = 0; i < g_nBseen; i++) {
+        if (memcmp(g_bseen[i].bssid, bssid, 6) != 0)
+            continue;
+        bool dup = false;
+        for (int j = 0; j < ns; j++)
+            if (seen[j] == g_bseen[i].hash) {
+                dup = true;
+                break;
+            }
+        if (!dup && ns < (int)(sizeof(seen) / sizeof(seen[0])))
+            seen[ns++] = g_bseen[i].hash;
+    }
+    return ns;
+}
 
 static void probeReset()
 {
     portENTER_CRITICAL(&g_probeLock);
     g_nProbes = 0;
+    g_nBseen = 0;
+    g_lureSet = false;
     portEXIT_CRITICAL(&g_probeLock);
 }
 static void IRAM_ATTR probeCb(void *buf, wifi_promiscuous_pkt_type_t type)
@@ -326,16 +472,58 @@ static void IRAM_ATTR probeCb(void *buf, wifi_promiscuous_pkt_type_t type)
         return;
     const wifi_promiscuous_pkt_t *pkt = (const wifi_promiscuous_pkt_t *)buf;
     const uint8_t *p = pkt->payload;
-    if ((p[0] & 0x0C) != 0x00 || (p[0] >> 4) != 0x04) // mgmt frame, subtype 4 (probe request)
+    int flen = pkt->rx_ctrl.sig_len;
+    if ((p[0] & 0x0C) != 0x00) // management frame
         return;
-    if (p[24] != 0x00) // first tagged parameter must be the SSID element
+    uint8_t subtype = p[0] >> 4;
+
+    if (subtype == 0x8 || subtype == 0x5) { // beacon / probe response: SSID element after the 12-byte body
+        if (flen < 38 || p[36] != 0x00)     // first tagged parameter must be the SSID element
+            return;
+        int slen = p[37];
+        if (slen <= 0 || slen > 32 || flen < 38 + slen)
+            return;
+        const uint8_t *bssid = p + 16; // addr3
+        uint32_t h = ssidHash32(p + 38, slen);
+        uint32_t now = millis();
+        portENTER_CRITICAL(&g_probeLock);
+        int bi = -1;
+        for (int i = 0; i < g_nBseen; i++)
+            if (memcmp(g_bseen[i].bssid, bssid, 6) == 0 && g_bseen[i].hash == h) {
+                bi = i;
+                break;
+            }
+        if (bi < 0) {
+            bi = g_nBseen < MAX_BSEEN ? g_nBseen++ : (MAX_BSEEN - 1);
+            memcpy(g_bseen[bi].bssid, bssid, 6);
+            g_bseen[bi].hash = h;
+        }
+        g_bseen[bi].ms = now;
+        portEXIT_CRITICAL(&g_probeLock);
+        return;
+    }
+
+    if ((p[0] >> 4) != 0x04) // from here: probe request (subtype 4) only
+        return;
+    if (flen < 26 || p[24] != 0x00) // need the SSID element header in-bounds; first tag must be SSID
         return;
     int slen = p[25];
-    if (slen <= 0 || slen > 32) // wildcard probe or junk
+    if (slen <= 0 || slen > 32 || flen < 26 + slen) // wildcard probe, junk, or SSID runs past the frame
         return;
     const uint8_t *src = p + 10;  // addr2 (the probing device)
     const uint8_t *ssid = p + 26; // SSID bytes
+    uint32_t ph = ssidHash32(ssid, slen);
     portENTER_CRITICAL(&g_probeLock);
+    // Lure check: is this probed name being beaconed by a BSSID that is faking 3+ names (karma)?
+    for (int i = 0; i < g_nBseen; i++)
+        if (g_bseen[i].hash == ph && bssidNameCount(g_bseen[i].bssid) >= 3) {
+            memcpy(g_lure.ssid, ssid, slen);
+            g_lure.ssid[slen] = 0;
+            memcpy(g_lure.bssid, g_bseen[i].bssid, 6);
+            g_lure.ms = millis();
+            g_lureSet = true;
+            break;
+        }
     for (int i = 0; i < g_nProbes; i++)
         if (memcmp(g_probes[i].mac, src, 6) == 0 && (int)strlen(g_probes[i].ssid) == slen &&
             memcmp(g_probes[i].ssid, ssid, slen) == 0) {
@@ -376,12 +564,13 @@ static const int MAX_APS = 32;
 
 class ResearchApp : public App
 {
-    enum Tool { T_DEAUTH, T_BEACON, T_BLE, T_PROBE, T_HANDSHAKE, T_PKTMON, T_WARDRIVE };
+    enum Tool { T_DEAUTH, T_BEACON, T_PROBEFLOOD, T_BLE, T_PROBE, T_HANDSHAKE, T_PKTMON, T_WARDRIVE };
     enum Phase { P_DISCLAIMER, P_LIST, P_PICK, P_CONFIRM, P_FIRE, P_PROBE };
     Phase phase = P_DISCLAIMER;
     Tool tool = T_DEAUTH;
     int sel = 0, top = 0;
     uint8_t hopCh = 1;              // probe sniffer / packet monitor channel hop
+    bool probeShowMac = false;         // probe sniffer: toggle SSID list vs device-MAC view
     uint32_t pktRate = 0, pktLast = 0; // packet monitor
 
     ScanEntry aps[MAX_APS];
@@ -395,12 +584,13 @@ class ResearchApp : public App
     uint8_t spamBssid[6] = {0}; // beacon: one BSSID per session (karma style)
     int ssidIdx = 0;
     int bleTarget = 2; // 0 Apple, 1 Android, 2 both
+    int beaconMode = 0; // 0 = Fun Names, 1 = Rick Roll, 2 = Clone Nearby
 
     uint32_t hashDownAt = 0;
     uint32_t frames = 0;
     uint32_t lastPoll = 0, lastPaint = 0, lastTx = 0;
 
-    static const int NUM_TOOLS = 8; // Back + 7 tools
+    static const int NUM_TOOLS = 9; // Back + 8 tools
     static const char *const TOOLS[NUM_TOOLS];
 
     void stopAll()
@@ -430,6 +620,17 @@ class ResearchApp : public App
             spamBssid[i] = esp_random() & 0xFF;
         spamBssid[0] = (spamBssid[0] & 0xFE) | 0x02; // locally-administered unicast
         ssidIdx = 0;
+        beaconMode = 0;
+        hashDownAt = 0;
+        phase = P_CONFIRM;
+    }
+    void startProbeFlood()
+    {
+        scanErr = radioScanStart(SCAN_WIFI);
+        for (int i = 0; i < 6; i++)
+            spamBssid[i] = esp_random() & 0xFF;
+        spamBssid[0] = (spamBssid[0] & 0xFE) | 0x02;
+        ssidIdx = 0;
         hashDownAt = 0;
         phase = P_CONFIRM;
     }
@@ -445,6 +646,7 @@ class ResearchApp : public App
         scanErr = radioScanStart(SCAN_WIFI); // brings WiFi + promiscuous up (if the badge owns WiFi)
         if (!scanErr) {
             probeReset();
+            g_probeLoggedCount = 0; // fresh dedup for this session's /badge/probes.csv logging
             esp_wifi_set_promiscuous_rx_cb(probeCb); // take over the RX callback for probe requests
         }
         hopCh = 1;
@@ -502,6 +704,55 @@ class ResearchApp : public App
             f.print(line);
             f.close();
         }
+    }
+
+    // Append any newly-seen (device MAC, probed SSID) pairs to /badge/probes.csv so a full list can
+    // be pulled per device over the Badge WiFi portal. Called from the probe-sniffer poll (not the
+    // RX callback, which runs in driver context and must not touch the filesystem).
+    void probeLog()
+    {
+        Probe local[MAX_PROBES];
+        int n;
+        portENTER_CRITICAL(&g_probeLock);
+        n = g_nProbes;
+        for (int i = 0; i < n; i++)
+            local[i] = g_probes[i];
+        portEXIT_CRITICAL(&g_probeLock);
+        int neu[MAX_PROBES], nNew = 0; // collect newly-seen pairs first, then write them in one go
+        for (int i = 0; i < n; i++) {
+            uint32_t h = probePairHash(local[i].mac, local[i].ssid);
+            bool seen = false;
+            for (int j = 0; j < g_probeLoggedCount; j++)
+                if (g_probeLogged[j] == h) {
+                    seen = true;
+                    break;
+                }
+            if (seen)
+                continue;
+            if (g_probeLoggedCount < (int)(sizeof(g_probeLogged) / sizeof(g_probeLogged[0])))
+                g_probeLogged[g_probeLoggedCount++] = h; // remember it; table full => allow re-logs
+            neu[nNew++] = i;
+        }
+        if (!nNew)
+            return;
+        concurrency::LockGuard g(spiLock); // open the file once for the whole batch, not per row
+        bool fresh = !FSCom.exists("/badge/probes.csv");
+        File f = FSCom.open("/badge/probes.csv", "a");
+        if (!f)
+            return;
+        if (fresh)
+            f.print("MAC,Randomized,Vendor,RSSI,SecondsUp,SSID\n");
+        for (int k = 0; k < nNew; k++) {
+            const uint8_t *m = local[neu[k]].mac;
+            bool rnd = (m[0] & 0x02) != 0;
+            const char *vend = rnd ? "random" : ouiVendor(m);
+            char line[96];
+            snprintf(line, sizeof(line), "%02X:%02X:%02X:%02X:%02X:%02X,%d,%s,%d,%lu,%s\n", m[0], m[1], m[2],
+                     m[3], m[4], m[5], rnd ? 1 : 0, vend ? vend : "?", local[neu[k]].rssi,
+                     (unsigned long)(millis() / 1000), local[neu[k]].ssid);
+            f.print(line);
+        }
+        f.close();
     }
 
     void refreshAps()
@@ -574,6 +825,8 @@ class ResearchApp : public App
                 if (tool == T_PKTMON) {
                     pktRate = (g_pktCount - pktLast) * 4; // per-250ms delta -> ~per-second rate
                     pktLast = g_pktCount;
+                } else if (tool == T_PROBE) {
+                    probeLog(); // flush new (MAC,SSID) pairs to flash before the RAM ring overflows
                 }
                 appRedraw();
             }
@@ -588,6 +841,8 @@ class ResearchApp : public App
                     radioScanFocus(tgtMac, tgtCh); // pin WiFi to the target channel
                 else if (tool == T_BLE)
                     bleFreeAdvertiser(); // drop the phone link so the badge can advertise
+                else if (tool == T_BEACON && beaconMode == 2)
+                    refreshAps(); // grab snapshot data for cloning targets
                 phase = P_FIRE;
                 appRedraw();
             } else if (hashDownAt && now - lastPaint > 150) {
@@ -600,7 +855,29 @@ class ResearchApp : public App
             if (tool == T_DEAUTH || tool == T_HANDSHAKE) {
                 frames += deauthBurst(tgtMac, tgtCh, BURST); // handshake: deauth to force reconnects
             } else if (tool == T_BEACON) {
-                frames += beaconOnce(spamBssid, BEACON_SSIDS[ssidIdx], 1);
+                const char *txSsid = "";
+                uint8_t txBssid[6];
+                memcpy(txBssid, spamBssid, 6);
+
+                if (beaconMode == 0) {
+                    txSsid = BEACON_SSIDS[ssidIdx];
+                    ssidIdx = (ssidIdx + 1) % NUM_BEACON_SSIDS;
+                } else if (beaconMode == 1) {
+                    txSsid = RICK_ROLL_LYRICS[ssidIdx];
+                    txBssid[5] = (uint8_t)ssidIdx; // sequence index to preserve sequential screen grouping
+                    ssidIdx = (ssidIdx + 1) % NUM_RICK_ROLL_LYRICS;
+                } else if (beaconMode == 2) {
+                    if (nAps > 0) {
+                        txSsid = aps[ssidIdx].name[0] ? aps[ssidIdx].name : "(hidden)";
+                        memcpy(txBssid, aps[ssidIdx].mac, 6);
+                        ssidIdx = (ssidIdx + 1) % nAps;
+                    } else {
+                        txSsid = "No APs Scanned";
+                    }
+                }
+                frames += beaconOnce(txBssid, txSsid, 1);
+            } else if (tool == T_PROBEFLOOD) {
+                frames += probeFloodOnce(spamBssid, BEACON_SSIDS[ssidIdx], 1);
                 ssidIdx = (ssidIdx + 1) % NUM_BEACON_SSIDS;
             } else if (tool == T_BLE && now - lastTx > BLE_GAP_MS) {
                 lastTx = now;
@@ -663,9 +940,12 @@ class ResearchApp : public App
                 } else if (sel == 6) {
                     tool = T_PKTMON;
                     startPktmon();
-                } else {
+                } else if (sel == 7) {
                     tool = T_WARDRIVE;
                     startWardrive();
+                } else {
+                    tool = T_PROBEFLOOD;
+                    startProbeFlood();
                 }
             }
             appRedraw();
@@ -709,6 +989,10 @@ class ResearchApp : public App
                 bleTarget = (bleTarget + 5 - 1) % 5;
             else if (tool == T_BLE && k == AK_DOWN)
                 bleTarget = (bleTarget + 1) % 5;
+            else if (tool == T_BEACON && k == AK_UP)
+                beaconMode = (beaconMode + NUM_BEACON_MODES - 1) % NUM_BEACON_MODES;
+            else if (tool == T_BEACON && k == AK_DOWN)
+                beaconMode = (beaconMode + 1) % NUM_BEACON_MODES;
             appRedraw();
             break;
 
@@ -725,6 +1009,8 @@ class ResearchApp : public App
             if (k == AK_STAR) {
                 stopAll();
                 phase = P_LIST;
+            } else if (k == AK_HASH && tool == T_PROBE) {
+                probeShowMac = !probeShowMac; // flip between SSID list and device-MAC view
             }
             appRedraw();
             break;
@@ -751,14 +1037,40 @@ class ResearchApp : public App
             drawFooter(d, x, y, disclaimerEverAccepted() ? "#: accept   *: exit" : "#: I agree   *: exit");
             break;
 
-        case P_LIST:
+        case P_LIST: {
             drawTitle(d, x, y, "Research tools");
-            for (int i = 0; i < NUM_TOOLS; i++) {
-                snprintf(b, sizeof(b), "%s%s", i == sel ? "> " : "  ", TOOLS[i]);
-                d->drawString(x + 2, ry + i * lh, b);
+            // The tool list is longer than the screen, so window it around the selection: keep
+            // `sel` visible and scroll the slice rather than drawing every item at a fixed offset
+            // (which pushed the last entries off the bottom, under the footer).
+            int rows = (d->height() - 2 * lh - 2) / lh; // list rows between title and footer
+            if (rows < 1)
+                rows = 1;
+            int first = 0;
+            if (NUM_TOOLS > rows) {
+                first = sel - rows / 2;
+                if (first < 0)
+                    first = 0;
+                if (first > NUM_TOOLS - rows)
+                    first = NUM_TOOLS - rows;
             }
+            int last = first + rows;
+            if (last > NUM_TOOLS)
+                last = NUM_TOOLS;
+            for (int i = first; i < last; i++) {
+                int row = i - first;
+                snprintf(b, sizeof(b), "%s%s", i == sel ? "> " : "  ", TOOLS[i]);
+                d->drawString(x + 2, ry + row * lh, b);
+            }
+            // Up/down arrows when there is more list off-screen in that direction.
+            d->setTextAlignment(TEXT_ALIGN_RIGHT);
+            if (first > 0)
+                d->drawString(x + d->width() - 2, ry, "^");
+            if (last < NUM_TOOLS)
+                d->drawString(x + d->width() - 2, ry + (rows - 1) * lh, "v");
+            d->setTextAlignment(TEXT_ALIGN_LEFT);
             drawFooter(d, x, y, "#: select   *: back");
             break;
+        }
 
         case P_PICK: {
             drawTitle(d, x, y, tool == T_HANDSHAKE ? "Handshake: pick AP" : "Deauth: pick AP");
@@ -807,8 +1119,15 @@ class ResearchApp : public App
                 d->drawString(x + 2, ry + 3 * lh, isWifiAvailable() ? "! Mesh WiFi ON - turn off" : "Needs Mesh WiFi off");
             } else if (tool == T_BEACON) {
                 drawTitle(d, x, y, "Beacon spam: confirm");
-                d->drawString(x + 2, ry, "Floods fake WiFi");
-                d->drawString(x + 2, ry + lh, "SSIDs on channel 1.");
+                snprintf(b, sizeof(b), "Mode: %s (up/dn)", BEACON_MODES[beaconMode]);
+                d->drawString(x + 2, ry, b);
+                d->drawString(x + 2, ry + lh, "Floods fake WiFi");
+                d->drawString(x + 2, ry + 2 * lh, "SSIDs on channel 1.");
+                d->drawString(x + 2, ry + 3 * lh, isWifiAvailable() ? "! Mesh WiFi ON - turn off" : "Needs Mesh WiFi off");
+            } else if (tool == T_PROBEFLOOD) {
+                drawTitle(d, x, y, "Probe flood: confirm");
+                d->drawString(x + 2, ry, "Floods fake probe");
+                d->drawString(x + 2, ry + lh, "requests on channel 1.");
                 d->drawString(x + 2, ry + 3 * lh, isWifiAvailable() ? "! Mesh WiFi ON - turn off" : "Needs Mesh WiFi off");
             } else {
                 drawTitle(d, x, y, "BLE spam: confirm");
@@ -842,7 +1161,16 @@ class ResearchApp : public App
                 d->drawString(x + 2, ry + 3 * lh, "get it via Badge WiFi");
             } else if (tool == T_BEACON) {
                 drawTitle(d, x, y, "Beacon: FIRING");
+                snprintf(b, sizeof(b), "mode: %s", BEACON_MODES[beaconMode]);
+                d->drawString(x + 2, ry, b);
                 snprintf(b, sizeof(b), "SSIDs sent: %lu", (unsigned long)frames);
+                d->drawString(x + 2, ry + lh, b);
+                d->drawString(x + 2, ry + 2 * lh, "ch 1, rotating names");
+                if (frames == 0)
+                    d->drawString(x + 2, ry + 3 * lh, isWifiAvailable() ? "0 TX: Mesh WiFi is ON" : "0 TX: radio busy?");
+            } else if (tool == T_PROBEFLOOD) {
+                drawTitle(d, x, y, "Probe flood: FIRING");
+                snprintf(b, sizeof(b), "probes sent: %lu", (unsigned long)frames);
                 d->drawString(x + 2, ry, b);
                 d->drawString(x + 2, ry + lh, "ch 1, rotating names");
                 if (frames == 0)
@@ -897,29 +1225,67 @@ class ResearchApp : public App
                 drawFooter(d, x, y, "scanning all ch   *: stop");
                 break;
             }
-            drawTitle(d, x, y, "Probe sniffer");
+            drawTitle(d, x, y, probeShowMac ? "Probe: device MAC" : "Probe: SSIDs");
             if (scanErr) {
                 d->drawString(x + 2, ry, scanErr);
                 drawFooter(d, x, y, "*: back");
                 break;
             }
-            Probe local[5];
+            // Snapshot the most-recent entries under the lock, newest last in the ring. Reserve the
+            // bottom row for the log-path hint so it stays visible while devices are listed.
+            int rows = (d->height() - 2 * lh - 2) / lh;
+            if (rows < 1)
+                rows = 1;
+            int hintRow = rows - 1;
+            int listRows = rows > 1 ? rows - 1 : rows;
+            int cap = listRows; // SSID view: 1 line each; MAC view: 2 lines each
+            if (probeShowMac)
+                cap = listRows / 2;
+            if (cap < 1)
+                cap = 1;
+            if (cap > MAX_PROBES)
+                cap = MAX_PROBES;
+            Probe local[MAX_PROBES];
             int ln = 0, total;
             portENTER_CRITICAL(&g_probeLock);
             total = g_nProbes;
-            int startI = total > 5 ? total - 5 : 0;
-            for (int i = startI; i < total && ln < 5; i++)
+            int startI = total > cap ? total - cap : 0;
+            for (int i = startI; i < total && ln < cap; i++)
                 local[ln++] = g_probes[i];
             portEXIT_CRITICAL(&g_probeLock);
             if (total == 0)
                 d->drawString(x + 2, ry, isWifiAvailable() ? "Mesh WiFi ON - turn off" : "listening (ch hop)...");
             for (int i = 0; i < ln; i++) {
-                char nm[20];
-                snprintf(nm, sizeof(nm), "%s", local[i].ssid);
-                snprintf(b, sizeof(b), "%-18s %d", nm, local[i].rssi);
-                d->drawString(x + 2, ry + i * lh, b);
+                const uint8_t *m = local[i].mac;
+                if (probeShowMac) {
+                    // Two lines per entry: the device MAC (with a randomized flag) then its vendor
+                    // (from the OUI) and the SSID it is probing for, so a MAC can be tied to both
+                    // who made the device and the network name it leaks.
+                    bool rnd = (m[0] & 0x02) != 0; // locally administered bit => randomized MAC
+                    snprintf(b, sizeof(b), "%02x:%02x:%02x:%02x:%02x:%02x%s %d", m[0], m[1], m[2], m[3], m[4],
+                             m[5], rnd ? " R" : "", local[i].rssi);
+                    d->drawString(x + 2, ry + (2 * i) * lh, b);
+                    const char *vend = rnd ? "random" : ouiVendor(m);
+                    snprintf(b, sizeof(b), "  %s %s", vend ? vend : "?", local[i].ssid);
+                    d->drawString(x + 2, ry + (2 * i + 1) * lh, b);
+                } else {
+                    char nm[20];
+                    snprintf(nm, sizeof(nm), "%s", local[i].ssid);
+                    snprintf(b, sizeof(b), "%-18s %d", nm, local[i].rssi);
+                    d->drawString(x + 2, ry + i * lh, b);
+                }
             }
-            snprintf(b, sizeof(b), "%d SSIDs  ch%d  *: stop", total, hopCh);
+            if (rows > 1) {
+                // An active lure (a karma AP answering a name a device just probed for) takes the
+                // bottom row when fresh; otherwise it shows the flash-logging destination.
+                bool lure = g_lureSet && (uint32_t)(millis() - g_lure.ms) < 30000;
+                if (lure)
+                    snprintf(b, sizeof(b), "! LURE %s<-%02X:%02X", g_lure.ssid, g_lure.bssid[4], g_lure.bssid[5]);
+                else
+                    snprintf(b, sizeof(b), "-> /badge/probes.csv");
+                d->drawString(x + 2, ry + hintRow * lh, b);
+            }
+            snprintf(b, sizeof(b), "%d seen ch%d #:%s *:stop", total, hopCh, probeShowMac ? "ssid" : "mac");
             drawFooter(d, x, y, b);
             break;
         }
@@ -930,7 +1296,8 @@ class ResearchApp : public App
 
 const char *const ResearchApp::TOOLS[ResearchApp::NUM_TOOLS] = {
     "Back",           "Targeted deauth", "Beacon spam",    "BLE pairing spam",
-    "Probe sniffer",  "Handshake grab",  "Packet monitor", "Wardrive"};
+    "Probe sniffer",  "Handshake grab",  "Packet monitor", "Wardrive",
+    "Probe flood"};
 
 static ResearchApp *researchAppInst()
 {

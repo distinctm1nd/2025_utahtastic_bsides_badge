@@ -21,6 +21,7 @@ struct FollowInfo {
     bool moved;             // following, and you have moved since it showed up
     uint16_t seenBefore;    // earlier sightings in the log (30+ minutes apart)
     uint32_t agoS;          // seconds since the last of those (0 if unknown)
+    int8_t trend;           // recent-vs-baseline RSSI, dB: >0 getting closer, <0 moving away
 };
 
 // tracking information for an alert device (false if it isn't tracked)
@@ -36,6 +37,14 @@ void watchSetAlerts(bool on);
 // a short WiFi sweep every 2 minutes
 int watchBackground();
 void watchSetBackground(int mode);
+// light background WiFi attack sweeps (deauth / karma / evil-twin): a short WiFi sweep every ~2 min
+// in the watch thread, logging + alerting new high-severity attacks. NVS, default off.
+bool watchAttackScan();
+void watchSetAttackScan(bool on);
+// Append a threat to /badge/events.csv (per-type 60 s dedup). Returns true if it was newly recorded
+// (a new type, or its detail changed, past the cooldown) so the caller can decide to alert. mac may
+// be nullptr. Shared by the scan-stats app and the background watch so there is one log, no dupes.
+bool threatRecord(const char *type, const char *detail, const uint8_t *mac, uint8_t chan, int8_t rssi);
 // share one sighting with other badges over the mesh, only when the user asks (the hunt
 // screen's 1 key). Returns what happened, for the screen.
 const char *watchShareNow(const ScanEntry &e, bool wifi);
@@ -74,6 +83,7 @@ struct TrackedView {
     uint8_t mac[6];
     const char *code, *title;
     int8_t best;
+    int8_t trend;              // recent-vs-baseline RSSI, dB: >0 getting closer
     uint32_t withYouMs, agoMs; // how long with you; since last heard
     bool following, moved, wifi;
 };

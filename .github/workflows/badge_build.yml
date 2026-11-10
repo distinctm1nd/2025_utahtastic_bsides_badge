@@ -129,7 +129,11 @@ jobs:
         run: |
           mkdir -p site
           cp variants/esp32s3/utah_bsides/installer/index.html site/
-          FACTORY=$(ls out/firmware-*.factory.bin | head -1)
+          # Web flasher serves ONLY the default signed build. The "firmware-utah_bsides-*" glob
+          # (hyphen) never matches research (firmware-utah_bsides_research-*) or beacon (_beacon*)
+          # builds, so the research tools can never reach the flasher even if their bins are present.
+          FACTORY=$(ls out/firmware-utah_bsides-*.factory.bin | head -1)
+          if [ -z "$FACTORY" ]; then echo "no default-env factory.bin found" >&2; exit 1; fi
           cp "$FACTORY" site/firmware.factory.bin
           cat > site/manifest.json <<JSON
           {

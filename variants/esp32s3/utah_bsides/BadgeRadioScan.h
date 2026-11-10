@@ -25,6 +25,7 @@ enum ScanFlags : uint8_t {
     SF_FMDN = 16,     // Bluetooth: a tracker on Google's Find My Device network (Android)
     SF_AWAY = 32,     // Bluetooth: a tracker that says it's away from its owner (Find My / FMDN)
     SF_FINDMY = 64,   // Bluetooth: an Apple Find My advert (AirTag and compatible, or a lost Apple device)
+    SF_HID = 128,     // Bluetooth: advertises as a keyboard/mouse (HID) - a possible BLE keystroke-injection rig
 };
 
 struct ScanEntry {
@@ -39,6 +40,7 @@ struct ScanEntry {
     uint16_t services[3];
     uint8_t flags;        // ScanFlags
     uint8_t names;        // WiFi: different network names heard from this radio
+    uint8_t junkNames;    // WiFi: how many of those looked like random/junk SSIDs (spam vs evil-twin hint)
     uint32_t ssidHash;    // WiFi: the last one
     uint32_t seenMs;      // millis() when last heard
     uint32_t firstMs;     // millis() when first heard in this scan
@@ -71,8 +73,25 @@ bool radioDroneGet(const uint8_t *mac, DroneInfo &out);
 // attacks: deauth / disassociation frames heard in the last 10 s (and the channel of the
 // last one), and distinct addresses sending pairing pop-up adverts in the last 10 s
 int radioDeauthRecent(uint8_t *channel);
+bool radioDeauthTarget(uint8_t *mac); // BSSID of the AP spoofed by the most recent deauth (false if none)
+bool radioDeauthDest(uint8_t *dest);  // addr1 of the last deauth; true if targeted at one client (not broadcast)
+// a device probing for a name a karma-suspect AP (3+ names) is beaconing = active lure (false if none)
+bool radioLureRecent(char *ssid, size_t n, uint8_t *bssid);
+const char *rogueApTool(const char *ssid); // known attack-tool default SSID -> tool name, else nullptr
+// "my networks" list (SSIDs the user owns), for the targeted evil-twin watch. Newline-separated.
+void myNetsGet(char *out, size_t n);
+void myNetsSet(const char *csv);
+bool myNetMatch(const char *ssid); // is this SSID one of the user's own networks?
+// Canonical threat-type list for the events.csv log / LED mask. One definition so the dedup indices
+// in BadgeFollow and AppScanStats can't drift apart.
+static const int THREAT_TYPE_COUNT = 12;
+int threatTypeIndex(const char *type);
 int radioPopupSpamRecent();
 int radioPwnagotchiRecent(); // pwnagotchi beacons heard recently (WiFi)
 int radioFlipperRecent();    // distinct Flipper Zeros heard recently (BLE)
+int radioFindMyRecent();     // distinct Apple Find My / FMDN advertisers heard recently (BLE)
+// worst karma/MANA AP: the live radio beaconing the most names; returns that count (0 if none) and
+// fills in its BSSID + channel. The count is the severity (a few = maybe multi-SSID, many = MANA).
+int radioKarmaWorst(uint8_t *mac, uint8_t *channel);
 
 } // namespace badge

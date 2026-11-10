@@ -46,6 +46,9 @@ static const char *OLD = "/badge/sightings.old.csv";
 static const char *CAP = "/badge/capture.pcap";
 static const char *WIFICAP = "/badge/wifi.pcap";
 static const char *BLECAP = "/badge/ble.pcap";
+static const char *WARDRIVE = "/badge/wardrive.csv"; // research build only; 404s otherwise
+static const char *PROBES = "/badge/probes.csv";     // research build only; 404s otherwise
+static const char *EVENTS = "/badge/events.csv";     // threat log; 404s until something is logged
 static const size_t MAX_PIC = 512 * 1024;
 
 static WebServer *server = nullptr;
@@ -128,7 +131,7 @@ static void logList()
 {
     String o = "{\"files\":[";
     bool first = true;
-    for (const char *p : {LOG, OLD, CAP, WIFICAP, BLECAP}) {
+    for (const char *p : {LOG, OLD, CAP, WIFICAP, BLECAP, WARDRIVE, PROBES, EVENTS}) {
         size_t n = fileSize(p);
         if (!n)
             continue;
@@ -377,6 +380,19 @@ static void meshConfigPost()
     m.encryption_enabled = argInt("mqttEncrypt", 0, 1, m.encryption_enabled);
     nodeDB->saveToDisk(SEGMENT_CONFIG | SEGMENT_MODULECONFIG);
     note("Mesh network saved");
+    sendJson("{}");
+}
+
+static void myNetsGetH()
+{
+    char buf[200];
+    myNetsGet(buf, sizeof(buf));
+    sendJson(String("{\"nets\":") + js(buf) + "}");
+}
+static void myNetsPostH()
+{
+    myNetsSet(server->arg("nets").c_str()); // one SSID per line; the targeted evil-twin watch list
+    note("My networks saved");
     sendJson("{}");
 }
 
@@ -660,6 +676,9 @@ const char *portalStart(char *ssid, size_t ns, char *pass, size_t np, char *addr
     server->on("/capture.pcap", HTTP_GET, [] { sendLog(CAP, "capture.pcap"); });
     server->on("/wifi.pcap", HTTP_GET, [] { sendLog(WIFICAP, "wifi.pcap"); });
     server->on("/ble.pcap", HTTP_GET, [] { sendLog(BLECAP, "ble.pcap"); });
+    server->on("/wardrive.csv", HTTP_GET, [] { sendLog(WARDRIVE, "wardrive.csv"); });
+    server->on("/probes.csv", HTTP_GET, [] { sendLog(PROBES, "probes.csv"); });
+    server->on("/events.csv", HTTP_GET, [] { sendLog(EVENTS, "events.csv"); });
     server->on("/api/pics", HTTP_GET, picList);
     server->on("/api/pics", HTTP_POST, picDone, picUpload);
     server->on("/api/pics/delete", HTTP_POST, [] { picOp(true); });
@@ -669,6 +688,8 @@ const char *portalStart(char *ssid, size_t ns, char *pass, size_t np, char *addr
     server->on("/api/settings", HTTP_POST, settingsPost);
     server->on("/api/meshconfig", HTTP_GET, meshConfigGet);
     server->on("/api/meshconfig", HTTP_POST, meshConfigPost);
+    server->on("/api/mynets", HTTP_GET, myNetsGetH);
+    server->on("/api/mynets", HTTP_POST, myNetsPostH);
     server->on("/api/nodes", HTTP_GET, nodes);
     server->on("/api/message", HTTP_POST, message);
     server->on("/api/hunt", HTTP_GET, hunt);

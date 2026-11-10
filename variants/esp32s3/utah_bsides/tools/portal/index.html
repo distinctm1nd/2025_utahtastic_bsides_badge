@@ -132,6 +132,12 @@ input.search{width:100%;box-sizing:border-box;background:#0e0e0d;border:1px soli
     <label><input type="checkbox" id="mc-mqttEncrypt"> MQTT encryption enabled</label>
     <button class="go" id="meshsave">Save to the badge</button><p id="meshmsg"></p>
   </div>
+  <div class="card" id="mynetsform">
+    <b>My networks (evil-twin watch)</b>
+    <p class="mut">SSIDs you own, one per line. The badge warns if one of these shows up as an <b>open</b> access point &mdash; the sign of someone cloning your network to phish you.</p>
+    <textarea id="mynets" rows="4" maxlength="190" style="width:100%" placeholder="HomeWiFi&#10;OfficeWiFi"></textarea>
+    <button class="go" id="mynetssave">Save to the badge</button><p id="mynetsmsg"></p>
+  </div>
 </section>
 
 <section id="t-msg">
@@ -208,7 +214,7 @@ let info={},liveTimer=0,misses=0;
 // every successful request so active use (scanning, saving) never trips the offline banner.
 function markAlive(){misses=0;const d=$("dot");if(d)d.classList.remove("off");const o=$("offline");if(o)o.classList.remove("on")}
 function show(t){for(const[k]of TABS){$("t-"+k).classList.toggle("on",k===t);$("b-"+k).classList.toggle("on",k===t)}$("b-"+t).scrollIntoView({block:"nearest",inline:"nearest"});
-  clearInterval(liveTimer);if(t==="live"){live();liveTimer=setInterval(live,2000)}if(t==="map"){loadMap();liveTimer=setInterval(loadMap,15000)}if(t==="pics")loadPics();if(t==="rules")loadRules();if(t==="home")loadHome();if(t==="set"){loadSettings();loadMeshConfig()}if(t==="msg")loadNodes();if(t==="log")loadLog()}
+  clearInterval(liveTimer);if(t==="live"){live();liveTimer=setInterval(live,2000)}if(t==="map"){loadMap();liveTimer=setInterval(loadMap,15000)}if(t==="pics")loadPics();if(t==="rules")loadRules();if(t==="home")loadHome();if(t==="set"){loadSettings();loadMeshConfig();loadMyNets()}if(t==="msg")loadNodes();if(t==="log")loadLog()}
 for(const[k,n]of TABS){const b=document.createElement("button");b.id="b-"+k;b.textContent=n;b.onclick=()=>show(k);$("tabs").appendChild(b)}
 const api=(u,o)=>fetch(u,o).then(r=>{markAlive();return r.ok?r.json():r.text().then(t=>{throw new Error(t||r.statusText)})});
 const post=(u,fields)=>api(u,{method:"POST",body:new URLSearchParams(fields)});
@@ -340,6 +346,8 @@ $("setsave").onclick=()=>post("/api/settings",formValues()).then(()=>say("setmsg
 const MC_STR=["wifiSsid","wifiPsk","ntp","mqttAddr","mqttUser","mqttPass","mqttRoot"],MC_BOOL=["wifiEnabled","mqttEnabled","mqttTls","mqttJson","mqttEncrypt"];
 function loadMeshConfig(){api("/api/meshconfig").then(s=>{for(const f of MC_STR)$("mc-"+f).value=s[f]||"";for(const f of MC_BOOL)$("mc-"+f).checked=!!s[f]}).catch(e=>say("meshmsg",e.message,1))}
 $("meshsave").onclick=()=>{const v={};for(const f of MC_STR)v[f]=$("mc-"+f).value;for(const f of MC_BOOL)v[f]=$("mc-"+f).checked?1:0;post("/api/meshconfig",v).then(()=>say("meshmsg","Saved — reboot the badge to apply")).catch(e=>say("meshmsg",e.message,1))};
+function loadMyNets(){api("/api/mynets").then(s=>{$("mynets").value=s.nets||""}).catch(e=>say("mynetsmsg",e.message,1))}
+$("mynetssave").onclick=()=>post("/api/mynets",{nets:$("mynets").value}).then(()=>say("mynetsmsg","Saved")).catch(e=>say("mynetsmsg",e.message,1));
 $("bakget").onclick=()=>api("/api/settings").then(s=>{const keep={};for(const f of FIELDS)keep[f]=s[f];const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(keep,null,1)],{type:"application/json"}));a.download="badge-settings.json";a.click()});
 $("bakfile").onchange=()=>$("bakput").disabled=!$("bakfile").files.length;
 $("bakput").onclick=async()=>{try{const s=JSON.parse(await $("bakfile").files[0].text()),v={};for(const f of FIELDS)if(f in s)v[f]=typeof s[f]==="boolean"?(s[f]?1:0):s[f];await post("/api/settings",v);say("bakmsg","Restored")}catch(e){say("bakmsg",e.message,1)}};

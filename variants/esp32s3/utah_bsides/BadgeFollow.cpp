@@ -11,6 +11,8 @@
 #include "BadgeRules.h"
 #include "BadgeTime.h"
 
+#include "FSCommon.h" // /badge/events.csv threat log
+#include "SPILock.h"
 #include "concurrency/OSThread.h"
 #include "gps/RTC.h"
 #include "graphics/Screen.h"
@@ -38,6 +40,7 @@ struct Tracked {
     uint8_t mac[6];
     uint32_t first, last;
     int8_t best;
+    int8_t rssiFast, rssiSlow; // fast/slow RSSI averages; their gap is the approach/recede trend
     uint8_t nRefs;
     uint32_t refs[MAX_REFS];
     const char *code, *title; // from the rule table (static strings)
@@ -122,6 +125,7 @@ static Tracked *start(const ScanEntry &e, const RuleHit &h, uint32_t now)
     memcpy(t->mac, e.mac, 6);
     t->first = t->last = now;
     t->best = e.rssi;
+    t->rssiFast = t->rssiSlow = e.rssi;
     t->code = h.code;
     t->title = h.title;
     t->tracker = strcmp(h.tag, "Tracker") == 0;
@@ -146,6 +150,7 @@ static void info(const Tracked &t, FollowInfo &out)
     out.moved = out.following && out.refs >= 3 && out.refsLeft * 3 < out.refs;
     out.seenBefore = t.seenBefore;
     out.agoS = t.agoS;
+    out.trend = (int8_t)(t.rssiFast - t.rssiSlow); // >0: recent signal stronger than baseline => closer
 }
 
 bool followGet(const uint8_t mac[6], FollowInfo &out)
@@ -388,6 +393,7 @@ int watchTrackedList(TrackedView *out, int max)
         v.code = t.code;
         v.title = t.title;
         v.best = t.best;
+        v.trend = (int8_t)(t.rssiFast - t.rssiSlow);
         v.withYouMs = t.last - t.first;
         v.agoMs = now - t.last;
         v.following = t.last - t.first >= followMs();
@@ -430,6 +436,8 @@ const char *watchStep(const ScanEntry *list, int n, bool wifi, bool canAlert)
         t->last = now;
         if (e.rssi > t->best)
             t->best = e.rssi;
+        t->rssiFast = (int8_t)((t->rssiFast * 2 + e.rssi) / 3); // reacts within a few sightings
+        t->rssiSlow = (int8_t)((t->rssiSlow * 7 + e.rssi) / 8); // slow baseline; fast-slow gap = trend
         FollowInfo f;
         info(*t, f);
         if (f.following && !t->loggedFollow) {
@@ -452,8 +460,8 @@ const char *watchStep(const ScanEntry *list, int n, bool wifi, bool canAlert)
             snprintf(message, sizeof(message), "%s nearby:\n%s\n%d dBm", h.tag, who, e.rssi);
             t->saidNew = true;
         } else if (t->tracker && f.following && !t->saidFollow) {
-            snprintf(message, sizeof(message), "Tracker with you %u min:\n%s\nCheck bags, pockets, car",
-                     (unsigned)(f.withYouMs / 60000), who);
+            snprintf(message, sizeof(message), "Tracker with you %u min:%s\n%s\nCheck bags, pockets, car",
+                     (unsigned)(f.withYouMs / 60000), f.trend >= 6 ? " GETTING CLOSER" : "", who);
             t->saidFollow = true;
         } else if (f.moved && !t->saidMoved) {
             snprintf(message, sizeof(message), "Followed you:\n%s\nYou moved, it stayed with you", who);
@@ -557,6 +565,53 @@ void watchSetBackground(int mode)
     backgroundMode = mode;
     putInt("fwbgmode", mode);
 }
+static int attackScan = -1; // -1 not read yet
+bool watchAttackScan()
+{
+    if (attackScan < 0)
+        attackScan = getInt("fwatk", 0);
+    return attackScan;
+}
+void watchSetAttackScan(bool on)
+{
+    attackScan = on;
+    putInt("fwatk", on);
+}
+
+// ---- shared threat log (/badge/events.csv) -------------------------------------------------
+static uint32_t evLogMs[THREAT_TYPE_COUNT] = {0};
+static char evDetail[THREAT_TYPE_COUNT][24] = {};
+static int evIndex(const char *t) { return threatTypeIndex(t); } // one canonical list (BadgeRadioScan)
+bool threatRecord(const char *type, const char *detail, const uint8_t *mac, uint8_t chan, int8_t rssi)
+{
+    int bit = evIndex(type);
+    uint32_t now = millis();
+    bool changed = strncmp(evDetail[bit], detail, sizeof(evDetail[bit])) != 0;
+    if (!changed && evLogMs[bit] && (uint32_t)(now - evLogMs[bit]) < 60000)
+        return false; // same threat, recorded recently: don't spam the file
+    evLogMs[bit] = now ? now : 1;
+    strncpy(evDetail[bit], detail, sizeof(evDetail[bit]) - 1);
+    evDetail[bit][sizeof(evDetail[bit]) - 1] = 0;
+    concurrency::LockGuard g(spiLock);
+    bool fresh = !FSCom.exists("/badge/events.csv");
+    File f = FSCom.open("/badge/events.csv", "a");
+    if (f) {
+        if (fresh)
+            f.print("Epoch,SecondsUp,Type,Detail,MAC,Channel,RSSI\n");
+        char ms[20] = "";
+        if (mac)
+            snprintf(ms, sizeof(ms), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        // Wall-clock epoch when the badge knows the time (from the app/mesh/Badge WiFi), else 0; the
+        // uptime seconds column is always present so events stay ordered even before a clock is set.
+        unsigned long epoch = timeKnown() ? (unsigned long)getValidTime(RTCQualityFromNet) : 0;
+        char line[104];
+        snprintf(line, sizeof(line), "%lu,%lu,%s,%s,%s,%d,%d\n", epoch, (unsigned long)(now / 1000), type, detail,
+                 ms, chan, rssi);
+        f.print(line);
+        f.close();
+    }
+    return true;
+}
 
 // ---- background watch ----------------------------------------------------------------------
 static bool paused = false;
@@ -579,7 +634,8 @@ class WatchThread : public concurrency::OSThread
             return 2000;
         }
         int mode = watchBackground();
-        if (!mode) {
+        bool atk = watchAttackScan(); // light background WiFi attack sweeps (independent of tracker mode)
+        if (!mode && !atk) {
             if (scanning) {
                 radioScanStop();
                 scanning = false;
@@ -593,12 +649,17 @@ class WatchThread : public concurrency::OSThread
             if (Throttle::isWithinTimespanMs(sweepStart, 4000))
                 return 200;
             int n = radioScanSnapshot(buf, MAX);
-            deliver(watchStep(buf, n, true, canShow()));
+            if (mode)
+                deliver(watchStep(buf, n, true, canShow())); // tracker watch on the WiFi sample
+            if (atk && checkWifiAttacks(buf, n) && watchAlerts() && !watchQuietNow())
+                deliver(attackMsg); // a new high-severity WiFi attack (always logged; banner if allowed)
             sweepingWifi = false;
-            scanning = false; // back to Bluetooth
+            scanning = false;
+            if (!mode)
+                radioScanStop(); // no Bluetooth watch to switch to: release the radio between sweeps
             return 100;
         }
-        if (mode == 2 && (!lastSweep || !Throttle::isWithinTimespanMs(lastSweep, 120000))) {
+        if ((mode == 2 || atk) && (!lastSweep || !Throttle::isWithinTimespanMs(lastSweep, 120000))) {
             lastSweep = now;
             if (!radioScanStart(SCAN_WIFI)) {
                 sweepingWifi = true;
@@ -607,16 +668,23 @@ class WatchThread : public concurrency::OSThread
                 return 200;
             }
         }
-        if (!scanning) {
-            if (radioScanStart(SCAN_BLE, true)) {
-                deliver(nullptr);
-                return 30000; // Bluetooth off (or Paxcounter on): try again later
+        if (mode) { // Bluetooth tracker watch (only when the tracker background is on)
+            if (!scanning) {
+                if (radioScanStart(SCAN_BLE, true)) {
+                    deliver(nullptr);
+                    return 30000; // Bluetooth off (or Paxcounter on): try again later
+                }
+                scanning = true;
             }
-            scanning = true;
+            radioScanPoll();
+            int n = radioScanSnapshot(buf, MAX);
+            deliver(watchStep(buf, n, false, canShow()));
+            return 2000;
         }
-        radioScanPoll();
-        int n = radioScanSnapshot(buf, MAX);
-        deliver(watchStep(buf, n, false, canShow()));
+        if (scanning) { // attack-scan only: stay idle between the periodic WiFi sweeps
+            radioScanStop();
+            scanning = false;
+        }
         return 2000;
     }
 
@@ -625,6 +693,82 @@ class WatchThread : public concurrency::OSThread
     ScanEntry buf[MAX];
     bool scanning = false, sweepingWifi = false;
     uint32_t lastSweep = 0, sweepStart = 0;
+    char attackMsg[40] = "";
+
+    // Detect high-severity WiFi attacks in a sweep snapshot (deauth / karma / evil-twin), log each
+    // to events.csv (deduped) and set attackMsg. Returns true if a new high-severity one appeared.
+    bool checkWifiAttacks(const ScanEntry *l, int n)
+    {
+        bool newHigh = false;
+        char det[24];
+        uint8_t ch = 0;
+        int deauth = radioDeauthRecent(&ch);
+        if (deauth) {
+            uint8_t m[6];
+            bool hm = radioDeauthTarget(m);
+            uint8_t dd[6] = {0};
+            bool you = radioDeauthDest(dd) && devTrusted(dd); // aimed at one of your own devices?
+            snprintf(det, sizeof(det), you ? "deauth YOU x%d" : "deauth x%d", deauth);
+            if (threatRecord("DEAUTH", det, hm ? m : nullptr, ch, 0)) {
+                snprintf(attackMsg, sizeof(attackMsg), you ? "Deauth aimed at YOU ch%d" : "Deauth attack ch%d", ch);
+                newHigh = true;
+            }
+        }
+        uint8_t km[6] = {0};
+        int kw = radioKarmaWorst(km, nullptr);
+        if (kw >= 3 && !devTrusted(km)) {
+            const ScanEntry *ke = nullptr;
+            for (int i = 0; i < n; i++)
+                if (l[i].channel && !memcmp(l[i].mac, km, 6)) {
+                    ke = &l[i];
+                    break;
+                }
+            bool junk = ke && ke->names ? (ke->junkNames * 2 >= ke->names) : (kw >= 6);
+            snprintf(det, sizeof(det), "%s x%d", junk ? "spam?" : "karma?", kw);
+            if (threatRecord(junk ? "SPAM" : "KARMA", det, km, 0, 0)) {
+                snprintf(attackMsg, sizeof(attackMsg), junk ? "Beacon spam AP near" : "Karma/evil AP near");
+                newHigh = true;
+            }
+        }
+        for (int i = 0; i < n; i++)
+            if (l[i].channel && (l[i].flags & SF_TWIN) && l[i].name[0] && !devTrusted(l[i].mac)) {
+                snprintf(det, sizeof(det), "twin %.17s", l[i].name);
+                threatRecord("TWIN", det, l[i].mac, l[i].channel, 0); // logged, not banner-worthy
+                break;
+            }
+        for (int i = 0; i < n; i++)
+            if (l[i].channel && l[i].name[0] && !devTrusted(l[i].mac)) {
+                const char *tool = rogueApTool(l[i].name); // known attack-tool default SSID
+                if (tool) {
+                    snprintf(det, sizeof(det), "%s AP", tool);
+                    if (threatRecord("ROGUE", det, l[i].mac, l[i].channel, 0)) {
+                        snprintf(attackMsg, sizeof(attackMsg), "%s AP near", tool);
+                        newHigh = true;
+                    }
+                    break;
+                }
+            }
+        for (int i = 0; i < n; i++) // targeted evil twin: your own SSID showing up as an OPEN AP
+            if (l[i].channel && (l[i].flags & SF_OPEN) && l[i].name[0] && myNetMatch(l[i].name) &&
+                !devTrusted(l[i].mac)) {
+                snprintf(det, sizeof(det), "YOUR net OPEN %.9s", l[i].name);
+                if (threatRecord("MYTWIN", det, l[i].mac, l[i].channel, 0)) {
+                    snprintf(attackMsg, sizeof(attackMsg), "YOUR network cloned!");
+                    newHigh = true;
+                }
+                break;
+            }
+        char ls[33];
+        uint8_t lb[6];
+        if (radioLureRecent(ls, sizeof(ls), lb) && !devTrusted(lb)) { // rogue AP answering a probed name
+            snprintf(det, sizeof(det), "lure %.14s", ls);
+            if (threatRecord("LURE", det, lb, 0, 0)) {
+                snprintf(attackMsg, sizeof(attackMsg), "Lure: %.20s", ls);
+                newHigh = true;
+            }
+        }
+        return newHigh;
+    }
 
     static bool canShow() { return screen && !appActive(); }
 
