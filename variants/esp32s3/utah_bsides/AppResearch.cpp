@@ -10,6 +10,14 @@
 // The passive detectors (deauth/spam/drone/tracker spotting in BadgeRadioScan) are in
 // EVERY build and are untouched by this file; this is only the active/transmit side.
 //
+// INTENT AND DISCLAIMER: this badge is mainly a DEFENSIVE tool. The active/offensive tools in
+// this file exist only to learn how the corresponding attacks work and for AUTHORIZED security
+// testing - on networks and devices you own or have written permission to test. They are for
+// educational and authorized use ONLY. The user alone is responsible for how they are used and
+// for complying with all applicable laws and event rules. This software is provided AS IS, with
+// no warranty; the developer assumes NO LIABILITY for any misuse or resulting damage. This is the
+// same notice shown on the research boot page and the in-app disclaimer gate.
+//
 // Tools, each behind the disclaimer accept + a HOLD-to-fire confirmation:
 //   - Targeted deauth  : TX deauth frames at ONE AP you pick, on its channel (WiFi).
 //   - Beacon spam      : flood fake WiFi SSIDs from one random BSSID (WiFi, karma style).
@@ -91,6 +99,36 @@ static void rememberDisclaimerAccepted()
     }
 }
 
+// The scrollable disclaimer shown before any research tool can run (lines sized for the display).
+static const char *const DISCLAIMER[] = {
+    "Educational use and",
+    "AUTHORIZED testing",
+    "ONLY. Use only on",
+    "networks/devices you",
+    "own or are permitted",
+    "to test.",
+    "",
+    "This badge is mainly",
+    "a DEFENSIVE tool.",
+    "The active/offensive",
+    "tools are here only",
+    "to learn how attacks",
+    "work and for",
+    "authorized testing.",
+    "",
+    "You alone are",
+    "responsible for your",
+    "use and for obeying",
+    "all laws + event",
+    "rules.",
+    "",
+    "Provided AS IS. The",
+    "developer assumes NO",
+    "LIABILITY for misuse",
+    "or any damage.",
+};
+static const int DISCLAIMER_LINES = sizeof(DISCLAIMER) / sizeof(DISCLAIMER[0]);
+
 // ---- full-screen "RESEARCH BUILD" boot page (after the raven, before the lock gifs) ----------
 class ResearchBootApp : public App
 {
@@ -118,10 +156,12 @@ class ResearchBootApp : public App
         d->fillRect(x, y, d->width(), d->height());
         d->setColor(WHITE);
         int lh = fontHeight(FONT_SMALL);
-        int top = y + d->height() / 2 - 2 * lh;
+        int top = y + d->height() / 2 - 3 * lh;
         drawCentered(d, x, top, "RESEARCH BUILD", FONT_MEDIUM);
-        drawCentered(d, x, top + 2 * lh, "active tools enabled", FONT_SMALL);
-        drawCentered(d, x, top + 3 * lh, "authorized use only", FONT_SMALL);
+        drawCentered(d, x, top + 2 * lh, "defensive tool;", FONT_SMALL);
+        drawCentered(d, x, top + 3 * lh, "active tools for", FONT_SMALL);
+        drawCentered(d, x, top + 4 * lh, "educational +", FONT_SMALL);
+        drawCentered(d, x, top + 5 * lh, "authorized use only", FONT_SMALL);
     }
 };
 static ResearchBootApp researchBootApp;
@@ -569,6 +609,7 @@ class ResearchApp : public App
     Phase phase = P_DISCLAIMER;
     Tool tool = T_DEAUTH;
     int sel = 0, top = 0;
+    int discScroll = 0;            // scroll offset within the disclaimer text
     uint8_t hopCh = 1;              // probe sniffer / packet monitor channel hop
     bool probeShowMac = false;         // probe sniffer: toggle SSID list vs device-MAC view
     uint32_t pktRate = 0, pktLast = 0; // packet monitor
@@ -910,6 +951,11 @@ class ResearchApp : public App
                 sel = 0;
             } else if (k == AK_STAR)
                 appClose();
+            else if (k == AK_UP) {
+                if (discScroll > 0)
+                    discScroll--;
+            } else if (k == AK_DOWN)
+                discScroll++; // clamped in draw against the visible window
             break;
 
         case P_LIST:
@@ -1027,15 +1073,25 @@ class ResearchApp : public App
         static const char *const BLE_T[] = {"Apple", "Android", "Windows", "Samsung", "All"};
 
         switch (phase) {
-        case P_DISCLAIMER:
-            drawTitle(d, x, y, "Research tools");
-            d->drawString(x + 2, ry, "ACTIVE tools. Use only");
-            d->drawString(x + 2, ry + lh, "on networks you own or");
-            d->drawString(x + 2, ry + 2 * lh, "are authorized to test.");
-            d->drawString(x + 2, ry + 3 * lh, "You are responsible for");
-            d->drawString(x + 2, ry + 4 * lh, "law + event rules.");
-            drawFooter(d, x, y, disclaimerEverAccepted() ? "#: accept   *: exit" : "#: I agree   *: exit");
+        case P_DISCLAIMER: {
+            drawTitle(d, x, y, "Research: terms");
+            int vis = (d->height() - 2 * lh - 2) / lh; // body rows between title and footer
+            if (vis < 1)
+                vis = 1;
+            int maxScroll = DISCLAIMER_LINES - vis > 0 ? DISCLAIMER_LINES - vis : 0;
+            if (discScroll > maxScroll)
+                discScroll = maxScroll;
+            for (int i = 0; i < vis && discScroll + i < DISCLAIMER_LINES; i++)
+                d->drawString(x + 2, ry + i * lh, DISCLAIMER[discScroll + i]);
+            d->setTextAlignment(TEXT_ALIGN_RIGHT); // scroll arrows when there is more text off-screen
+            if (discScroll > 0)
+                d->drawString(x + d->width() - 2, ry, "^");
+            if (discScroll < maxScroll)
+                d->drawString(x + d->width() - 2, ry + (vis - 1) * lh, "v");
+            d->setTextAlignment(TEXT_ALIGN_LEFT);
+            drawFooter(d, x, y, disclaimerEverAccepted() ? "#: accept  *: exit" : "#: I agree  *: exit");
             break;
+        }
 
         case P_LIST: {
             drawTitle(d, x, y, "Research tools");
