@@ -73,10 +73,22 @@ The badges shipped with a copy of Meshtastic 2.5.12 with a patched LED thread, a
 - LoRa fox hunt with **RSSI and SNR meters**, "Warmer / Colder" and a bar graph on the keys.
 - **WiFi and Bluetooth hunts** with makers from the official IEEE and Bluetooth SIG lists.
 - **Surveillance, police, camera and tracker marks** from rule files, highlighted at the top.
-- **Following-you detection** (10 minutes with you, or it moved with you), alerts, a
-  **background watch** while the hunt is closed.
-- **Attack detection**: WiFi deauth floods, Bluetooth pop-up spam, evil twins, Pineapple-style
-  network spraying, Flipper Zeros.
+- **Following-you detection** (10 minutes with you, or it moved with you), now with a
+  **getting-closer / moving-away trend**, alerts, and a **background watch** while the hunt is closed.
+- **Attack detection**: WiFi deauth floods (with the **spoofed AP** named, and flagged when the
+  deauth is **aimed at one of your own devices**), karma / Pineapple / MANA network spraying (with a
+  **spam-vs-targeted** read and the worst radio named), **evil twins**, **rogue-AP tool names**
+  (Pineapple, MANA, EvilPortal and others), **active lures** (a rogue AP answering a name a device
+  just asked for), pwnagotchi beacons, Bluetooth pairing-pop-up spam and Flipper Zeros.
+- **Tracker / anti-stalking**: Apple Find My (AirTag) and Google Find My Device detection, an
+  **unknown-tracker flood** warning, a **non-rotating (static)** check, and a **following-you** alert.
+- **BLE keyboard/mouse (HID) detection** — a possible wireless keystroke-injection rig nearby.
+- **Targeted evil-twin watch**: list your own network names (Badge WiFi) and the badge warns if one
+  turns up as an **open** access point — the sign of a clone set up to phish you.
+- **Threats view**: one screen listing every live threat with its identity, a **one-key "trust"** to
+  silence a false positive, and a **threat log** to `/badge/events.csv` (download over Badge WiFi).
+  An optional **background attack scan** (Fox hunt → Alert settings, off by default) watches for
+  these even while the scan screen is closed.
 - **Drone Remote ID**, a **turn-in-a-circle** direction finder, a **sub-GHz band scanner**,
   a **node radar** map, a **sightings log**, share-on-request, **be the fox**, **packet capture**
   for Wireshark.
@@ -442,12 +454,17 @@ depending on the list). `#` keeps the text, `*` deletes, and `*` on an empty box
   at what was around, notice a tracker that keeps turning up, or keep a record. See *The
   sightings log* below.
 - **Scan stats**: a glanceable dashboard of what's on the air right now, no laptop needed. `#` (or
-  left / right) swaps between **WiFi** and **Bluetooth** (one radio, one at a time). WiFi shows
-  network count, open / hidden, busiest channel, evil twins, drones, deauths in the last 10 s,
+  left / right) cycles **WiFi → Bluetooth → Threats** (one radio, one at a time). WiFi shows
+  network count, open / hidden, busiest channel, evil twins, drones, karma radios (with the worst
+  one named and a `karma?` / `spam?` lean), deauths in the last 10 s (with the spoofed AP named),
   how many are flagged, and the busiest makers. Bluetooth shows device count, public vs random
-  addresses, named devices, trackers (and how many say they're away from their owner), Find My /
-  FMDN count, pairing-spam bursts, and the busiest makers. Numbers are "around you now" (the last
-  ~30 s), not an all-time total.
+  addresses, named devices, **HID (keyboard/mouse)** devices, trackers (and how many say they're
+  away from their owner), Find My / FMDN count (with a flood warning and a "following you" line),
+  pairing-spam bursts, and the busiest makers. The **Threats** page gathers every live threat —
+  deauth, karma/spam, rogue-AP tools, lures, evil twins, a following tracker, HID — onto one screen
+  with each one's identity; press **`0`** to **trust** (allowlist) the top offender so it stops
+  alerting everywhere. Numbers are "around you now" (the last ~30 s), not an all-time total.
+  Threats are also written to `/badge/events.csv` (download over Badge WiFi).
 - **Sharing** only happens when you ask, one device at a time: on a hunt or details screen tap
   `1`; it asks "Share this sighting with other badges?" and `#` sends that device (mark, title,
   address, signal; at most one every 10 s; logged as SHARED). It goes on the badges' private app
@@ -531,6 +548,7 @@ Fox hunt → *Alert settings*:
 | Trackers, Cameras, Surveillance, Police gear, Skimmers, Drones, Attacks | each alert / don't alert |
 | Quiet hours | off, 22:00-07:00, 23:00-07:00, 21:00-06:00: no pop-ups then (still logged; needs the time) |
 | Lists show faint devices | **yes** / no: hide devices weaker than -85 dBm from the scan lists |
+| Attack scan (bg) | on / **off**: a short background WiFi sweep every ~2 min that watches for deauth / karma / rogue-AP / evil-twin / lure attacks even while the scan screen is closed, logging and alerting new ones. Off by default; costs a little battery, and short deauth bursts between sweeps can be missed |
 
 Settings only change alerts: everything still shows in the lists (unless faint ones are hidden)
 and is still logged.
@@ -910,7 +928,10 @@ sharing (a red dot by the status line, then a full "Badge stopped sharing" notic
 longer reach the badge). Its web page (`tools/portal/index.html`, styled like the badge: night
 sky, the raven on the sign, gold keypad buttons; built into the firmware) has:
 
-- **Sightings**: download the sightings log CSV and the packet captures (mesh `capture.pcap`, `wifi.pcap`, `ble.pcap`).
+- **Sightings**: download the sightings log CSV, the **threat log** (`events.csv` — deauth / karma /
+  evil-twin / lure / following-tracker events, with a wall-clock time when the badge knows it), and
+  the packet captures (mesh `capture.pcap`, `wifi.pcap`, `ble.pcap`). Files only appear once they
+  have something in them.
 - **Pictures**: add pictures and GIFs (the browser converts them to the badge's screen; they show
   on the name tag after the built-in ones), reorder or delete them.
 - **Settings**: everything the badge's own *Settings* menu has (apart from the interactive
@@ -926,6 +947,9 @@ sky, the raven on the sign, gold keypad buttons; built into the firmware) has:
   maker, address or mark; **tap a device to explore it** -- the badge connects and lists what it
   offers (services, name, maker, model, firmware, battery, ...), read only, the same as *Explore*
   on the badge screen.
+- **My networks**: list the SSIDs you own (one per line). The badge warns on the Threats view if one
+  of them shows up as an **open** access point — the classic sign of someone cloning your network to
+  phish you (a targeted evil twin).
 - **Rules**: your own scan rules (see *Your own rules*).
 - **Map**: the nodes that share their position, drawn round the badge (tap a dot for its name),
   plus a list. No map tiles: the phone has no internet while it's on the badge's WiFi.
