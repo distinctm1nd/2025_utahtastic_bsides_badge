@@ -1,7 +1,7 @@
 <!-- shown as the GitHub landing page via the .github/README.md symlink -->
 # Utah BSides 2025 badge ("UTAHtastic")
 
-Meshtastic firmware for the Utah BSides 2025 badge is a fork of
+The meshtastic firmware for the Utah BSides 2025 badge is a fork of
 [meshtastic/firmware](https://github.com/meshtastic/firmware). Everything Utah BSides badge specific is
 in the Utah Bsides variant folder:
 
@@ -21,12 +21,12 @@ Contents: [TL;DR — get started](#tldr--get-started) · [What's new](#whats-new
 
 ## TL;DR — get started
 
-**Install it (easiest, no software to install):**
+**Install it:**
 
 1. On a computer, open the **web installer** in **Chrome or Edge**:
-   <https://distinctm1nd.github.io/2025_utahtastic_bsides_badge/> (live once a release is published).
+   <https://distinctm1nd.github.io/2025_utahtastic_bsides_badge/> 
 2. Plug the badge into USB and click **Install**. First install erases and reflashes (a 2025 badge
-   needs this one full install for the new memory layout). Once you have updated once via web installer, you can continue with web installer for future updates or you can update via WiFi (see below). 
+   needs this one full install for the new memory layout). Once you have updated one time via web installer, you can continue with web installer for future updates or you can update via WiFi (see below). 
 3. That's it. To reflash or move to a newer build later, open the same page and Install again.
 
 (Developers can instead `pio run -e utah_bsides -t upload` — see [Building and installing](#building-and-installing).)
@@ -36,7 +36,7 @@ Contents: [TL;DR — get started](#tldr--get-started) · [What's new](#whats-new
 - Set your **region** again (US) if asked — the one full install starts Meshtastic's settings fresh.
 - Set a **name** (Settings → *Name tag*), and a **PIN** if you want the screen lock (Settings → *Screen lock*).
 
-**Drive it (works on every screen):**
+**Drive it:**
 
 | Do this | For |
 |---|---|
@@ -51,7 +51,7 @@ Note: The joystick is rotated 45 degrees. A generic correction has been applied 
 From the home tiles: **Messages**, **Games**, **Fox hunt**, and more — move with the joystick, press
 `#` to open. Type with the number keys (tap again within a second for the next letter, e.g. `8 8` = u).
 
-**Update later without a cable:** menu → **Badge WiFi (phone)**, join the badge's WiFi, open the
+**Update later without a cable:** menu → **Badge WiFi**, join the badge's WiFi, open the
 page, **Update**.
 
 ## What's new compared with the 2025 firmware
@@ -101,7 +101,7 @@ The badges shipped with a copy of Meshtastic 2.5.12 with a patched LED thread, a
 - **Screen lock** with a PIN (salted hash); the badge re-locks after the boot intro, on sleep, and
   when idle. By default the lock screen cycles your pictures and GIFs (plus your name, once you've
   set one), or you can pin it to one picture, cycling favourites, or a clock. `*`+`#` locks at once.
-- Signed **firmware updates over WiFi**; the badge refuses anything not signed by the badge team.
+- Signed **firmware updates over WiFi**.
 
 **Name tag and pictures**
 - Name tag with **17 fonts** (12 Old West / dark ones), a preview picker, sizes, a tagline,
@@ -128,7 +128,7 @@ The badges shipped with a copy of Meshtastic 2.5.12 with a patched LED thread, a
 - A **Badge page** among Meshtastic's screens: time, last message, last node heard, scan
   summary, whether the badge can send.
 - **Time without a clock chip**: from the phone app, the Badge WiFi page, GPS nodes or other
-  badges; a time zone setting (Utah by default).
+  badges; a time zone setting.
 - **Mesh settings on the badge**: names, channels, power, hop limit, region and more without
   the phone app.
 - **Badge WiFi**: the badge's own WiFi network and web page for pictures, settings, messages,
@@ -142,8 +142,7 @@ The badges shipped with a copy of Meshtastic 2.5.12 with a patched LED thread, a
 - **LoRa**: the firmware finds either the stock LLCC68 module or an SX1262 module; DIO2 drives
   the RF switch.
 - **Memory**: uses the module's full 16 MB of flash and 2 MB of PSRAM (two 6 MB firmware slots
-  for WiFi updates, ~3.9 MB of file space). Pictures are stored packed, so every Meshtastic
-  module stays in.
+  for WiFi updates, ~3.9 MB of file space). 
 - The boot image moved from `userPrefs.h` (gone in 2.7) to `USERPREFS_OEM_*` in `userPrefs.jsonc`.
 
 ## Using the badge
@@ -230,7 +229,7 @@ is mounted, whatever the angle (or even mirrored):
 2. Push around: an arrow shows what each push now means. The line under it (e.g.
    `U12 R23 D34 L14`) is what the badge learned. `0` flips the "lean" (which way a push that
    only catches one switch goes), `9` starts over.
-3. Centre (or `#`) saves, `*` cancels.
+3. Center (or `#`) saves, `*` cancels.
 
 When the learned pushes fit the 45° layout, each gets the whole pair of switches, so a push
 recorded as one switch (a down push that only caught the bottom-left switch) doesn't claim that
@@ -582,7 +581,7 @@ the shown-only marks (`HACK`, `NET`, `DEF`, `HOME`). Logging happens while a WiF
 hunt is open or the background watch is on. It stays on the badge and is never sent anywhere unless you share a
 sighting or download the file.
 
-**Events** (one line each):
+**Events**:
 
 | Event | When |
 |---|---|
@@ -916,7 +915,7 @@ Badge menu -> *Stopwatch & timer* (or a shortcut). `#` switches between the two;
   seconds; `5` starts / pauses, `0` resets. At zero the keypad flashes red and the screen says
   "Time!" (the badge has no buzzer). Any key clears it.
 
-## Badge WiFi (phone)
+## Badge WiFi
 
 Badge menu → *Badge WiFi (phone)* (or `#` in the Sightings log): the badge becomes its own WiFi
 network, WPA2 with a new random 8-character password each time and one device at a time. It
@@ -1214,15 +1213,14 @@ install over USB / the web installer.
 ### Research build (opt-in — authorized testing only)
 
 The badge is first and foremost a **defensive** tool. There is a separate, opt-in **research
-build** that adds ACTIVE WiFi/Bluetooth tools, for learning how the matching attacks work and for
+build** that adds ACTIVE WiFi/Bluetooth tools, for learning and for
 **authorized** security testing. It is **not** in the firmware served by the web flasher and is
 **not** a release download — it is never shipped. It exists only when you build it yourself.
 
 **Educational and authorized use only.** Use these tools only on networks and devices you own or
 have written permission to test. You alone are responsible for how you use them and for obeying all
 laws and event rules. The software is provided AS IS, with no warranty; the developer assumes **no
-liability** for misuse or any resulting damage. The firmware repeats this on a boot page and on a
-disclaimer gate you must accept before any tool runs.
+liability** for misuse or any resulting damage. 
 
 Build the `utah_bsides_research` PlatformIO env (the only thing that sets `BADGE_OFFENSIVE`) and
 flash over USB:
@@ -1238,7 +1236,7 @@ signed badge contains none of this code: it is compiled out entirely unless `BAD
 set, so a badge flashed from the web installer cannot run these tools.
 
 Tools, each behind the disclaimer plus a hold-to-fire confirmation: **targeted deauth**, **beacon
-spam** (fun names / rick-roll / clone-nearby), **probe flood**, **BLE pairing spam**, **probe
+spam**, **probe flood**, **BLE pairing spam**, **probe
 sniffer** (device MAC + vendor, logs to `/badge/probes.csv`, with an active-lure line), **handshake
 grab**, **packet monitor**, and **wardrive** (`/badge/wardrive.csv`). The passive detectors that
 *spot* these attacks are in every build (see *Fox hunt and scanning*); only the active/transmit
