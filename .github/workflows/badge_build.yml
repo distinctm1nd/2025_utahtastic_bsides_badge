@@ -65,7 +65,7 @@ jobs:
           esac
           echo "pioarduino==6.2.0" > "$UV_CONSTRAINT"
           pio run -e "$BUILD_ENV"
-          pio run -e "$BUILD_ENV" -t buildfs || true
+          pio run -e "$BUILD_ENV" -t buildfs
 
       - name: Collect firmware
         env:
@@ -73,7 +73,7 @@ jobs:
         run: |
           mkdir -p out
           cp ".pio/build/$BUILD_ENV"/firmware-*.bin out/
-          cp ".pio/build/$BUILD_ENV"/littlefs-*.bin out/ 2>/dev/null || true
+          cp ".pio/build/$BUILD_ENV"/littlefs-*.bin out/
           cp bin/device-install.* bin/device-update.* out/ 2>/dev/null || true
           rm -f out/*.update.bin
           ls -l out

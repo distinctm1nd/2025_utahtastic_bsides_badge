@@ -34,6 +34,7 @@
 #include "BadgeCapture.h" // captureWifiSet(): handshakes -> wifi.pcap
 #include "BadgeRadioScan.h"
 #include "main.h" // nimbleBluetooth
+#include "mesh/Throttle.h"
 
 #include "mesh/wifi/WiFiAPClient.h" // isWifiAvailable()
 #include "nimble/NimbleBluetooth.h"
@@ -141,7 +142,7 @@ class ResearchBootApp : public App
     void begin() override { shownAt = millis(); }
     void tick(uint32_t now) override
     {
-        if (now - shownAt > 3000)
+        if (Throttle::hasElapsed(shownAt, 3000))
             appClose();
     }
     void key(int k, KeyAction a) override
@@ -842,7 +843,7 @@ class ResearchApp : public App
     {
         if (phase == P_PICK) {
             radioScanPoll();
-            if (now - lastPoll > 400) {
+            if (Throttle::hasElapsed(lastPoll, 400)) {
                 lastPoll = now;
                 refreshAps();
                 appRedraw();
@@ -852,14 +853,14 @@ class ResearchApp : public App
         if (phase == P_PROBE) {
             if (tool == T_WARDRIVE) { // uses the scanner's own callback; drive it + log new APs
                 radioScanPoll();
-                if (now - lastPoll > 600) {
+                if (Throttle::hasElapsed(lastPoll, 600)) {
                     lastPoll = now;
                     wardriveLog();
                     appRedraw();
                 }
                 return;
             }
-            if (now - lastPoll > 250) { // probe sniffer / packet monitor: hop channels ourselves
+            if (Throttle::hasElapsed(lastPoll, 250)) { // probe sniffer / packet monitor: hop channels ourselves
                 lastPoll = now;
                 hopCh = hopCh % 13 + 1;
                 esp_wifi_set_channel(hopCh, WIFI_SECOND_CHAN_NONE);
@@ -874,7 +875,7 @@ class ResearchApp : public App
             return;
         }
         if (phase == P_CONFIRM) {
-            if (hashDownAt && now - hashDownAt >= FIRE_HOLD_MS) {
+            if (hashDownAt && Throttle::hasElapsed(hashDownAt, FIRE_HOLD_MS)) {
                 frames = 0;
                 hashDownAt = 0; // clear the hold so returning to confirm doesn't instantly re-fire
                 lastTx = 0;
@@ -886,7 +887,7 @@ class ResearchApp : public App
                     refreshAps(); // grab snapshot data for cloning targets
                 phase = P_FIRE;
                 appRedraw();
-            } else if (hashDownAt && now - lastPaint > 150) {
+            } else if (hashDownAt && Throttle::hasElapsed(lastPaint, 150)) {
                 lastPaint = now;
                 appRedraw();
             }
@@ -920,11 +921,11 @@ class ResearchApp : public App
             } else if (tool == T_PROBEFLOOD) {
                 frames += probeFloodOnce(spamBssid, BEACON_SSIDS[ssidIdx], 1);
                 ssidIdx = (ssidIdx + 1) % NUM_BEACON_SSIDS;
-            } else if (tool == T_BLE && now - lastTx > BLE_GAP_MS) {
+            } else if (tool == T_BLE && Throttle::hasElapsed(lastTx, BLE_GAP_MS)) {
                 lastTx = now;
                 frames += bleSpamOnce(bleTarget);
             }
-            if (now - lastPaint > 200) {
+            if (Throttle::hasElapsed(lastPaint, 200)) {
                 lastPaint = now;
                 appRedraw();
             }
@@ -1334,7 +1335,7 @@ class ResearchApp : public App
             if (rows > 1) {
                 // An active lure (a karma AP answering a name a device just probed for) takes the
                 // bottom row when fresh; otherwise it shows the flash-logging destination.
-                bool lure = g_lureSet && (uint32_t)(millis() - g_lure.ms) < 30000;
+                bool lure = g_lureSet && Throttle::isWithinTimespanMs(g_lure.ms, 30000);
                 if (lure)
                     snprintf(b, sizeof(b), "! LURE %s<-%02X:%02X", g_lure.ssid, g_lure.bssid[4], g_lure.bssid[5]);
                 else
