@@ -63,7 +63,7 @@ static uint8_t *picBuf = nullptr;
 static size_t picLen = 0;
 static const char *picError = nullptr;
 static bool scanning = false;
-static char curSsid[24] = "", curPass[12] = "", curAddr[32] = ""; // kept so the app can show them again
+static char curSsid[24] = "", curPass[16] = "", curAddr[32] = ""; // kept so the app can show them again
 static uint32_t portalLastActive = 0;                 // millis() of the last connected phone; drives the idle time-out
 static const uint32_t PORTAL_IDLE_MS = 5 * 60 * 1000; // no phone connected this long -> stop sharing
 
@@ -101,6 +101,46 @@ static void sendJson(const String &body)
 static void fail(const char *why, int code = 400)
 {
     server->send(code, "text/plain", why);
+}
+
+// Only answer requests addressed to the badge's own address, and (when the browser says where
+// the request came from) only from the badge's own page. Stops another web page open on the
+// connected phone from driving this API (cross-site requests, DNS rebinding).
+static bool originOk()
+{
+    String ip = WiFi.softAPIP().toString();
+    String host = server->hostHeader();
+    if (host != ip && host != ip + ":80")
+        return false;
+    if (!server->hasHeader("Origin"))
+        return true; // same-origin GETs and plain downloads carry no Origin
+    String origin = server->header("Origin");
+    return origin == "http://" + ip || origin == "http://" + ip + ":80";
+}
+
+static void guarded(const char *uri, HTTPMethod method, WebServer::THandlerFunction fn)
+{
+    server->on(uri, method, [fn] {
+        if (originOk())
+            fn();
+        else
+            fail("Forbidden", 403);
+    });
+}
+static void guardedUpload(const char *uri, WebServer::THandlerFunction done, WebServer::THandlerFunction upload)
+{
+    server->on(
+        uri, HTTP_POST,
+        [done] {
+            if (originOk())
+                done();
+            else
+                fail("Forbidden", 403);
+        },
+        [upload] {
+            if (originOk())
+                upload();
+        });
 }
 
 static size_t fileSize(const char *path)
@@ -354,6 +394,14 @@ static void copyArg(const char *name, char *dst, size_t n)
     if (server->hasArg(name))
         strlcpy(dst, server->arg(name).c_str(), n);
 }
+// A password is write-only: blank keeps the saved one, <name>Clear=1 removes it.
+static void copySecret(const char *name, const char *clearName, char *dst, size_t n)
+{
+    if (server->arg(clearName) == "1")
+        dst[0] = 0;
+    else if (server->arg(name).length())
+        strlcpy(dst, server->arg(name).c_str(), n);
+}
 static void meshConfigGet()
 {
     auto &n = config.network;
@@ -361,12 +409,12 @@ static void meshConfigGet()
     String o = "{";
     o += String("\"wifiEnabled\":") + (n.wifi_enabled ? "true" : "false");
     o += ",\"wifiSsid\":" + js(n.wifi_ssid);
-    o += ",\"wifiPsk\":" + js(n.wifi_psk);
+    o += String(",\"wifiPskSet\":") + (n.wifi_psk[0] ? "true" : "false"); // never sent back, only whether one is saved
     o += ",\"ntp\":" + js(n.ntp_server);
     o += String(",\"mqttEnabled\":") + (m.enabled ? "true" : "false");
     o += ",\"mqttAddr\":" + js(m.address);
     o += ",\"mqttUser\":" + js(m.username);
-    o += ",\"mqttPass\":" + js(m.password);
+    o += String(",\"mqttPassSet\":") + (m.password[0] ? "true" : "false");
     o += ",\"mqttRoot\":" + js(m.root);
     o += String(",\"mqttTls\":") + (m.tls_enabled ? "true" : "false");
     o += String(",\"mqttJson\":") + (m.json_enabled ? "true" : "false");
@@ -379,12 +427,12 @@ static void meshConfigPost()
     auto &m = moduleConfig.mqtt;
     n.wifi_enabled = argInt("wifiEnabled", 0, 1, n.wifi_enabled);
     copyArg("wifiSsid", n.wifi_ssid, sizeof(n.wifi_ssid));
-    copyArg("wifiPsk", n.wifi_psk, sizeof(n.wifi_psk));
+    copySecret("wifiPsk", "wifiPskClear", n.wifi_psk, sizeof(n.wifi_psk));
     copyArg("ntp", n.ntp_server, sizeof(n.ntp_server));
     m.enabled = argInt("mqttEnabled", 0, 1, m.enabled);
     copyArg("mqttAddr", m.address, sizeof(m.address));
     copyArg("mqttUser", m.username, sizeof(m.username));
-    copyArg("mqttPass", m.password, sizeof(m.password));
+    copySecret("mqttPass", "mqttPassClear", m.password, sizeof(m.password));
     copyArg("mqttRoot", m.root, sizeof(m.root));
     m.tls_enabled = argInt("mqttTls", 0, 1, m.tls_enabled);
     m.json_enabled = argInt("mqttJson", 0, 1, m.json_enabled);
@@ -667,9 +715,15 @@ const char *portalStart(char *ssid, size_t ns, char *pass, size_t np, char *addr
         return why;
     }
     static const char ALPHA[] = "abcdefghjkmnpqrstuvwxyz23456789"; // no look-alikes
-    size_t len = np > 9 ? 8 : np - 1;                              // WPA2's minimum
-    for (size_t i = 0; i < len; i++)
-        pass[i] = ALPHA[esp_random() % (sizeof(ALPHA) - 1)];
+    // 12 random characters in three groups, "k7mp-x2qa-9vtn" (the hyphens are part of the password,
+    // so what the screen shows is exactly what is typed): ~59 bits, out of reach of offline cracking
+    // of a captured WPA2 handshake. A smaller buffer gets as many as fit (WPA2 needs 8).
+    size_t len = 0;
+    for (int i = 0; i < 12 && len + 1 < np; i++) {
+        if (i && i % 4 == 0 && len + 2 < np)
+            pass[len++] = '-';
+        pass[len++] = ALPHA[esp_random() % (sizeof(ALPHA) - 1)];
+    }
     pass[len] = 0;
     snprintf(ssid, ns, "BSides-Badge-%04X", (unsigned)(meshMyNode() & 0xFFFF));
     if (!WiFi.mode(WIFI_AP) || !WiFi.softAP(ssid, pass, 6, 0, 1)) { // one device at a time
@@ -679,53 +733,55 @@ const char *portalStart(char *ssid, size_t ns, char *pass, size_t np, char *addr
     }
     snprintf(addr, na, "http://%s", WiFi.softAPIP().toString().c_str());
     server = new WebServer(80);
-    server->on("/", HTTP_GET, page);
-    server->on("/api/info", HTTP_GET, info);
-    server->on("/api/log", HTTP_GET, logList);
-    server->on("/sightings.csv", HTTP_GET, [] { sendLog(LOG, "sightings.csv"); });
-    server->on("/sightings.old.csv", HTTP_GET, [] { sendLog(OLD, "sightings.old.csv"); });
-    server->on("/capture.pcap", HTTP_GET, [] { sendLog(CAP, "capture.pcap"); });
-    server->on("/wifi.pcap", HTTP_GET, [] { sendLog(WIFICAP, "wifi.pcap"); });
-    server->on("/ble.pcap", HTTP_GET, [] { sendLog(BLECAP, "ble.pcap"); });
+    static const char *const WANTED[] = {"Origin"};
+    server->collectHeaders((const char **)WANTED, 1);
+    guarded("/", HTTP_GET, page);
+    guarded("/api/info", HTTP_GET, info);
+    guarded("/api/log", HTTP_GET, logList);
+    guarded("/sightings.csv", HTTP_GET, [] { sendLog(LOG, "sightings.csv"); });
+    guarded("/sightings.old.csv", HTTP_GET, [] { sendLog(OLD, "sightings.old.csv"); });
+    guarded("/capture.pcap", HTTP_GET, [] { sendLog(CAP, "capture.pcap"); });
+    guarded("/wifi.pcap", HTTP_GET, [] { sendLog(WIFICAP, "wifi.pcap"); });
+    guarded("/ble.pcap", HTTP_GET, [] { sendLog(BLECAP, "ble.pcap"); });
 #if BADGE_OFFENSIVE
-    server->on("/wardrive.csv", HTTP_GET, [] { sendLog(WARDRIVE, "wardrive.csv"); });
-    server->on("/probes.csv", HTTP_GET, [] { sendLog(PROBES, "probes.csv"); });
+    guarded("/wardrive.csv", HTTP_GET, [] { sendLog(WARDRIVE, "wardrive.csv"); });
+    guarded("/probes.csv", HTTP_GET, [] { sendLog(PROBES, "probes.csv"); });
 #endif
-    server->on("/events.csv", HTTP_GET, [] { sendLog(EVENTS, "events.csv"); });
-    server->on("/api/pics", HTTP_GET, picList);
-    server->on("/api/pics", HTTP_POST, picDone, picUpload);
-    server->on("/api/pics/delete", HTTP_POST, [] { picOp(true); });
-    server->on("/api/pics/move", HTTP_POST, [] { picOp(false); });
-    server->on("/api/pics/fav", HTTP_POST, picFav);
-    server->on("/api/settings", HTTP_GET, settingsGet);
-    server->on("/api/settings", HTTP_POST, settingsPost);
-    server->on("/api/meshconfig", HTTP_GET, meshConfigGet);
-    server->on("/api/meshconfig", HTTP_POST, meshConfigPost);
-    server->on("/api/mynets", HTTP_GET, myNetsGetH);
-    server->on("/api/mynets", HTTP_POST, myNetsPostH);
-    server->on("/api/nodes", HTTP_GET, nodes);
-    server->on("/api/message", HTTP_POST, message);
-    server->on("/api/hunt", HTTP_GET, hunt);
-    server->on("/api/positions", HTTP_GET, positions);
-    server->on("/api/rules", HTTP_GET, rulesList);
-    server->on("/api/rules", HTTP_POST, rulesAdd);
-    server->on("/api/rules/delete", HTTP_POST, rulesDelete);
-    server->on("/api/tiles", HTTP_GET, tilesGet);
-    server->on("/api/tiles", HTTP_POST, tilesPost);
-    server->on("/api/shortcuts", HTTP_GET, shortcutsGet);
-    server->on("/api/shortcuts", HTTP_POST, shortcutsPost);
-    server->on("/api/time", HTTP_POST, [] {
+    guarded("/events.csv", HTTP_GET, [] { sendLog(EVENTS, "events.csv"); });
+    guarded("/api/pics", HTTP_GET, picList);
+    guardedUpload("/api/pics", picDone, picUpload);
+    guarded("/api/pics/delete", HTTP_POST, [] { picOp(true); });
+    guarded("/api/pics/move", HTTP_POST, [] { picOp(false); });
+    guarded("/api/pics/fav", HTTP_POST, picFav);
+    guarded("/api/settings", HTTP_GET, settingsGet);
+    guarded("/api/settings", HTTP_POST, settingsPost);
+    guarded("/api/meshconfig", HTTP_GET, meshConfigGet);
+    guarded("/api/meshconfig", HTTP_POST, meshConfigPost);
+    guarded("/api/mynets", HTTP_GET, myNetsGetH);
+    guarded("/api/mynets", HTTP_POST, myNetsPostH);
+    guarded("/api/nodes", HTTP_GET, nodes);
+    guarded("/api/message", HTTP_POST, message);
+    guarded("/api/hunt", HTTP_GET, hunt);
+    guarded("/api/positions", HTTP_GET, positions);
+    guarded("/api/rules", HTTP_GET, rulesList);
+    guarded("/api/rules", HTTP_POST, rulesAdd);
+    guarded("/api/rules/delete", HTTP_POST, rulesDelete);
+    guarded("/api/tiles", HTTP_GET, tilesGet);
+    guarded("/api/tiles", HTTP_POST, tilesPost);
+    guarded("/api/shortcuts", HTTP_GET, shortcutsGet);
+    guarded("/api/shortcuts", HTTP_POST, shortcutsPost);
+    guarded("/api/time", HTTP_POST, [] {
         bool ok = timeSetFromBrowser((uint32_t)strtoul(server->arg("t").c_str(), nullptr, 10));
         if (server->hasArg("tz"))
             timeSetZone(server->arg("tz").c_str());
         sendJson(ok ? "{\"ok\":true}" : "{\"ok\":false}");
     });
-    server->on("/api/update", HTTP_GET, updStatus);
-    server->on("/api/update", HTTP_POST, updDone, updUpload);
-    server->on("/api/explore", HTTP_GET, exploreGet);
-    server->on("/api/explore", HTTP_POST, exploreStartReq);
-    server->on("/api/stream", HTTP_GET, [] { sendJson(String("{\"kind\":") + captureStreamKind() + "}"); });
-    server->on("/api/stream", HTTP_POST, [] {
+    guarded("/api/update", HTTP_GET, updStatus);
+    guardedUpload("/api/update", updDone, updUpload);
+    guarded("/api/explore", HTTP_GET, exploreGet);
+    guarded("/api/explore", HTTP_POST, exploreStartReq);
+    guarded("/api/stream", HTTP_GET, [] { sendJson(String("{\"kind\":") + captureStreamKind() + "}"); });
+    guarded("/api/stream", HTTP_POST, [] {
         int k = server->arg("kind").toInt();
         if (k < 0 || k > 2)
             k = 0;

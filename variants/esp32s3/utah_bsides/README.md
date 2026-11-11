@@ -918,7 +918,7 @@ Badge menu -> *Stopwatch & timer* (or a shortcut). `#` switches between the two;
 ## Badge WiFi
 
 Badge menu → *Badge WiFi (phone)* (or `#` in the Sightings log): the badge becomes its own WiFi
-network, WPA2 with a new random 8-character password each time and one device at a time. It
+network, WPA2 with a new random 12-character password each time (shown in three groups, hyphens included) and one device at a time. Press `#` on that screen for a QR code that joins a phone without typing. It
 keeps serving even when the lock screen comes up (so your phone's session isn't dropped); `*` on
 the badge's Badge WiFi screen stops it on purpose, and it also stops on its own after about 5
 minutes with no phone connected. While it's sharing, a small **WiFi** badge shows on the name

@@ -120,12 +120,14 @@ input.search{width:100%;box-sizing:border-box;background:#0e0e0d;border:1px soli
     <p class="mut">WiFi and MQTT &mdash; type them here instead of the phone app. <b>WiFi changes take effect after the badge reboots</b>, and turning WiFi on disables Bluetooth on this badge.</p>
     <label><input type="checkbox" id="mc-wifiEnabled"> WiFi enabled</label>
     <label>WiFi network (SSID)</label><input type="text" id="mc-wifiSsid" maxlength="32">
-    <label>WiFi password</label><input type="text" id="mc-wifiPsk" maxlength="64">
+    <label>WiFi password</label><input type="password" id="mc-wifiPsk" maxlength="64" autocomplete="off">
+    <label><input type="checkbox" id="mc-wifiPskClear"> Remove the saved WiFi password</label>
     <label>NTP server</label><input type="text" id="mc-ntp" maxlength="32" placeholder="pool.ntp.org">
     <label><input type="checkbox" id="mc-mqttEnabled"> MQTT enabled</label>
     <label>MQTT server</label><input type="text" id="mc-mqttAddr" maxlength="63" placeholder="mqtt.meshtastic.org">
     <label>MQTT username</label><input type="text" id="mc-mqttUser" maxlength="63">
-    <label>MQTT password</label><input type="text" id="mc-mqttPass" maxlength="31">
+    <label>MQTT password</label><input type="password" id="mc-mqttPass" maxlength="31" autocomplete="off">
+    <label><input type="checkbox" id="mc-mqttPassClear"> Remove the saved MQTT password</label>
     <label>MQTT root topic</label><input type="text" id="mc-mqttRoot" maxlength="31" placeholder="msh">
     <label><input type="checkbox" id="mc-mqttTls"> MQTT use TLS</label>
     <label><input type="checkbox" id="mc-mqttJson"> MQTT JSON output</label>
@@ -343,9 +345,9 @@ function loadSettings(){api("/api/settings").then(s=>{$("s-name").value=s.name;$
   $("s-scroll").checked=s.scroll;$("s-night").checked=s.night;$("s-tagawake").checked=s.tagawake;$("s-welcome").checked=s.welcome;$("s-home").checked=s.home;$("s-remote").checked=s.remote;$("s-canned").value=s.canned.split("|").join("\n");$("s-qrlink").value=s.qrlink||"";$("s-qrtext").value=s.qrtext||""})}
 function formValues(){const v={};for(const f of FIELDS){const e=$("s-"+f);v[f]=e.type==="checkbox"?(e.checked?1:0):e.value}v.canned=v.canned.split("\n").map(s=>s.trim()).filter(Boolean).join("|");return v}
 $("setsave").onclick=()=>post("/api/settings",formValues()).then(()=>say("setmsg","Saved")).catch(e=>say("setmsg",e.message,1));
-const MC_STR=["wifiSsid","wifiPsk","ntp","mqttAddr","mqttUser","mqttPass","mqttRoot"],MC_BOOL=["wifiEnabled","mqttEnabled","mqttTls","mqttJson","mqttEncrypt"];
-function loadMeshConfig(){api("/api/meshconfig").then(s=>{for(const f of MC_STR)$("mc-"+f).value=s[f]||"";for(const f of MC_BOOL)$("mc-"+f).checked=!!s[f]}).catch(e=>say("meshmsg",e.message,1))}
-$("meshsave").onclick=()=>{const v={};for(const f of MC_STR)v[f]=$("mc-"+f).value;for(const f of MC_BOOL)v[f]=$("mc-"+f).checked?1:0;post("/api/meshconfig",v).then(()=>say("meshmsg","Saved — reboot the badge to apply")).catch(e=>say("meshmsg",e.message,1))};
+const MC_STR=["wifiSsid","wifiPsk","ntp","mqttAddr","mqttUser","mqttPass","mqttRoot"],MC_BOOL=["wifiEnabled","mqttEnabled","mqttTls","mqttJson","mqttEncrypt"],MC_SECRET=["wifiPsk","mqttPass"];
+function loadMeshConfig(){api("/api/meshconfig").then(s=>{for(const f of MC_STR)$("mc-"+f).value=s[f]||"";for(const f of MC_BOOL)$("mc-"+f).checked=!!s[f];for(const f of MC_SECRET){$("mc-"+f).value="";$("mc-"+f).placeholder=s[f+"Set"]?"saved \u2014 leave blank to keep":"none saved";$("mc-"+f+"Clear").checked=false}}).catch(e=>say("meshmsg",e.message,1))}
+$("meshsave").onclick=()=>{const v={};for(const f of MC_STR)v[f]=$("mc-"+f).value;for(const f of MC_BOOL)v[f]=$("mc-"+f).checked?1:0;for(const f of MC_SECRET)v[f+"Clear"]=$("mc-"+f+"Clear").checked?1:0;post("/api/meshconfig",v).then(()=>{loadMeshConfig();say("meshmsg","Saved — reboot the badge to apply")}).catch(e=>say("meshmsg",e.message,1))};
 function loadMyNets(){api("/api/mynets").then(s=>{$("mynets").value=s.nets||""}).catch(e=>say("mynetsmsg",e.message,1))}
 $("mynetssave").onclick=()=>post("/api/mynets",{nets:$("mynets").value}).then(()=>say("mynetsmsg","Saved")).catch(e=>say("mynetsmsg",e.message,1));
 $("bakget").onclick=()=>api("/api/settings").then(s=>{const keep={};for(const f of FIELDS)keep[f]=s[f];const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(keep,null,1)],{type:"application/json"}));a.download="badge-settings.json";a.click()});
