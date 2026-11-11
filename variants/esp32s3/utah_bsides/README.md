@@ -1179,7 +1179,7 @@ pio device monitor -b 115200           # USB serial log (ESP32 core messages; Me
 The build runs these scripts first: `make_images.py` (pictures), `make_vendors.py` (maker lists
 and rules), `make_portal.py` (the web page, with `tools/portal/raven.png` inlined) and
 `make_chip8.py` (games); and `sign_update.py` afterwards (the signed `.update.bin`, when the key
-is present). PC tests: `tools/keypad_test.cpp` (keypad, joystick, editor, shortcuts),
+is present; never for the research build). PC tests: `tools/keypad_test.cpp` (keypad, joystick, editor, shortcuts),
 `chess_test.cpp`, `chip8_test.cpp`, `image_test.cpp`, `mine_preview.cpp`.
 
 The badge's module is an ESP32-S3-WROOM-1-**N16R2**: 16 MB of flash and 2 MB of PSRAM. The build
@@ -1231,7 +1231,9 @@ pio run -e utah_bsides_research -t upload --upload-port /dev/ttyACM0
 ```
 
 Research images are **unsigned by design**, so they can't be installed over WiFi/OTA (the badge
-only accepts updates signed by the badge team) — every update is a manual USB reflash. The default
+only accepts updates signed by the badge team) — every update is a manual USB reflash. The signing
+scripts refuse a research image even when the key is present, and CI never builds, signs or
+publishes this env (it fails if a built image contains the research tools). The default
 signed badge contains none of this code: it is compiled out entirely unless `BADGE_OFFENSIVE` is
 set, so a badge flashed from the web installer cannot run these tools.
 
