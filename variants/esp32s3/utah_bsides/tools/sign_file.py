@@ -18,6 +18,10 @@ if __name__ == "__main__":
     files = [f for f in sys.argv[1:] if f.endswith(".bin") and not f.endswith((".factory.bin", ".update.bin"))]
     if not files:
         sys.exit(__doc__)
+    # Only the default env is ever signed; research (and any other env) images are refused.
+    other = [f for f in files if not os.path.basename(f).startswith("firmware-utah_bsides-")]
+    if other:
+        sys.exit("refusing to sign a non-default build: " + ", ".join(os.path.basename(f) for f in other))
     seed = update_key.load_seed()
     if not seed:
         sys.exit("no signing key (BADGE_SIGNING_KEY)")

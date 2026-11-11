@@ -13,8 +13,23 @@ import ed25519_sign  # noqa: E402
 import update_key  # noqa: E402
 
 
+def is_research(env):
+    """The research build (BADGE_OFFENSIVE) is never signed: a signed image is one every badge
+    accepts over WiFi, and the research tools must only ever reach a badge by a self-build."""
+    if "research" in env.subst("$PIOENV"):
+        return True
+    for d in env.get("CPPDEFINES", []):
+        name = d[0] if isinstance(d, (list, tuple)) else str(d).split("=")[0]
+        if name == "BADGE_OFFENSIVE":
+            return True
+    return False
+
+
 def sign(source, target, env):
     image_path = str(target[0])
+    if is_research(env):
+        print("[badge update] research build: not signed (no .update.bin)")
+        return
     seed = update_key.load_seed()
     if not seed:
         print("[badge update] no signing key: no .update.bin (tools/update_key.py)")

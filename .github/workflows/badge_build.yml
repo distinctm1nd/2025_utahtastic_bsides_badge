@@ -59,6 +59,10 @@ jobs:
           # Defaults to utah_bsides; a manual run can pick another env (e.g. a debug build).
           BUILD_ENV: ${{ github.event.inputs.env || 'utah_bsides' }}
         run: |
+          # The research build is self-built only: CI never builds, signs or publishes it.
+          case "$BUILD_ENV" in
+            *research*) echo "the research build is not built in CI; build it locally" >&2; exit 1 ;;
+          esac
           echo "pioarduino==6.2.0" > "$UV_CONSTRAINT"
           pio run -e "$BUILD_ENV"
           pio run -e "$BUILD_ENV" -t buildfs || true
@@ -73,6 +77,12 @@ jobs:
           cp bin/device-install.* bin/device-update.* out/ 2>/dev/null || true
           rm -f out/*.update.bin
           ls -l out
+          # Tripwire: nothing built here may contain the research tools. "RESEARCH BUILD" is the
+          # research boot banner (AppResearch.cpp), present only when BADGE_OFFENSIVE is compiled in.
+          if grep -l -a "RESEARCH BUILD" out/*.bin; then
+            echo "research code found in a CI-built image" >&2
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
@@ -82,7 +92,8 @@ jobs:
   # Signs the firmware for WiFi updates. Waits for the release environment's required
   # reviewer; only standard-library Python and the badge's own signing scripts run here.
   sign:
-    if: startsWith(github.ref, 'refs/tags/badge-v')
+    # Tag pushes only: a manual run (which can pick another env) never signs or publishes.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/badge-v')
     needs: build
     runs-on: ubuntu-latest
     environment: release
@@ -109,7 +120,8 @@ jobs:
 
   # The GitHub release (all .bin files) and the web installer site.
   release:
-    if: startsWith(github.ref, 'refs/tags/badge-v')
+    # Tag pushes only: a manual run (which can pick another env) never signs or publishes.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/badge-v')
     needs: [build, sign]
     runs-on: ubuntu-latest
     permissions:
@@ -157,7 +169,8 @@ jobs:
   # Settings -> Pages -> Source: GitHub Actions, and the github-pages environment allowed to
   # deploy badge-v* tags.
   pages:
-    if: startsWith(github.ref, 'refs/tags/badge-v')
+    # Tag pushes only: a manual run (which can pick another env) never signs or publishes.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/badge-v')
     needs: release
     runs-on: ubuntu-latest
     permissions:

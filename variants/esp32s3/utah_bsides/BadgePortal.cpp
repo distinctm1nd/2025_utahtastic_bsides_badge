@@ -46,8 +46,10 @@ static const char *OLD = "/badge/sightings.old.csv";
 static const char *CAP = "/badge/capture.pcap";
 static const char *WIFICAP = "/badge/wifi.pcap";
 static const char *BLECAP = "/badge/ble.pcap";
-static const char *WARDRIVE = "/badge/wardrive.csv"; // research build only; 404s otherwise
-static const char *PROBES = "/badge/probes.csv";     // research build only; 404s otherwise
+#if BADGE_OFFENSIVE // research build only: the default build has no trace of these logs
+static const char *WARDRIVE = "/badge/wardrive.csv";
+static const char *PROBES = "/badge/probes.csv";
+#endif
 static const char *EVENTS = "/badge/events.csv";     // threat log; 404s until something is logged
 static const size_t MAX_PIC = 512 * 1024;
 
@@ -131,7 +133,16 @@ static void logList()
 {
     String o = "{\"files\":[";
     bool first = true;
-    for (const char *p : {LOG, OLD, CAP, WIFICAP, BLECAP, WARDRIVE, PROBES, EVENTS}) {
+    for (const char *p : {LOG,
+                          OLD,
+                          CAP,
+                          WIFICAP,
+                          BLECAP,
+#if BADGE_OFFENSIVE
+                          WARDRIVE,
+                          PROBES,
+#endif
+                          EVENTS}) {
         size_t n = fileSize(p);
         if (!n)
             continue;
@@ -676,8 +687,10 @@ const char *portalStart(char *ssid, size_t ns, char *pass, size_t np, char *addr
     server->on("/capture.pcap", HTTP_GET, [] { sendLog(CAP, "capture.pcap"); });
     server->on("/wifi.pcap", HTTP_GET, [] { sendLog(WIFICAP, "wifi.pcap"); });
     server->on("/ble.pcap", HTTP_GET, [] { sendLog(BLECAP, "ble.pcap"); });
+#if BADGE_OFFENSIVE
     server->on("/wardrive.csv", HTTP_GET, [] { sendLog(WARDRIVE, "wardrive.csv"); });
     server->on("/probes.csv", HTTP_GET, [] { sendLog(PROBES, "probes.csv"); });
+#endif
     server->on("/events.csv", HTTP_GET, [] { sendLog(EVENTS, "events.csv"); });
     server->on("/api/pics", HTTP_GET, picList);
     server->on("/api/pics", HTTP_POST, picDone, picUpload);
