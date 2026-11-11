@@ -50,7 +50,7 @@ static const char *BLECAP = "/badge/ble.pcap";
 static const char *WARDRIVE = "/badge/wardrive.csv";
 static const char *PROBES = "/badge/probes.csv";
 #endif
-static const char *EVENTS = "/badge/events.csv";     // threat log; 404s until something is logged
+static const char *EVENTS = "/badge/events.csv"; // threat log; 404s until something is logged
 static const size_t MAX_PIC = 512 * 1024;
 
 static WebServer *server = nullptr;
@@ -118,13 +118,36 @@ static bool originOk()
     return origin == "http://" + ip || origin == "http://" + ip + ":80";
 }
 
+// The PIN lock and the portal: a device that was using the page while the badge was unlocked keeps
+// its session when the lock comes up (it locks by itself after 5 minutes), but a device that joins
+// while the badge is locked is refused until the PIN is typed. One device at a time can be joined,
+// so "the session" is simply: something was served while unlocked and nobody has left since.
+static bool sessionOk = false;
+
+// nullptr when this request may be answered, otherwise why not (sets *code)
+static const char *refusal(int *code)
+{
+    if (!originOk()) {
+        *code = 403;
+        return "Forbidden";
+    }
+    if (!lockLocked())
+        sessionOk = true;
+    else if (!sessionOk) {
+        *code = 423;
+        return "The badge is locked: unlock it, then reload this page";
+    }
+    return nullptr;
+}
+
 static void guarded(const char *uri, HTTPMethod method, WebServer::THandlerFunction fn)
 {
     server->on(uri, method, [fn] {
-        if (originOk())
-            fn();
+        int code = 0;
+        if (const char *why = refusal(&code))
+            fail(why, code);
         else
-            fail("Forbidden", 403);
+            fn();
     });
 }
 static void guardedUpload(const char *uri, WebServer::THandlerFunction done, WebServer::THandlerFunction upload)
@@ -132,13 +155,15 @@ static void guardedUpload(const char *uri, WebServer::THandlerFunction done, Web
     server->on(
         uri, HTTP_POST,
         [done] {
-            if (originOk())
-                done();
+            int code = 0;
+            if (const char *why = refusal(&code))
+                fail(why, code);
             else
-                fail("Forbidden", 403);
+                done();
         },
         [upload] {
-            if (originOk())
+            int code = 0;
+            if (!refusal(&code))
                 upload();
         });
 }
@@ -173,14 +198,9 @@ static void logList()
 {
     String o = "{\"files\":[";
     bool first = true;
-    for (const char *p : {LOG,
-                          OLD,
-                          CAP,
-                          WIFICAP,
-                          BLECAP,
+    for (const char *p : {LOG, OLD, CAP, WIFICAP, BLECAP,
 #if BADGE_OFFENSIVE
-                          WARDRIVE,
-                          PROBES,
+                          WARDRIVE, PROBES,
 #endif
                           EVENTS}) {
         size_t n = fileSize(p);
@@ -192,16 +212,37 @@ static void logList()
     sendJson(o + "]}");
 }
 
+// Sent in pieces, taking the storage lock only for each read: holding it for the whole download
+// (a capture can be megabytes over slow WiFi) would stall everything else that needs the lock.
 static void sendLog(const char *path, const char *name)
 {
-    concurrency::LockGuard g(spiLock);
-    File f = FSCom.open(path, FILE_O_READ);
+    File f;
+    size_t left = 0;
+    {
+        concurrency::LockGuard g(spiLock);
+        f = FSCom.open(path, FILE_O_READ);
+        left = f ? f.size() : 0;
+    }
     if (!f) {
         fail("Not found", 404);
         return;
     }
     server->sendHeader("Content-Disposition", String("attachment; filename=") + name);
-    server->streamFile(f, strstr(name, ".pcap") ? "application/vnd.tcpdump.pcap" : "text/csv");
+    server->setContentLength(left);
+    server->send(200, strstr(name, ".pcap") ? "application/vnd.tcpdump.pcap" : "text/csv", "");
+    static uint8_t buf[1024];
+    while (left && server->client().connected()) {
+        int n;
+        {
+            concurrency::LockGuard g(spiLock);
+            n = f.read(buf, left < sizeof(buf) ? left : sizeof(buf));
+        }
+        if (n <= 0)
+            break;
+        server->sendContent((const char *)buf, (size_t)n);
+        left -= n;
+    }
+    concurrency::LockGuard g(spiLock);
     f.close();
 }
 
@@ -237,6 +278,8 @@ static void picUpload()
         picError = picSave(picBuf, picLen);
     } else if (u.status == UPLOAD_FILE_ABORTED) {
         picError = "Upload stopped";
+        free(picBuf); // the finish handler doesn't run after an abort
+        picBuf = nullptr;
     }
 }
 
@@ -551,6 +594,10 @@ static void rulesDelete()
 static void positions()
 {
     static NodePos *list = psramArray<NodePos>(80);
+    if (!list) {
+        fail("Not enough memory", 503);
+        return;
+    }
     int32_t la = 0, lo = 0;
     bool mine = posMine(la, lo);
     int n = posList(list, 80);
@@ -579,6 +626,10 @@ static void hunt()
     }
     radioScanPoll();
     static ScanEntry *list = psramArray<ScanEntry>(40);
+    if (!list) {
+        fail("Not enough memory", 503);
+        return;
+    }
     int n = radioScanSnapshot(list, 40);
     String o = "[";
     for (int pass = 0; pass < 2; pass++) // marked first
@@ -795,6 +846,7 @@ const char *portalStart(char *ssid, size_t ns, char *pass, size_t np, char *addr
     streamSrv = new WiFiServer(19000);
     streamSrv->begin();
     streamHdrSent = false;
+    sessionOk = false;
     event[0] = 0;
     snprintf(curSsid, sizeof(curSsid), "%s", ssid);
     snprintf(curPass, sizeof(curPass), "%s", pass);
@@ -868,10 +920,12 @@ void portalPoll()
         return;
     server->handleClient();
     streamPoll();
-    uint32_t now = millis();
-    if (WiFi.softAPgetStationNum() > 0 || otaState() == OTA_RECEIVING || otaState() == OTA_CONFIRM)
-        portalLastActive = now; // a phone is connected (or mid-update): never time out
-    else if (now - portalLastActive > PORTAL_IDLE_MS)
+    bool joined = WiFi.softAPgetStationNum() > 0;
+    if (!joined)
+        sessionOk = false; // the device left: the next one to join needs the badge unlocked
+    if (joined || otaState() == OTA_RECEIVING || otaState() == OTA_CONFIRM)
+        portalLastActive = millis(); // a phone is connected (or mid-update): never time out
+    else if (Throttle::hasElapsed(portalLastActive, PORTAL_IDLE_MS))
         portalStop(); // nobody has been connected for a while: stop sharing on its own
 }
 

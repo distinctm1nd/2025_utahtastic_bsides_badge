@@ -429,7 +429,7 @@ class NameTagApp : public App
             unpackedFrame = -1;
         }
         while (unpackedFrame < frame && unpackedFrame + 1 < im.frames) {
-            nextSrc = unpackFrame(nextSrc, frameBuf, n);
+            nextSrc = unpackFrame(nextSrc, frameBuf, n, picDataEnd(im));
             unpackedFrame++;
         }
         d->drawXbm(x + (d->width() - im.w) / 2, y + (d->height() - im.h) / 2, im.w, im.h, frameBuf);
@@ -517,8 +517,7 @@ class NameTagApp : public App
         d->setFont(font);
         int n = (int)strlen(t);
         for (int i = 1; i < n; i++)
-            if (t[i] == ' ' && d->getStringWidth(t, (uint16_t)i) <= w &&
-                d->getStringWidth(t + i + 1, (uint16_t)(n - i - 1)) <= w)
+            if (t[i] == ' ' && d->getStringWidth(t, (uint16_t)i) <= w && d->getStringWidth(t + i + 1, (uint16_t)(n - i - 1)) <= w)
                 return true;
         return false;
     }

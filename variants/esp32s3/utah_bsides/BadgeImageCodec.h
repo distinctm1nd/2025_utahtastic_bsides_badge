@@ -12,16 +12,26 @@
 namespace badge
 {
 
-// XOR one frame's stream into `frame` (n bytes, the previous frame); returns the next stream
-inline const uint8_t *unpackFrame(const uint8_t *src, uint8_t *frame, int n)
+// XOR one frame's stream into `frame` (n bytes, the previous frame); returns the next stream.
+// `end` (one past the last byte of the data) bounds the reads for pictures that came from outside
+// the firmware - a cut-short or hand-made upload then just stops early instead of reading past its
+// buffer. nullptr for the built-in pictures, which are known good.
+inline const uint8_t *unpackFrame(const uint8_t *src, uint8_t *frame, int n, const uint8_t *end = nullptr)
 {
     int o = 0;
     while (o < n) {
+        if (end && src >= end)
+            return end;
         uint8_t h = *src++;
         if (h < 128) {
-            for (int i = 0; i <= h && o < n; i++)
+            for (int i = 0; i <= h && o < n; i++) {
+                if (end && src >= end)
+                    return end;
                 frame[o++] ^= *src++;
+            }
         } else if (h > 128) {
+            if (end && src >= end)
+                return end;
             uint8_t v = *src++;
             for (int i = 0; i < 257 - h && o < n; i++)
                 frame[o++] ^= v;

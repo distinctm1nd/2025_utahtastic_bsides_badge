@@ -34,6 +34,22 @@ static void fail(const char *why)
     state = OTA_FAILED;
 }
 
+// When an image was built, as a number that sorts by time (yyyymmddhhmmss), from the "Nov 11 2026"
+// / "10:18:00" strings the build puts in every image; 0 if they can't be read.
+static uint64_t builtAt(const esp_app_desc_t &d)
+{
+    static const char MONTHS[] = "JanFebMarAprMayJunJulAugSepOctNovDec";
+    char mon[4] = "";
+    int day = 0, year = 0, hh = 0, mm = 0, ss = 0;
+    if (sscanf(d.date, "%3s %d %d", mon, &day, &year) != 3 || sscanf(d.time, "%d:%d:%d", &hh, &mm, &ss) != 3)
+        return 0;
+    const char *m = strstr(MONTHS, mon);
+    if (!m || (m - MONTHS) % 3)
+        return 0;
+    int month = (int)(m - MONTHS) / 3 + 1;
+    return ((((uint64_t)year * 100 + month) * 100 + day) * 100 + hh) * 10000 + mm * 100 + ss;
+}
+
 bool otaAvailable()
 {
     for (uint8_t b : UPDATE_PUBLIC_KEY)
@@ -105,8 +121,21 @@ void otaFinish()
         return;
     }
     esp_app_desc_t desc;
-    if (esp_ota_get_partition_description(target, &desc) == ESP_OK)
+    if (esp_ota_get_partition_description(target, &desc) == ESP_OK) {
         snprintf(newVersion, sizeof(newVersion), "%s", desc.version);
+        // No downgrades over WiFi: an old signed image stays validly signed for ever, so without
+        // this anyone holding one could put a badge back on it. Going back is a USB install.
+        esp_app_desc_t mine;
+        const esp_partition_t *running = esp_ota_get_running_partition();
+        if (running && esp_ota_get_partition_description(running, &mine) == ESP_OK) {
+            uint64_t theirs = builtAt(desc), ours = builtAt(mine);
+            if (theirs && ours && theirs < ours) {
+                snprintf(msg, sizeof(msg), "Older than this badge's firmware: install it over USB");
+                state = OTA_FAILED;
+                return;
+            }
+        }
+    }
     snprintf(msg, sizeof(msg), "Signed and checked. Press # on the badge to install");
     state = OTA_CONFIRM;
 }

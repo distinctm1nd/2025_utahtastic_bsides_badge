@@ -919,7 +919,8 @@ Badge menu -> *Stopwatch & timer* (or a shortcut). `#` switches between the two;
 
 Badge menu → *Badge WiFi (phone)* (or `#` in the Sightings log): the badge becomes its own WiFi
 network, WPA2 with a new random 12-character password each time (shown in three groups, hyphens included) and one device at a time. Press `#` on that screen for a QR code that joins a phone without typing. It
-keeps serving even when the lock screen comes up (so your phone's session isn't dropped); `*` on
+keeps serving even when the lock screen comes up (so your phone's session isn't dropped; a device
+that joins while the badge is PIN-locked is refused until you unlock it); `*` on
 the badge's Badge WiFi screen stops it on purpose, and it also stops on its own after about 5
 minutes with no phone connected. While it's sharing, a small **WiFi** badge shows on the name
 tag, the lock screen and the Badge page, so it's obvious the badge is still transmitting even
@@ -1207,7 +1208,8 @@ pio run -e utah_bsides -t upload
 
 Every signed build also makes `firmware-utah_bsides-*.update.bin`. On the badge: menu → **Badge
 WiFi (phone)**, join the network it shows, open the address, **Update**, send the file, then
-press **#** on the badge. If an update misbehaves,
+press **#** on the badge. The badge refuses an update built earlier than the firmware it is
+running; to go back to an older version, or if an update misbehaves,
 install over USB / the web installer.
 
 ### Research build (opt-in — authorized testing only)

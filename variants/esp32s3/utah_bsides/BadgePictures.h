@@ -17,11 +17,14 @@ const char *picName(int i);
 // load picture i (frames stay in memory until the next load / picUnload); false if unreadable
 bool picLoad(int i, BadgeImage &out);
 void picUnload();
+// one past the last byte of `im`'s frame data when it is the loaded (uploaded) picture, for
+// unpackFrame()'s bounds check; nullptr for a built-in picture
+const uint8_t *picDataEnd(const BadgeImage &im);
 // a converted picture from the web page: header + frames as described above; nullptr if saved
 const char *picSave(const uint8_t *data, size_t len);
 bool picDelete(int i);
 bool picMove(int i, int dir); // swap with the one before (-1) / after (+1)
-size_t picFreeSpace();         // bytes left on the file system
+size_t picFreeSpace();        // bytes left on the file system
 
 // what shows at startup (NVS "startpic"): "" welcome tips, "@tag" the name tag, or a picture's name
 const char *picStartup();

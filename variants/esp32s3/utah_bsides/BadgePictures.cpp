@@ -18,12 +18,13 @@ static const size_t HEADER = 4 + 8 + 24;
 static const size_t MAX_FILE = 512 * 1024;
 
 struct Entry {
-    int num;       // NN of NN.bpi
+    int num; // NN of NN.bpi
     char name[25];
 };
 static Entry entries[MAX_PICTURES];
 static int count = -1; // -1: not listed yet
 static uint8_t *loaded = nullptr;
+static size_t loadedLen = 0;
 
 static void path(char *out, size_t n, int num)
 {
@@ -75,6 +76,7 @@ void picUnload()
 {
     free(loaded);
     loaded = nullptr;
+    loadedLen = 0;
 }
 
 bool picLoad(int i, BadgeImage &out)
@@ -93,8 +95,13 @@ bool picLoad(int i, BadgeImage &out)
         f.close();
         return false;
     }
-    f.read(loaded, n);
+    int got = f.read(loaded, n);
     f.close();
+    loadedLen = got > 0 ? (size_t)got : 0;
+    if (loadedLen <= HEADER) {
+        picUnload();
+        return false;
+    }
     auto u16 = [&](int o) { return (uint16_t)(loaded[o] | (loaded[o + 1] << 8)); };
     out.name = entries[i].name;
     out.w = u16(4);
@@ -108,6 +115,11 @@ bool picLoad(int i, BadgeImage &out)
         return false;
     }
     return true;
+}
+
+const uint8_t *picDataEnd(const BadgeImage &im)
+{
+    return loaded && im.bits == loaded + HEADER ? loaded + loadedLen : nullptr;
 }
 
 const char *picSave(const uint8_t *data, size_t len)
