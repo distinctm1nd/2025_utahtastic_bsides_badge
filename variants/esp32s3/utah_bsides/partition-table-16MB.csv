@@ -1,10 +1,12 @@
-# Utah BSides badge: ESP32-S3-WROOM-1-N16R2 (16 MB flash). Two 6 MB firmware slots so the badge
+# Utah BSides badge: ESP32-S3-WROOM-1-N16R2 (16 MB flash). Two 5 MB firmware slots so the badge
 # can update itself over WiFi (the new firmware goes into the slot not running, then the badge
-# switches), and ~3.9 MB of file space for the sightings log and uploaded pictures.
+# switches), and ~5.9 MB of file space for the logs, captures and uploaded pictures.
+# Changing this table needs a full install over USB / the web installer once (see README.md), and
+# moving "spiffs" loses the files in it.
 # Name,   Type, SubType,  Offset,   Size,     Flags
 nvs,      data, nvs,      0x9000,   0x5000,
 otadata,  data, ota,      0xe000,   0x2000,
-app0,     app,  ota_0,    0x10000,  0x600000,
-app1,     app,  ota_1,    0x610000, 0x600000,
-spiffs,   data, spiffs,   0xC10000, 0x3E0000,
+app0,     app,  ota_0,    0x10000,  0x500000,
+app1,     app,  ota_1,    0x510000, 0x500000,
+spiffs,   data, spiffs,   0xA10000, 0x5E0000,
 coredump, data, coredump, 0xFF0000, 0x10000,

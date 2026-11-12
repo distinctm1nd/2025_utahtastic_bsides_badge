@@ -10,6 +10,7 @@
 #include "BadgeHome.h"
 #include "BadgeLock.h"
 #include "BadgeMenu.h"
+#include "BadgeMeshCore.h"
 #include "BadgeTime.h"
 
 #include "gps/RTC.h"
@@ -236,7 +237,8 @@ class HomeApp : public App
             return;
         }
         int lh = fontHeight(FONT_SMALL), W = d->width(), H = d->height();
-        drawTitle(d, x, y, "UTAHtastic", "#open  0 arrange");
+        // the title says which mesh the radio speaks this run (plain "UTAHtastic" without MeshCore built in)
+        drawTitle(d, x, y, meshcoreBuilt() ? meshName() : "UTAHtastic", "#open  0 arrange");
         int top = y + lh + 3, tileW = (W - 6) / COLS, tileH = lh * 2 + 4, gap = 2;
         int rowsFit = (H - (top - y)) / (tileH + gap);
         if (rowsFit < 1)

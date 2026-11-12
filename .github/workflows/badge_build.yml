@@ -50,6 +50,17 @@ jobs:
         # pioarduino platform's engine check rejects (IncompatiblePlatform, pioarduino #563).
         run: pip install platformio==6.2.0
 
+      - name: MeshCore (the badge's second mesh)
+        # The badge links MeshCore's core in from a checkout (tools/link_meshcore.py looks in
+        # .pio/meshcore). Pinned to an exact commit so a release is reproducible.
+        env:
+          MESHCORE_REPO: https://github.com/distinctm1nd/MeshCore.git
+          MESHCORE_COMMIT: d2096bd90e65cd5213e612811eda0bc214e1ab1c
+        run: |
+          git init -q .pio/meshcore
+          git -C .pio/meshcore fetch -q --depth 1 "$MESHCORE_REPO" "$MESHCORE_COMMIT"
+          git -C .pio/meshcore checkout -q FETCH_HEAD
+
       - name: Build
         env:
           # pioarduino's platform builds its own penv and installs "pioarduino" via uv, which

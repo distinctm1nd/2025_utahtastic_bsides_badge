@@ -7,6 +7,7 @@
 #include <Ed25519.h>
 #include <SHA256.h>
 #include <esp_ota_ops.h>
+#include <esp_partition.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -63,7 +64,11 @@ const char *otaBegin(size_t imageSize, const uint8_t sig[64])
     otaAbort();
     if (!otaAvailable())
         return "WiFi updates aren't set up in this build (no update key)";
-    target = esp_ota_get_next_update_partition(nullptr);
+    // The other firmware slot, by name (not "the next slot", which depends on how many there are).
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    bool onSlot0 = !running || running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0;
+    target = esp_partition_find_first(ESP_PARTITION_TYPE_APP,
+                                      onSlot0 ? ESP_PARTITION_SUBTYPE_APP_OTA_1 : ESP_PARTITION_SUBTYPE_APP_OTA_0, nullptr);
     if (!target)
         return "No second firmware slot: install this version over USB / the web installer first";
     if (!imageSize || imageSize > target->size)

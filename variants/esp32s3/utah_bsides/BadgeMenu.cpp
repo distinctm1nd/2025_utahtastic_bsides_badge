@@ -199,7 +199,8 @@ static const char *COLOUR_NAMES[] = {"Meshtastic green", "White", "Amber", "Red"
 static const uint32_t COLOUR_RGB[] = {0x67EA94, 0xFFFFFF, 0xFFB000, 0xFF2000, 0x00E0FF, 0xFF60C0, 0xB070FF};
 static const int NCOLOURS = sizeof(COLOUR_RGB) / sizeof(COLOUR_RGB[0]);
 
-static void applyColour(int i)
+// redraw=false only sets the colour (for startup, before anything has been drawn in another one)
+static void applyColour(int i, bool redraw = true)
 {
     if (i < 0 || i >= NCOLOURS)
         i = 0;
@@ -210,7 +211,7 @@ static void applyColour(int i)
     TFT_MESH = (uint16_t)(((b & 0xF8) << 8) | ((g & 0xFC) << 3) | (r >> 3));
     // the driver only sends pixels that changed: flash the whole screen once so every lit
     // pixel is sent again in the new colour
-    if (screen && screen->getDisplayDevice()) {
+    if (redraw && screen && screen->getDisplayDevice()) {
         OLEDDisplay *d = screen->getDisplayDevice();
         d->setColor(WHITE);
         d->fillRect(0, 0, d->width(), d->height());
@@ -265,9 +266,26 @@ void menuSetWelcome(bool on)
     putInt("welcome", on ? 1 : 0);
 }
 
+// Before Meshtastic draws its first picture (the raven): set the saved screen colour, so that
+// picture is already in it and menuInit() has nothing to redraw. Night mode isn't loaded yet
+// (BadgeLeds does that later), so read its saved setting directly.
+static int earlyColour = -1;
+void menuInitEarly()
+{
+    bool night = false;
+    Preferences p;
+    if (p.begin("utah", true)) {
+        night = p.getBool("night", false);
+        p.end();
+    }
+    earlyColour = night ? 3 : colourSetting();
+    applyColour(earlyColour, false);
+}
+
 void menuInit()
 {
-    applyColour(activeColour());
+    // wiping and redrawing the screen here would show as the startup raven flashing twice
+    applyColour(activeColour(), activeColour() != earlyColour);
 }
 
 // ---- option-banner helper ---------------------------------------------------------------------

@@ -196,9 +196,8 @@ class BadgeKeypad : public Observable<const InputEvent *>, public concurrency::O
         pinMode(BADGE_CENTER_PIN, INPUT_PULLUP);
         writeReg2(TCA9535_POLARITY0, 0x00, 0x00);
         // TFT backlight (active HIGH): Meshtastic's TFTDisplay no longer owns this pin (see
-        // variant.h BADGE_TFT_BL), so drive it on ourselves. The badge display stays on.
-        pinMode(BADGE_TFT_BL, OUTPUT);
-        digitalWrite(BADGE_TFT_BL, HIGH);
+        // variant.h BADGE_TFT_BL), so the badge drives it: off in earlyInitVariant(), on in
+        // the backlight task (variant.cpp) once the raven is up. Nothing to do here.
     }
     uint32_t state() const { return logic.state(); }
 
