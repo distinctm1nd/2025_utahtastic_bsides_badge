@@ -2,9 +2,12 @@
 #include "configuration.h"
 
 #include "BadgeApp.h"
+
 #include "BadgeKeypad.h"
 #include "BadgeLock.h"
 #include "BadgeMenu.h"
+#include "BluetoothStatus.h"
+#include "main.h"
 
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
@@ -81,6 +84,13 @@ void appKey(int k, KeyAction a)
     }
 }
 
+// Meshtastic is showing a Bluetooth pairing code (its own screen): leave it up until pairing is
+// over, instead of taking the screen straight back - the code has to be read and typed into the phone.
+static bool pairingCodeShowing()
+{
+    return bluetoothStatus && bluetoothStatus->getConnectionState() == meshtastic::BluetoothStatus::ConnectionState::PAIRING;
+}
+
 void appTick(uint32_t now)
 {
     if (!active)
@@ -102,7 +112,7 @@ void appTick(uint32_t now)
     // off "forced but not painted" is frame-rate independent, so slow-frame apps don't false-trip.)
     // Skip while a banner/menu is up, since that legitimately draws over us.
     if (active->reclaimScreen() && screen && lastForce && (int32_t)(lastPaint - lastForce) < 0 && now - lastForce > 150 &&
-        screen->isScreenOn() && !screen->isOverlayBannerShowing() && !menuBusy()) {
+        screen->isScreenOn() && !screen->isOverlayBannerShowing() && !menuBusy() && !pairingCodeShowing()) {
         screen->startAlert(drawActive);
         lastForce = now;
         redrawSoon = true;

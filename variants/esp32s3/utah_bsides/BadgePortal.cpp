@@ -12,6 +12,7 @@
 #include "BadgeLock.h"
 #include "BadgeMenu.h"
 #include "BadgeMesh.h"
+#include "BadgeMeshCore.h"
 #include "BadgeOta.h"
 #include "BadgePictures.h"
 #include "BadgePositions.h"
@@ -505,7 +506,7 @@ static void nodes()
     int n = 0;
     for (size_t i = 0; nodeDB && i < nodeDB->getNumMeshNodes() && n < 80; i++) {
         meshtastic_NodeInfoLite *nd = nodeDB->getMeshNodeByIndex(i);
-        if (!nd || nd->num == meshMyNode() || !nodeInfoLiteHasUser(nd))
+        if (!nd || nd->num == meshMyNode() || !nodeInfoLiteHasUser(nd) || meshcoreHidesNode(nd->num))
             continue;
         o += String(n++ ? "," : "") + "{\"num\":" + String((unsigned long)nd->num) + ",\"name\":" + js(nd->long_name) + "}";
     }

@@ -6,6 +6,9 @@
 
 #if !BADGE_MESHCORE
 
+extern uint32_t rebootAtMsec;
+extern bool suppressRebootBanner; // src/main.cpp
+
 namespace badge
 {
 bool meshcoreBuilt()
@@ -31,18 +34,74 @@ bool meshcoreNameOnly(uint32_t)
 {
     return false;
 }
-float meshcoreBandwidth()
-{
-    return 0;
-}
-bool meshcoreSetBandwidth(float)
+bool meshcoreHidesNode(uint32_t)
 {
     return false;
 }
+McRadioCfg meshcoreRadio()
+{
+    return McRadioCfg();
+}
+bool meshcoreSetRadio(const McRadioCfg &)
+{
+    return false;
+}
+void meshcoreAdvertise(bool) {}
+int meshcoreContactCount()
+{
+    return 0;
+}
+bool meshcoreContact(int, McContact &)
+{
+    return false;
+}
+bool meshcoreContactFav(int, bool)
+{
+    return false;
+}
+bool meshcoreContactResetPath(int)
+{
+    return false;
+}
+bool meshcoreContactDelete(int)
+{
+    return false;
+}
+int meshcoreHeardCount()
+{
+    return 0;
+}
+const char *meshcoreHeardName(int)
+{
+    return "";
+}
+bool meshcoreHeardAdd(int)
+{
+    return false;
+}
+bool meshcoreAutoAdd()
+{
+    return true;
+}
+void meshcoreSetAutoAdd(bool) {}
+bool meshcoreShareLocation()
+{
+    return false;
+}
+void meshcoreSetShareLocation(bool) {}
+void meshcoreHashtagKey(const char *, uint8_t *) {}
 void openMeshBootChoice(void (*then)())
 {
     if (then)
         then();
+}
+bool meshcoreResumeChoice()
+{
+    return false;
+}
+const char *meshcoreLoadingInto()
+{
+    return nullptr;
 }
 bool meshBootPicked()
 {
@@ -53,6 +112,7 @@ bool meshBootPicked()
 #else
 
 #include "BadgeApp.h"
+#include "BadgeMesh.h"
 #include "FSCommon.h"
 #include "MessageStore.h"
 #include "NodeDB.h"
@@ -61,10 +121,19 @@ bool meshBootPicked()
 #include "gps/RTC.h"
 #include "graphics/Screen.h"
 #include "graphics/ScreenFonts.h"
+#include "main.h"
 #include "mesh/Channels.h"
 #include "mesh/MeshModule.h"
 #include "mesh/RadioLibInterface.h"
 #include "mesh/Throttle.h"
+#include "mesh/mesh-pb-constants.h"
+#include "modules/TextMessageModule.h"
+#include "nimble/NimbleBluetooth.h"
+#include <BLEDevice.h>
+#include <BLESecurity.h>
+#include <BLEServer.h>
+#include <esp_mac.h>
+#include <nvs.h>
 
 #include <Arduino.h>
 #include <esp_random.h>
@@ -274,10 +343,80 @@ static uint32_t nodeNumForName(const char *name)
     return h;
 }
 
+// ---- keeping the two meshes apart ---------------------------------------------------------------
+// MeshCore's nodes live among Meshtastic's (the apps read them there), so which ones are MeshCore's
+// is written down (/badge/mc_nodes: number + name). In Meshtastic mode they are taken out of the
+// node list; in MeshCore mode they are put back and Meshtastic's are hidden from the badge's lists.
+static const char *const NODES_FILE = "/badge/mc_nodes";
+struct McNode {
+    uint32_t num;
+    char name[32];
+};
+static const int MAX_MC_NODES = 160;
+static McNode *mcNodes = nullptr;
+static int nMcNodes = 0;
+static bool mcNodesDirty = false;
+
+static void mcNodesLoad()
+{
+    if (!mcNodes)
+        mcNodes = psramArray<McNode>(MAX_MC_NODES);
+    nMcNodes = 0;
+    if (!mcNodes)
+        return;
+    concurrency::LockGuard g(spiLock);
+    File f = FSCom.open(NODES_FILE, FILE_O_READ);
+    if (!f)
+        return;
+    while (nMcNodes < MAX_MC_NODES && f.read((uint8_t *)&mcNodes[nMcNodes], sizeof(McNode)) == (int)sizeof(McNode)) {
+        mcNodes[nMcNodes].name[sizeof(mcNodes[0].name) - 1] = 0;
+        nMcNodes++;
+    }
+    f.close();
+}
+static void mcNodesSave()
+{
+    mcNodesDirty = false;
+    if (!mcNodes)
+        return;
+    concurrency::LockGuard g(spiLock);
+    if (!FSCom.exists("/badge"))
+        FSCom.mkdir("/badge");
+    File f = FSCom.open(NODES_FILE, FILE_O_WRITE);
+    if (!f)
+        return;
+    f.write((const uint8_t *)mcNodes, sizeof(McNode) * nMcNodes);
+    f.close();
+}
+static int mcNodeIndex(uint32_t num)
+{
+    for (int i = 0; i < nMcNodes; i++)
+        if (mcNodes[i].num == num)
+            return i;
+    return -1;
+}
+static void mcNodeForget(uint32_t num)
+{
+    int i = mcNodeIndex(num);
+    if (i < 0)
+        return;
+    mcNodes[i] = mcNodes[--nMcNodes];
+    mcNodesDirty = true;
+}
+
 static void ensureNode(uint32_t num, const char *name)
 {
     if (!nodeDB || !name || !name[0])
         return;
+    if (mcNodes) { // write down that this node is MeshCore's
+        int i = mcNodeIndex(num);
+        if (i < 0 && nMcNodes < MAX_MC_NODES)
+            i = nMcNodes++, mcNodes[i].num = num, mcNodes[i].name[0] = 0;
+        if (i >= 0 && strncmp(mcNodes[i].name, name, sizeof(mcNodes[i].name) - 1)) {
+            strlcpy(mcNodes[i].name, name, sizeof(mcNodes[i].name));
+            mcNodesDirty = true;
+        }
+    }
     const meshtastic_NodeInfoLite *nd = nodeDB->getMeshNode(num);
     if (nd && nodeInfoLiteHasUser(nd) && !strncmp(nd->long_name, name, sizeof(nd->long_name) - 1))
         return;
@@ -289,7 +428,109 @@ static void ensureNode(uint32_t num, const char *name)
     nodeDB->updateUser(num, u, 0);
 }
 
-// Hand Meshtastic's modules a text packet, as if its radio had received it.
+// Entering a mode: MeshCore's nodes are in the node list in MeshCore mode only.
+static void mcNodesFor(bool meshcore)
+{
+    mcNodesLoad();
+    if (!nodeDB)
+        return;
+    for (int i = 0; i < nMcNodes; i++) {
+        if (meshcore)
+            ensureNode(mcNodes[i].num, mcNodes[i].name);
+        else if (nodeDB->getMeshNode(mcNodes[i].num))
+            nodeDB->removeNodeByNum(mcNodes[i].num);
+    }
+}
+
+// Each mesh has its own channel list. Meshtastic keeps one, in its channels file; the other mesh's
+// is kept beside it (/badge/chan_mt, /badge/chan_mc) and the two are swapped when the mesh changes.
+// NVS "utah" / "chanset" says whose list Meshtastic's file holds now: 0 Meshtastic's, 1 MeshCore's,
+// +16 while a swap is under way (so a power cut mid-swap is finished at the next start, and the
+// list that was saved first is never overwritten by the other).
+static const char *chanFile(bool meshcore)
+{
+    return meshcore ? "/badge/chan_mc" : "/badge/chan_mt";
+}
+static bool chanWrite(bool meshcore)
+{
+    static uint8_t buf[meshtastic_ChannelFile_size];
+    size_t n = pb_encode_to_bytes(buf, sizeof(buf), &meshtastic_ChannelFile_msg, &channelFile);
+    if (!n)
+        return false;
+    concurrency::LockGuard g(spiLock);
+    if (!FSCom.exists("/badge"))
+        FSCom.mkdir("/badge");
+    File f = FSCom.open(chanFile(meshcore), FILE_O_WRITE);
+    if (!f)
+        return false;
+    bool ok = f.write(buf, n) == n;
+    f.close();
+    return ok;
+}
+static bool chanRead(bool meshcore)
+{
+    static uint8_t buf[meshtastic_ChannelFile_size];
+    size_t n = 0;
+    {
+        concurrency::LockGuard g(spiLock);
+        File f = FSCom.open(chanFile(meshcore), FILE_O_READ);
+        if (!f)
+            return false;
+        n = f.read(buf, sizeof(buf));
+        f.close();
+    }
+    meshtastic_ChannelFile loaded = meshtastic_ChannelFile_init_default;
+    if (!n || !pb_decode_from_bytes(buf, n, &meshtastic_ChannelFile_msg, &loaded))
+        return false;
+    channelFile = loaded;
+    return true;
+}
+static void channelsFor(bool meshcore)
+{
+    int state = 0;
+    {
+        Preferences p;
+        if (p.begin("utah", true)) {
+            state = p.getInt("chanset", 0);
+            p.end();
+        }
+    }
+    auto setState = [](int v) {
+        Preferences p;
+        if (p.begin("utah", false)) {
+            p.putInt("chanset", v);
+            p.end();
+        }
+    };
+    bool holds = state & 1, swapping = state & 16;
+    if (!swapping && holds == meshcore)
+        return; // the right list is already in place
+    if (!swapping) {
+        if (!chanWrite(holds)) // put away the list that is in place now...
+            return;            // ...and without that copy nothing is swapped
+        setState((meshcore ? 1 : 0) | 16);
+    } else {
+        meshcore = holds; // finish the swap that was under way, to the list it was heading for
+    }
+    if (!chanRead(meshcore)) {
+        if (meshcore) { // MeshCore's first time: just the default channel, which is its #Public
+            channelFile = meshtastic_ChannelFile_init_default;
+            channels.initDefaults();
+        }
+        // (no saved Meshtastic list: keep what is there)
+    }
+    channels.onConfigChanged();
+    if (nodeDB)
+        nodeDB->saveToDisk(SEGMENT_CHANNELS);
+    setState(meshcore ? 1 : 0);
+}
+
+// MeshCore's text, to the badge exactly as a Meshtastic text would arrive - but only to the badge:
+// it goes to the two modules that store, show and announce messages, not through Meshtastic's
+// whole receive path, which would also pass it to a connected Meshtastic phone app.
+struct TextPeek : TextMessageModule {
+    static void deliver(TextMessageModule *m, const meshtastic_MeshPacket &mp) { (m->*(&TextPeek::handleReceived))(mp); }
+};
 static void deliverText(uint32_t from, uint32_t to, uint8_t channel, const char *text, float snr, float rssi, int hops)
 {
     meshtastic_MeshPacket mp = meshtastic_MeshPacket_init_default;
@@ -311,7 +552,9 @@ static void deliverText(uint32_t from, uint32_t to, uint8_t channel, const char 
     mp.decoded.payload.size = (pb_size_t)len;
     if (nodeDB)
         nodeDB->updateFrom(mp); // last heard, signal
-    MeshModule::callModules(mp, RX_SRC_RADIO);
+    if (textMessageModule)
+        TextPeek::deliver(textMessageModule, mp); // the message history and Meshtastic's notice
+    meshBadgeReceived(mp);                        // the badge's own alerts (lights, unread mark)
 }
 
 class McMesh : public BaseChatMesh
@@ -325,6 +568,14 @@ class McMesh : public BaseChatMesh
     void start()
     {
         BaseChatMesh::begin();
+        {
+            Preferences p;
+            if (p.begin("utah", true)) {
+                autoAdd = p.getBool("mcauto", true);
+                shareLoc = p.getBool("mcloc", false);
+                p.end();
+            }
+        }
         loadIdentity();
         loadContacts();
         syncChannels();
@@ -336,7 +587,13 @@ class McMesh : public BaseChatMesh
 
     void advertise(bool flood, uint32_t delayMs = 0)
     {
-        mesh::Packet *pkt = createSelfAdvert(myName());
+        // with "share location" on, the place Meshtastic knows for this badge (a fixed position set in
+        // its settings; the badge has no GPS) goes out in the announcement
+        mesh::Packet *pkt = nullptr;
+        if (shareLoc && (localPosition.latitude_i || localPosition.longitude_i))
+            pkt = createSelfAdvert(myName(), localPosition.latitude_i * 1e-7, localPosition.longitude_i * 1e-7);
+        else
+            pkt = createSelfAdvert(myName());
         if (!pkt)
             return;
         if (flood)
@@ -348,12 +605,16 @@ class McMesh : public BaseChatMesh
 
     void upkeep()
     {
+        if (pend.active && pend.retryDue)
+            retryPending();
         if (Throttle::hasElapsed(advertAt, 15 * 60 * 1000))
             advertise(false); // keep nearby badges' lists fresh
         if (Throttle::hasElapsed(channelsAt, 10000))
             syncChannels(); // a group made or joined in the Messages app
         if (contactsDirty && Throttle::hasElapsed(contactsDirtyAt, 20000))
             saveContacts();
+        if (mcNodesDirty && Throttle::hasElapsed(contactsDirtyAt, 20000))
+            mcNodesSave();
     }
 
     bool sendText(uint32_t to, const char *text, uint8_t channel)
@@ -372,7 +633,97 @@ class McMesh : public BaseChatMesh
             return false;
         }
         uint32_t ack = 0, timeout = 0;
-        return sendMessage(*c, now, 0, text, ack, timeout) != MSG_SEND_FAILED;
+        if (sendMessage(*c, now, 0, text, ack, timeout) == MSG_SEND_FAILED)
+            return false;
+        // remember it until the other badge confirms it: no confirmation in time and it goes again
+        pend.active = true;
+        pend.ack = ack;
+        pend.to = to;
+        pend.timestamp = now;
+        pend.attempt = 0;
+        pend.retryDue = false;
+        strlcpy(pend.text, text, sizeof(pend.text));
+        strlcpy(pend.name, c->name, sizeof(pend.name));
+        return true;
+    }
+
+    // ---- for the MeshCore settings menu ----
+    bool autoAdd = true, shareLoc = false;
+    void setFlag(const char *key, bool &flag, bool on)
+    {
+        flag = on;
+        Preferences p;
+        if (p.begin("utah", false)) {
+            p.putBool(key, on);
+            p.end();
+        }
+    }
+    // the i-th contact (people, repeaters, rooms); nullptr past the end
+    ContactInfo *contactAt(int i)
+    {
+        ContactInfo c;
+        if (i < 0 || !getContactByIdx((uint32_t)i + MAX_ANON_CONTACTS, c))
+            return nullptr;
+        return lookupContactByPubKey(c.id.pub_key, PUB_KEY_SIZE);
+    }
+    bool describe(int i, McContact &out)
+    {
+        ContactInfo *c = contactAt(i);
+        if (!c)
+            return false;
+        strlcpy(out.name, c->name, sizeof(out.name));
+        out.type = c->type;
+        out.favourite = c->isFav();
+        out.hops = c->out_path_len == OUT_PATH_UNKNOWN ? -1 : (c->out_path_len & 63);
+        out.node = nodeNumFor(c->id.pub_key);
+        return true;
+    }
+    bool setFav(int i, bool on)
+    {
+        ContactInfo *c = contactAt(i);
+        if (!c)
+            return false;
+        c->flags = on ? (c->flags | 0x01) : (c->flags & ~0x01);
+        markContactsDirty();
+        return true;
+    }
+    bool forgetRoute(int i)
+    {
+        ContactInfo *c = contactAt(i);
+        if (!c)
+            return false;
+        resetPathTo(*c);
+        markContactsDirty();
+        return true;
+    }
+    bool remove(int i)
+    {
+        ContactInfo *c = contactAt(i);
+        if (!c)
+            return false;
+        uint32_t num = nodeNumFor(c->id.pub_key);
+        if (!removeContact(*c))
+            return false;
+        if (nodeDB)
+            nodeDB->removeNodeByNum(num);
+        mcNodeForget(num);
+        saveContacts();
+        mcNodesSave();
+        return true;
+    }
+    // heard announcing but not a contact (auto-add is off, or the list was full)
+    int heardCount() const { return nHeard; }
+    const char *heardName(int i) const { return i >= 0 && i < nHeard ? heard[i].name : ""; }
+    bool heardAdd(int i)
+    {
+        if (i < 0 || i >= nHeard || !addContact(heard[i]))
+            return false;
+        ensureNode(nodeNumFor(heard[i].id.pub_key), heard[i].name);
+        for (int k = i; k + 1 < nHeard; k++)
+            heard[k] = heard[k + 1];
+        nHeard--;
+        saveContacts();
+        return true;
     }
 
   protected:
@@ -381,6 +732,15 @@ class McMesh : public BaseChatMesh
         printf("MC: advert from \"%s\"%s\n", c.name, isNew ? " (new)" : "");
         if (isNew)
             announceSoon(); // a stranger: let them know us too
+        if (!lookupContactByPubKey(c.id.pub_key, PUB_KEY_SIZE)) {
+            // not added (auto-add off, or the list is full): keep it to offer in the settings menu
+            for (int k = 0; k < nHeard; k++)
+                if (heard[k].id.matches(c.id))
+                    return;
+            if (nHeard < MAX_HEARD)
+                heard[nHeard++] = c;
+            return;
+        }
         uint32_t num = nodeNumFor(c.id.pub_key);
         ensureNode(num, c.name);
         if (nodeDB) { // heard just now: the node list sorts and ages by this
@@ -397,7 +757,20 @@ class McMesh : public BaseChatMesh
         }
         markContactsDirty();
     }
-    ContactInfo *processAck(const uint8_t *) override { return nullptr; }
+    bool isAutoAddEnabled() const override { return autoAdd; }
+    // the other badge confirmed a message
+    ContactInfo *processAck(const uint8_t *data) override
+    {
+        if (!pend.active || memcmp(data, &pend.ack, 4))
+            return nullptr;
+        pend.active = false;
+        printf("MC: delivered to \"%s\"\n", pend.name);
+        char b[64];
+        snprintf(b, sizeof(b), "Delivered to\n%s", pend.name);
+        if (screen)
+            screen->showSimpleBanner(b, 2500);
+        return contactFor(pend.to);
+    }
     void onContactPathUpdated(const ContactInfo &) override { markContactsDirty(); }
     void onMessageRecv(const ContactInfo &c, mesh::Packet *pkt, uint32_t, const char *text) override
     {
@@ -415,7 +788,13 @@ class McMesh : public BaseChatMesh
     {
         return 500 + (uint32_t)((airtime * 6.0f + 250) * (pathLen + 1));
     }
-    void onSendTimeout() override {}
+    // No confirmation in time. The resend can't happen here: MeshCore clears its timer right after
+    // this returns, which would cancel the new attempt's timer too. So note it, and upkeep() resends.
+    void onSendTimeout() override
+    {
+        if (pend.active)
+            pend.retryDue = true;
+    }
     // a group message is "Name: text"; the name is all MeshCore says about who sent it
     void onChannelMessageRecv(const mesh::GroupChannel &channel, mesh::Packet *pkt, uint32_t, const char *text) override
     {
@@ -450,9 +829,45 @@ class McMesh : public BaseChatMesh
 
   private:
     uint32_t advertAt = 0, channelsAt = 0, contactsDirtyAt = 0, lastIntro = 0;
+    struct {
+        bool active = false;
+        uint32_t ack = 0, to = 0, timestamp = 0;
+        uint8_t attempt = 0;
+        bool retryDue = false;
+        char text[201] = "", name[32] = "";
+    } pend; // the direct message waiting for its confirmation
+    static const int MAX_HEARD = 12;
+    ContactInfo heard[MAX_HEARD];
+    int nHeard = 0;
     bool contactsDirty = false;
     bool channelUsed[MAX_GROUP_CHANNELS] = {};
     uint32_t channelSig[MAX_GROUP_CHANNELS] = {};
+
+    // Send the unconfirmed message again (the same message, marked as a further attempt, so the
+    // other side doesn't show it twice); the last time by flooding, in case the known route has gone
+    // stale. After three tries, say so.
+    void retryPending()
+    {
+        pend.retryDue = false;
+        ContactInfo *c = contactFor(pend.to);
+        if (c && pend.attempt < 2) {
+            pend.attempt++;
+            if (pend.attempt == 2)
+                resetPathTo(*c);
+            uint32_t ack = 0, timeout = 0;
+            if (sendMessage(*c, pend.timestamp, pend.attempt, pend.text, ack, timeout) != MSG_SEND_FAILED) {
+                pend.ack = ack;
+                printf("MC: no confirmation from \"%s\", try %d\n", pend.name, pend.attempt + 1);
+                return;
+            }
+        }
+        pend.active = false;
+        printf("MC: gave up on \"%s\"\n", pend.name);
+        char b[72];
+        snprintf(b, sizeof(b), "No answer from\n%s\n(tried 3 times)", pend.name);
+        if (screen)
+            screen->showSimpleBanner(b, 4000);
+    }
 
     void markContactsDirty()
     {
@@ -526,6 +941,16 @@ class McMesh : public BaseChatMesh
         int32_t lat, lon;
     };
     void loadContacts()
+    {
+        readContacts();
+        // every contact is one of MeshCore's nodes (done after the file is closed: making a node
+        // can write to storage itself)
+        ContactInfo c;
+        for (uint32_t i = MAX_ANON_CONTACTS; getContactByIdx(i, c); i++)
+            if (c.type != ADV_TYPE_NONE)
+                ensureNode(nodeNumFor(c.id.pub_key), c.name);
+    }
+    void readContacts()
     {
         concurrency::LockGuard g(spiLock);
         File f = FSCom.open(CONTACTS_FILE, FILE_O_READ);
@@ -629,6 +1054,9 @@ class McMesh : public BaseChatMesh
     }
 };
 
+// a phone connected: the pairing PIN goes on the badge's screen (shown from the MeshCore thread)
+static volatile bool mcBleShowPin = false;
+
 class McThread : public concurrency::OSThread
 {
   public:
@@ -648,26 +1076,31 @@ class McThread : public concurrency::OSThread
         paused = on;
     }
 
-    float bandwidth() const { return bw_; }
-    // false: this radio can't do that bandwidth (it stays on what it had)
-    bool setBandwidth(float bw)
+    McRadioCfg radioCfg() const { return cfg_; }
+    // false: this radio refused that setting (it stays on what it had)
+    bool setRadioCfg(const McRadioCfg &c)
     {
         if (!radio_)
             return false;
-        float old = bw_;
-        bw_ = bw;
+        McRadioCfg old = cfg_;
+        cfg_ = c;
         if (!configure()) {
-            bw_ = old;
+            cfg_ = old;
             configure();
             return false;
         }
         Preferences p;
         if (p.begin("utah", false)) {
-            p.putInt("mcbw", (int)(bw * 10));
+            p.putUInt("mcfq", (uint32_t)(cfg_.freq * 1000 + 0.5f));
+            p.putInt("mcbw", (int)(cfg_.bw * 10 + 0.5f));
+            p.putUChar("mcsf", cfg_.sf);
+            p.putUChar("mccr", cfg_.cr);
+            p.putChar("mcpw", cfg_.power);
             p.end();
         }
         return true;
     }
+    McMesh *mesh() { return paused ? nullptr : mesh_; }
 
   protected:
     int32_t runOnce() override
@@ -679,6 +1112,11 @@ class McThread : public concurrency::OSThread
             if (!takeOver(r))
                 return disable();
             return 5;
+        }
+        if (mcBleShowPin) {
+            mcBleShowPin = false;
+            if (screen)
+                screen->showSimpleBanner("MeshCore app pairing\nPIN: 123456", 20000);
         }
         if (paused)
             return 50;
@@ -706,11 +1144,14 @@ class McThread : public concurrency::OSThread
         sx_->standby();
         sx_->setSyncWord(RADIOLIB_SX126X_SYNC_WORD_PRIVATE);
         sx_->setCRC(1);
-        sx_->setOutputPower(LORA_TX_POWER);
-        bool ok = sx_->setBandwidth(bw_) == RADIOLIB_ERR_NONE;
+        // every step is checked: the stock LLCC68 refuses bandwidths under 125 kHz and the higher
+        // spreading factors, and a setting the chip did not take must not be reported as in use
+        bool ok = sx_->setFrequency(cfg_.freq) == RADIOLIB_ERR_NONE && sx_->setBandwidth(cfg_.bw) == RADIOLIB_ERR_NONE &&
+                  sx_->setSpreadingFactor(cfg_.sf) == RADIOLIB_ERR_NONE && sx_->setCodingRate(cfg_.cr) == RADIOLIB_ERR_NONE &&
+                  sx_->setOutputPower(cfg_.power) == RADIOLIB_ERR_NONE;
         radio_->begin();
         if (ok)
-            radio_->setParams(LORA_FREQ, bw_, LORA_SF, 5);
+            radio_->setParams(cfg_.freq, cfg_.bw, cfg_.sf, cfg_.cr);
         return ok;
     }
 
@@ -724,20 +1165,26 @@ class McThread : public concurrency::OSThread
         r->RadioInterface::disable(); // Meshtastic now drops what it would send, and stops listening
         McPeek::keepQuiet(r);
 
-        // Bandwidth in kHz, NVS "utah" / "mcbw" (x10). 125 unless set otherwise: every badge can do
-        // it, so badges hear each other. MeshCore's public US mesh uses 62.5, which only an
-        // SX1262-modded badge can set; the stock LLCC68 refuses it and is put on 125.
-        bw_ = 125.0;
+        // The radio setting, NVS "utah" / "mcfq" (kHz), "mcbw" (kHz x10), "mcsf", "mccr", "mcpw". Unless
+        // set otherwise: 910.525 MHz, 125 kHz, SF7 - every badge can do it, so badges hear each other.
+        // MeshCore's public US mesh uses 62.5 kHz, which only an SX1262-modded badge can set; a
+        // setting this badge's radio refuses is replaced by that default.
+        const McRadioCfg fallback;
+        cfg_ = fallback;
         {
             Preferences p;
             if (p.begin("utah", true)) {
-                bw_ = p.getInt("mcbw", 1250) / 10.0f;
+                cfg_.freq = p.getUInt("mcfq", 910525) / 1000.0f;
+                cfg_.bw = p.getInt("mcbw", 1250) / 10.0f;
+                cfg_.sf = p.getUChar("mcsf", fallback.sf);
+                cfg_.cr = p.getUChar("mccr", fallback.cr);
+                cfg_.power = p.getChar("mcpw", fallback.power);
                 p.end();
             }
         }
         radio_ = new McRadio(*sx_, board_);
         if (!configure()) {
-            bw_ = 125.0;
+            cfg_ = fallback;
             configure();
         }
         radio_->resetStats(); // MeshCore's wrapper leaves its error counter uninitialised
@@ -745,7 +1192,7 @@ class McThread : public concurrency::OSThread
         clock_.begin();
         mesh_ = new McMesh(*radio_, rng_, clock_, tables_);
         mesh_->start();
-        printf("MC: MeshCore owns the radio: %.3f MHz bw=%.1f sf=%d name=\"%s\"\n", (double)LORA_FREQ, (double)bw_, LORA_SF,
+        printf("MC: MeshCore owns the radio: %.3f MHz bw=%.1f sf=%d name=\"%s\"\n", (double)cfg_.freq, (double)cfg_.bw, cfg_.sf,
                McMesh::myName());
         return true;
     }
@@ -757,12 +1204,17 @@ class McThread : public concurrency::OSThread
     SX1262 *sx_ = nullptr;
     McRadio *radio_ = nullptr;
     McMesh *mesh_ = nullptr;
-    float bw_ = 125.0;
+    McRadioCfg cfg_;
     bool paused = false;
     uint32_t lastNote = 0;
 };
 static McThread *mcThread = nullptr;
 
+// In MeshCore mode the badge's lists show MeshCore's nodes only.
+bool meshcoreHidesNode(uint32_t num)
+{
+    return modeOn && mcNodeIndex(num) < 0;
+}
 bool meshcoreNameOnly(uint32_t num)
 {
     const meshtastic_NodeInfoLite *nd = modeOn && nodeDB ? nodeDB->getMeshNode(num) : nullptr;
@@ -777,37 +1229,262 @@ void meshcorePause(bool on)
     if (mcThread)
         mcThread->pause(on);
 }
-float meshcoreBandwidth()
+McRadioCfg meshcoreRadio()
 {
-    return mcThread ? mcThread->bandwidth() : 0;
+    return mcThread ? mcThread->radioCfg() : McRadioCfg();
 }
-bool meshcoreSetBandwidth(float khz)
+bool meshcoreSetRadio(const McRadioCfg &c)
 {
-    return mcThread && mcThread->setBandwidth(khz);
+    return mcThread && mcThread->setRadioCfg(c);
+}
+static McMesh *theMesh()
+{
+    return mcThread ? mcThread->mesh() : nullptr;
+}
+void meshcoreAdvertise(bool flood)
+{
+    if (McMesh *m = theMesh())
+        m->advertise(flood);
+}
+int meshcoreContactCount()
+{
+    McMesh *m = theMesh();
+    return m ? m->getNumContacts() : 0;
+}
+bool meshcoreContact(int i, McContact &out)
+{
+    McMesh *m = theMesh();
+    return m && m->describe(i, out);
+}
+bool meshcoreContactFav(int i, bool on)
+{
+    McMesh *m = theMesh();
+    return m && m->setFav(i, on);
+}
+bool meshcoreContactResetPath(int i)
+{
+    McMesh *m = theMesh();
+    return m && m->forgetRoute(i);
+}
+bool meshcoreContactDelete(int i)
+{
+    McMesh *m = theMesh();
+    return m && m->remove(i);
+}
+int meshcoreHeardCount()
+{
+    McMesh *m = theMesh();
+    return m ? m->heardCount() : 0;
+}
+const char *meshcoreHeardName(int i)
+{
+    McMesh *m = theMesh();
+    return m ? m->heardName(i) : "";
+}
+bool meshcoreHeardAdd(int i)
+{
+    McMesh *m = theMesh();
+    return m && m->heardAdd(i);
+}
+bool meshcoreAutoAdd()
+{
+    McMesh *m = theMesh();
+    return m ? m->autoAdd : true;
+}
+void meshcoreSetAutoAdd(bool on)
+{
+    if (McMesh *m = theMesh())
+        m->setFlag("mcauto", m->autoAdd, on);
+}
+bool meshcoreShareLocation()
+{
+    McMesh *m = theMesh();
+    return m && m->shareLoc;
+}
+void meshcoreSetShareLocation(bool on)
+{
+    if (McMesh *m = theMesh())
+        m->setFlag("mcloc", m->shareLoc, on);
+}
+// A MeshCore hashtag channel's key: the first 16 bytes of SHA-256 of "#name" (MeshCore's rule, so
+// anyone who knows the name can join; "#test" gives 9cd8fcf22a47333b591d96a2b848b73f).
+void meshcoreHashtagKey(const char *name, uint8_t *key16)
+{
+    char tag[40];
+    snprintf(tag, sizeof(tag), "#%s", name[0] == '#' ? name + 1 : name);
+    mesh::Utils::sha256(key16, 16, (const uint8_t *)tag, (int)strlen(tag));
 }
 
+static void bluetoothAtStart(bool meshcore);
 void meshcoreStart()
 {
-    Preferences p;
-    if (p.begin("utah", true)) {
-        savedMode = p.getInt("meshmode", 0) == 1;
-        p.end();
+    {
+        Preferences p;
+        if (p.begin("utah", true)) {
+            savedMode = p.getInt("meshmode", 0) == 1;
+            p.end();
+        }
     }
+    bluetoothAtStart(savedMode);
 }
 
-// The mesh for this run is settled: remember it, and hand MeshCore the radio if it was picked.
+// Which phone app the badge's Bluetooth serves depends on the mesh, and the Bluetooth library can be
+// started only once a run (shut down and started again, it crashes). So Bluetooth waits for the
+// mesh question: at startup Meshtastic is told its Bluetooth is off - in memory only - and once the
+// mesh is chosen the right service is started: Meshtastic's own, or MeshCore's.
+// NVS "utah" / "mcbt" holds the real setting while the in-memory one is "off", and is put back at
+// every start, so a settings save in the meantime can't turn Bluetooth off for good.
+static bool btWanted = false; // Bluetooth as set in Mesh settings
+static void bluetoothAtStart(bool)
+{
+    Preferences p;
+    if (!p.begin("utah", false))
+        return;
+    int was = p.getInt("mcbt", -1);
+    if (was >= 0)
+        config.bluetooth.enabled = was == 1; // the real setting, whatever a save wrote meanwhile
+    btWanted = config.bluetooth.enabled;
+    p.putInt("mcbt", btWanted ? 1 : 0);
+    p.end();
+    config.bluetooth.enabled = false; // until the mesh is chosen
+}
+// To a phone the badge is two different Bluetooth devices, one per mesh, so each phone app keeps its
+// own pairing and neither has to be "forgotten" to use the other:
+//   * MeshCore mode uses its own Bluetooth address (the badge's, with bits changed; see mcBleSpike)
+//   * each mode has its own pairing records. The Bluetooth stack keeps them in NVS namespace
+//     "nimble_bond"; the other mode's are kept aside ("bond_mt" / "bond_mc") and swapped in before
+//     Bluetooth starts. NVS "utah" / "bondset" says whose are in place: 0 Meshtastic's, 1 MeshCore's.
+static void bondsCopy(const char *from, const char *to)
+{
+    nvs_handle_t src, dst;
+    if (nvs_open(to, NVS_READWRITE, &dst) != ESP_OK)
+        return;
+    nvs_erase_all(dst);
+    if (nvs_open(from, NVS_READONLY, &src) == ESP_OK) {
+        nvs_iterator_t it = nullptr;
+        static uint8_t blob[512];
+        for (esp_err_t e = nvs_entry_find("nvs", from, NVS_TYPE_BLOB, &it); e == ESP_OK && it; e = nvs_entry_next(&it)) {
+            nvs_entry_info_t info;
+            nvs_entry_info(it, &info);
+            size_t n = sizeof(blob);
+            if (nvs_get_blob(src, info.key, blob, &n) == ESP_OK)
+                nvs_set_blob(dst, info.key, blob, n);
+        }
+        nvs_release_iterator(it);
+        nvs_close(src);
+    }
+    nvs_commit(dst);
+    nvs_close(dst);
+}
+static void bondsFor(bool meshcore)
+{
+    Preferences p;
+    if (!p.begin("utah", false))
+        return;
+    bool holds = p.getInt("bondset", 0) == 1;
+    if (holds != meshcore) {
+        bondsCopy("nimble_bond", holds ? "bond_mc" : "bond_mt");    // put away the ones in place
+        bondsCopy(meshcore ? "bond_mc" : "bond_mt", "nimble_bond"); // (an empty set the first time)
+        p.putInt("bondset", meshcore ? 1 : 0);
+    }
+    p.end();
+}
+
+// The mesh is chosen: bring up the Bluetooth that goes with it.
+static void mcBleSpike();
+static void bluetoothFor(bool meshcore)
+{
+    bondsFor(meshcore); // before the Bluetooth stack reads them
+    if (meshcore) {
+        if (btWanted)
+            mcBleSpike(); // (Meshtastic's stays off this run; "mcbt" keeps the real setting)
+        return;
+    }
+    config.bluetooth.enabled = btWanted;
+    Preferences p;
+    if (p.begin("utah", false)) {
+        p.remove("mcbt");
+        p.end();
+    }
+    if (nodeDB)
+        nodeDB->saveToDisk(SEGMENT_CONFIG); // in case a save during a MeshCore run wrote "off"
+    if (btWanted)
+        setBluetoothEnable(true); // Meshtastic's own start, which was skipped while it was "off"
+}
+
+// FEASIBILITY TEST (not the real thing): in MeshCore mode put up the Bluetooth service the MeshCore
+// phone app looks for (a Nordic UART service, named "MeshCore-...", PIN 123456). Nothing answers
+// the app yet - this only shows whether the app finds the badge and can pair with it.
+class McBleEvents : public BLEServerCallbacks
+{
+    void onConnect(BLEServer *) override { mcBleShowPin = true; }
+    void onDisconnect(BLEServer *) override { BLEDevice::startAdvertising(); } // findable again
+};
+static void mcBleSpike()
+{
+    static const char *NUS = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
+    if (BLEDevice::getInitialized())
+        return; // Meshtastic's Bluetooth is up: the library can't be taken down and restarted (it crashes)
+    static char name[48];
+    snprintf(name, sizeof(name), "MeshCore-%s", McMesh::myName());
+    BLEDevice::init(name);
+    {
+        // MeshCore's own address: the badge's, as a "static random" address (top two bits set) with
+        // one more bit changed, so a phone sees a different device from the Meshtastic one
+        uint8_t addr[6] = {0};
+        esp_read_mac(addr, ESP_MAC_BT);
+        uint8_t le[6] = {(uint8_t)(addr[5] ^ 0x01), addr[4], addr[3], addr[2], addr[1], (uint8_t)(addr[0] | 0xC0)};
+        bool ok = BLEDevice::setOwnAddr(le) && BLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
+        printf("MC: BLE address %02x:%02x:%02x:%02x:%02x:%02x set=%d\n", le[5], le[4], le[3], le[2], le[1], le[0], (int)ok);
+    }
+    BLESecurity security;
+    security.setCapability(ESP_IO_CAP_OUT);
+    security.setPassKey(true, 123456);
+    security.setAuthenticationMode(true, true, true);
+    BLEServer *srv = BLEDevice::createServer();
+    if (srv)
+        srv->setCallbacks(new McBleEvents());
+    BLEService *svc = srv ? srv->createService(NUS) : nullptr;
+    if (svc) {
+        svc->createCharacteristic("6E400003-B5A3-F393-E0A9-E50E24DCCA9E",
+                                  BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+        svc->createCharacteristic("6E400002-B5A3-F393-E0A9-E50E24DCCA9E", BLECharacteristic::PROPERTY_WRITE);
+        svc->start();
+        BLEAdvertising *adv = BLEDevice::getAdvertising();
+        adv->addServiceUUID(NUS);
+        BLEAdvertisementData scan;
+        scan.setName(name);
+        adv->setScanResponseData(scan);
+        adv->start();
+    }
+    printf("MC: BLE test: library up=%d server=%d service=%d name=\"%s\"\n", (int)BLEDevice::getInitialized(), srv != nullptr,
+           svc != nullptr, name);
+}
+
+static const char *restartingInto = nullptr; // set when the badge is about to restart into the other mesh
+static uint32_t restartAt = 0;
+
+// The mesh for this run is settled: remember it, give it its own channels, nodes and message
+// history, and hand MeshCore the radio if it was picked.
 static void chooseMesh(bool meshcore)
 {
+    if (modeOn)
+        return; // MeshCore already has the radio (the choice is made once a run)
     if (meshcore != savedMode)
         meshcoreSetMode(meshcore);
-    if (meshcore && !modeOn) {
-        // MeshCore's chats are kept apart from Meshtastic's: their own history file, loaded in
-        // place of the one Meshtastic loaded at startup (which stays on disk untouched)
+    channelsFor(meshcore);
+    mcNodesFor(meshcore);
+    if (meshcore) {
+        // MeshCore's chats have their own history file, loaded in place of the one Meshtastic
+        // loaded at startup (which stays on disk untouched)
         messageStore = MessageStore("meshcore");
         messageStore.loadFromFlash();
         mcThread = new McThread();
+    } else if (RadioLibInterface::instance) {
+        RadioLibInterface::instance->reconfigure(); // Meshtastic started on whichever channels were in place
     }
     modeOn = meshcore;
+    bluetoothFor(meshcore);
 }
 
 // ---- the startup question --------------------------------------------------------------------
@@ -829,20 +1506,35 @@ class MeshBootApp : public App
     void tick(uint32_t now) override
     {
         (void)now;
+        if (restartingInto) {
+            // Restart straight away, not through Meshtastic's shutdown: that switches the display
+            // off first, and the point is for "Loading ..." to stay on the panel across the restart.
+            // (Nothing is lost: the choice is already saved, and this is seconds after startup.)
+            if (restartAt && (int32_t)(millis() - restartAt) >= 0)
+                ESP.restart();
+            return;
+        }
         if (Throttle::hasElapsed(shownAt, WAIT_MS))
             done();
     }
     void key(int k, KeyAction a) override
     {
+        if (restartingInto)
+            return;
+        // Choosing happens when the key is let go, not when it goes down: the home menu opens the
+        // moment the mesh is chosen, and a key still held would carry on into it (holding # there
+        // opens the settings menu).
+        if ((k == AK_HASH || k == AK_5) && a == KA_RELEASE) {
+            picked = true;
+            done();
+            return;
+        }
         if (a != KA_PRESS)
             return;
         if (k == AK_UP || k == AK_2 || k == AK_DOWN || k == AK_8 || k == AK_LEFT || k == AK_RIGHT || k == AK_4 || k == AK_6) {
             sel = !sel;
             shownAt = millis(); // a key press restarts the countdown
             appRedraw();
-        } else if (k == AK_HASH || k == AK_5) {
-            picked = true;
-            done();
         }
     }
     void draw(OLEDDisplay *d, int16_t x, int16_t y) override
@@ -851,6 +1543,12 @@ class MeshBootApp : public App
         d->setColor(BLACK);
         d->fillRect(x, y, W, H);
         d->setColor(WHITE);
+        if (restartingInto) { // the other mesh than last time: this screen stays up until the badge restarts
+            drawTitle(d, x, y, "LoRa mesh", nullptr);
+            drawCentered(d, x, y + H / 2 - lh - 4, "Loading", FONT_SMALL);
+            drawCentered(d, x, y + H / 2 - 2, restartingInto, FONT_MEDIUM);
+            return;
+        }
         drawTitle(d, x, y, "LoRa mesh", "#choose");
         static const char *const NAMES[] = {"Meshtastic", "MeshCore"};
         int rowH = fontHeight(FONT_MEDIUM) + 6, top = y + lh + 10;
@@ -879,6 +1577,10 @@ class MeshBootApp : public App
     void done()
     {
         chooseMesh(sel == 1);
+        if (restartingInto) {
+            appRedraw(); // stay here, saying so, until the restart (no glimpse of the wrong mesh's screens)
+            return;
+        }
         appClose();
         if (then)
             then(); // the next screen, straight away
@@ -889,6 +1591,37 @@ static MeshBootApp meshBootApp;
 bool meshBootPicked()
 {
     return meshBootApp.picked;
+}
+
+const char *meshcoreLoadingInto()
+{
+    const char *into = nullptr;
+    Preferences p;
+    if (p.begin("utah", true)) {
+        if (p.getBool("meshgo", false))
+            into = p.getInt("meshmode", 0) == 1 ? "MeshCore" : "Meshtastic";
+        p.end();
+    }
+    return into;
+}
+
+// The badge restarted because the other mesh was picked at the question: go into it without asking
+// again (true), exactly as if it had just been picked with a key.
+bool meshcoreResumeChoice()
+{
+    bool go = false;
+    Preferences p;
+    if (p.begin("utah", false)) {
+        go = p.getBool("meshgo", false);
+        if (go)
+            p.remove("meshgo");
+        p.end();
+    }
+    if (!go)
+        return false;
+    chooseMesh(savedMode);
+    meshBootApp.picked = true;
+    return true;
 }
 
 void openMeshBootChoice(void (*then)())

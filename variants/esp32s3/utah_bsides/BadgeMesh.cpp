@@ -662,6 +662,11 @@ class BadgeMeshModule : public MeshModule, private concurrency::OSThread
         badgePageDraw(display, x, y);
     }
 
+  public:
+    // a packet that didn't come through Meshtastic's radio (see meshBadgeReceived)
+    void fromBridge(const meshtastic_MeshPacket &mp) { handleReceived(mp); }
+
+  protected:
     bool wantPacket(const meshtastic_MeshPacket *p) override
     {
         return p->which_payload_variant == meshtastic_MeshPacket_decoded_tag ||
@@ -857,6 +862,12 @@ class BadgeMeshModule : public MeshModule, private concurrency::OSThread
 };
 
 static BadgeMeshModule *module = nullptr;
+
+void meshBadgeReceived(const meshtastic_MeshPacket &mp)
+{
+    if (module)
+        module->fromBridge(mp);
+}
 
 void meshStart()
 {

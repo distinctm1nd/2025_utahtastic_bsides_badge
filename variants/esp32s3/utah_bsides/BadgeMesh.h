@@ -8,6 +8,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "mesh/generated/meshtastic/mesh.pb.h"
+
 class OLEDDisplay;
 
 namespace badge
@@ -50,6 +52,8 @@ bool meshTakeInvite(uint32_t &from, char *name, size_t nameSize, uint8_t *psk,
 // a channel's name as the badge shows it: Meshtastic's, except that in MeshCore mode the default
 // channel is MeshCore's public channel and is called that
 const char *meshChannelName(int channelIndex);
+// a packet that did not come through Meshtastic's radio (MeshCore's bridge): the badge's alerts for it
+void meshBadgeReceived(const meshtastic_MeshPacket &mp);
 const char *meshNodeName(uint32_t node, char *buf, size_t n); // long name, short name or !hex
 // hopLimit 0: only badges in direct range hear it (not relayed); -1: the usual hop limit
 bool meshSendPrivate(uint32_t to, const uint8_t *data, size_t len, bool wantAck, int hopLimit = -1);

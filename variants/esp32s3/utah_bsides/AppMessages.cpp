@@ -796,7 +796,8 @@ class MessagesApp : public App
             return;
         for (size_t i = 0; i < nodeDB->getNumMeshNodes() && nPeople < 48; i++) {
             const meshtastic_NodeInfoLite *nd = nodeDB->getMeshNodeByIndex(i);
-            if (nd && nd->num != nodeDB->getNodeNum() && nodeInfoLiteHasUser(nd) && !meshcoreNameOnly(nd->num))
+            if (nd && nd->num != nodeDB->getNodeNum() && nodeInfoLiteHasUser(nd) && !meshcoreNameOnly(nd->num) &&
+                !meshcoreHidesNode(nd->num))
                 people[nPeople++] = nd->num;
         }
         for (int a = 1; a < nPeople; a++) // most recently heard first

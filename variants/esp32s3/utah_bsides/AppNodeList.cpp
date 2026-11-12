@@ -12,6 +12,7 @@
 #include "BadgeApps.h"
 #include "BadgeListFilter.h"
 #include "BadgeMesh.h"
+#include "BadgeMeshCore.h"
 
 #include "DisplayFormatters.h"
 #include "NodeDB.h"
@@ -301,7 +302,7 @@ class NodeListApp : public App
             size_t n = nodeDB->getNumMeshNodes();
             for (size_t i = 0; i < n && count < MAXN; i++) {
                 meshtastic_NodeInfoLite *info = nodeDB->getMeshNodeByIndex(i);
-                if (!info || info->num == me || findRow(info->num) >= 0)
+                if (!info || info->num == me || findRow(info->num) >= 0 || meshcoreHidesNode(info->num))
                     continue;
                 NodeRow &r = rows[count++];
                 r.num = info->num;

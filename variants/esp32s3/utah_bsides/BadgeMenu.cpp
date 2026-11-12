@@ -18,6 +18,7 @@
 #include "BadgeMenu.h"
 #include "BadgeMesh.h"
 #include "BadgeMeshCore.h"
+#include "BadgeMeshCoreSettings.h"
 #include "BadgeMeshSettings.h"
 #include "BadgeScenes.h"
 #include "BadgeTime.h"
@@ -308,11 +309,9 @@ static void banner(const char *title, const char **items, int count, int selecte
 // ---- main menu --------------------------------------------------------------------------------
 static void showMain()
 {
-    // last, in MeshCore mode only: MeshCore's radio setting
-    static char mcLabel[40];
-    snprintf(mcLabel, sizeof(mcLabel), "MeshCore radio: %g kHz", (double)meshcoreBandwidth());
-    static const char *items[] = {
-        "Back", "Name tag & pictures", "Lights", "Mesh settings", "Badge WiFi (phone)", "Settings", "Key help", mcLabel};
+    // last, in MeshCore mode only: MeshCore's own settings
+    static const char *items[] = {"Back",     "Name tag & pictures", "Lights", "Mesh settings", "Badge WiFi (phone)", "Settings",
+                                  "Key help", "MeshCore settings"};
     static const Step go[] = {S_NONE, S_NAMETAG, S_LIGHTS, S_MESHSET, S_PORTAL, S_SETTINGS, S_HELP, S_MCRADIO};
     banner("Settings & setup", items, meshcoreMode() ? 8 : 7, mainSel, [](int sel) -> void {
         if (sel > 0 && sel < 8) {
@@ -917,24 +916,6 @@ static void showReset()
     });
 }
 
-// MeshCore's radio setting: 910.525 MHz, SF7, and one of two bandwidths. Applied at once and saved.
-static void showMcRadio()
-{
-    static const char *items[] = {"Back", "Badges: 125 kHz", "US public: 62.5 kHz"};
-    banner("MeshCore radio\n125: any badge\n62.5: public mesh,\nneeds the SX1262 mod", items, 3,
-           meshcoreBandwidth() < 100 ? 2 : 1, [](int sel) -> void {
-               if (sel != 1 && sel != 2) {
-                   queue(S_MAIN);
-                   return;
-               }
-               bool ok = meshcoreSetBandwidth(sel == 2 ? 62.5f : 125.0f);
-               if (screen)
-                   screen->showSimpleBanner(ok ? (sel == 2 ? "MeshCore: 62.5 kHz" : "MeshCore: 125 kHz")
-                                               : "This badge's radio\ncan't do 62.5 kHz\n(stock LLCC68)",
-                                            3000);
-           });
-}
-
 static void showHelp()
 {
     shownTitle = "Joystick: move, centre: select\n"
@@ -1041,12 +1022,14 @@ static bool stepOpensApp(Step s)
 
 bool menuBusy()
 {
-    return (screen && screen->isOverlayBannerShowing()) || queued != S_NONE || returnTo != S_NONE || meshSettingsBusy();
+    return (screen && screen->isOverlayBannerShowing()) || queued != S_NONE || returnTo != S_NONE || meshSettingsBusy() ||
+           mcSettingsBusy();
 }
 
 void menuPoll()
 {
     meshSettingsPoll();
+    mcSettingsPoll();
     if (queued == S_NONE && returnTo != S_NONE && screen && !appActive() && !screen->isOverlayBannerShowing()) {
         queued = returnTo;
         returnTo = S_NONE;
@@ -1087,7 +1070,7 @@ void menuPoll()
         showReset();
         break;
     case S_MCRADIO:
-        showMcRadio();
+        mcSettingsOpen();
         break;
     case S_HELP:
         showHelp();

@@ -30,6 +30,7 @@
 
 #include "concurrency/OSThread.h"
 #include "graphics/Screen.h"
+#include "graphics/ScreenFonts.h"
 #include "graphics/draw/UIRenderer.h"
 #include "main.h"
 #include "mesh/Throttle.h"
@@ -76,14 +77,24 @@ static void backlightTask(void *)
     vTaskDelete(nullptr);
 }
 
+// "MeshCore" / "Meshtastic" when the badge has restarted to change mesh (see the boot screens below)
+static const char *loadingMesh = nullptr;
+
 void earlyInitVariant()
 {
-    badge::menuInitEarly(); // the saved screen colour, before the raven is drawn
-    xTaskCreatePinnedToCore(backlightTask, "bklight", 2048, nullptr, 1, nullptr, ARDUINO_RUNNING_CORE);
-    // Backlight off until the first picture (the raven) is up: left unconfigured the pin lights
-    // the screen while the panel still shows nothing sensible. backlightTask lights it.
+    badge::menuInitEarly();                     // the saved screen colour, before the raven is drawn
+    loadingMesh = badge::meshcoreLoadingInto(); // restarted to change mesh: "Loading ..." stays up, no raven
     pinMode(BADGE_TFT_BL, OUTPUT);
-    digitalWrite(BADGE_TFT_BL, LOW);
+    if (loadingMesh) {
+        // The panel keeps its last picture through the restart - the mesh question's "Loading ..."
+        // - so leave it lit: the same words are drawn again as soon as the screen is set up.
+        digitalWrite(BADGE_TFT_BL, HIGH);
+    } else {
+        // Backlight off until the first picture (the raven) is up: left unconfigured the pin lights
+        // the screen while the panel still shows nothing sensible. backlightTask lights it.
+        digitalWrite(BADGE_TFT_BL, LOW);
+        xTaskCreatePinnedToCore(backlightTask, "bklight", 2048, nullptr, 1, nullptr, ARDUINO_RUNNING_CORE);
+    }
     badge::ledsEarlyInit();
     xTaskCreatePinnedToCore(minibadgeClockTask, "mbclk", 2048, nullptr, 1, nullptr, ARDUINO_RUNNING_CORE);
 }
@@ -98,10 +109,37 @@ extern uint32_t logo_timeout; // src/graphics/Screen.cpp
 // shows the raven for both: the linker is told (platformio.ini, -Wl,--wrap) to send Meshtastic's
 // one call of UIRenderer::drawBootIconScreen() here instead, so the logo is never drawn and
 // Meshtastic's source stays untouched. The name is that function's C++ linker name.
+//
+// When the badge has restarted to change mesh (the "Loading ..." screen of the mesh question), the
+// boot screens carry on saying "Loading <mesh>" instead of showing the raven a second time. That
+// takes the second boot screen too (UIRenderer::drawOEMBootScreen), redirected the same way.
+static void drawLoading(OLEDDisplay *display, int16_t x, int16_t y)
+{
+    int lh = badge::fontHeight(FONT_SMALL), H = display->height();
+    display->setColor(BLACK);
+    display->fillRect(x, y, display->width(), H);
+    display->setColor(WHITE);
+    badge::drawTitle(display, x, y, "LoRa mesh", nullptr);
+    badge::drawCentered(display, x, y + H / 2 - lh - 4, "Loading", FONT_SMALL);
+    badge::drawCentered(display, x, y + H / 2 - 2, loadingMesh, FONT_MEDIUM);
+}
+extern "C" void __real__ZN8graphics10UIRenderer17drawOEMBootScreenEP11OLEDDisplayP18OLEDDisplayUiStatess(
+    OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y);
+extern "C" void __wrap__ZN8graphics10UIRenderer17drawOEMBootScreenEP11OLEDDisplayP18OLEDDisplayUiStatess(
+    OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
+{
+    if (loadingMesh)
+        drawLoading(display, x, y);
+    else
+        __real__ZN8graphics10UIRenderer17drawOEMBootScreenEP11OLEDDisplayP18OLEDDisplayUiStatess(display, state, x, y);
+}
 extern "C" void __wrap__ZN8graphics10UIRenderer18drawBootIconScreenEPKcP11OLEDDisplayP18OLEDDisplayUiStatess(
     const char *upperMsg, OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
-    graphics::UIRenderer::drawOEMIconScreen(upperMsg, display, state, x, y);
+    if (loadingMesh)
+        drawLoading(display, x, y);
+    else
+        graphics::UIRenderer::drawOEMIconScreen(upperMsg, display, state, x, y);
 }
 
 class BadgeStartup : public concurrency::OSThread
@@ -114,7 +152,8 @@ class BadgeStartup : public concurrency::OSThread
     {
         if (first) { // runs after Meshtastic's setup(), which sets the boot screen time
             first = false;
-            graphics::logo_timeout = (millis() - serialSinceMsec) + RAVEN_MS; // the raven stays this long from now
+            // the raven stays this long from now (a "Loading <mesh>" restart has nothing to linger on)
+            graphics::logo_timeout = (millis() - serialSinceMsec) + (loadingMesh ? 400 : RAVEN_MS);
         }
         switch (stage) {
         case 0: // the raven has played: take over
@@ -123,9 +162,11 @@ class BadgeStartup : public concurrency::OSThread
             // which mesh the LoRa radio speaks this run (only in a firmware built with MeshCore)
             if (!meshAsked && badge::meshcoreBuilt()) {
                 meshAsked = true;
-                badge::openMeshBootChoice(afterMeshChoice);
-                stage = 4;
-                return 100;
+                if (!badge::meshcoreResumeChoice()) {
+                    badge::openMeshBootChoice(afterMeshChoice);
+                    stage = 4;
+                    return 100;
+                }
             }
 #if BADGE_OFFENSIVE
             // research build: a full-screen "RESEARCH BUILD" page plays HERE, after the raven and
