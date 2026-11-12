@@ -36,16 +36,20 @@ int meshHeardList(HeardNode *out, int max);
 // Live modem-preset switching for the LoRa node list, so you can sweep LongFast / LongSlow / ...
 // The radio hears one preset at a time; this retunes it (no reboot) to listen on another, and
 // restores the badge's own preset afterwards. meshListenPreset does not save to disk.
-void meshListenPreset(int preset);   // a meshtastic_Config_LoRaConfig_ModemPreset value
+void meshListenPreset(int preset); // a meshtastic_Config_LoRaConfig_ModemPreset value
 int meshCurrentPreset();
-void meshRestorePreset();            // put the badge back on its configured preset
-int meshPresetCount();               // the presets worth sweeping
-int meshPresetAt(int i);             // the preset value at list position i
+void meshRestorePreset(); // put the badge back on its configured preset
+int meshPresetCount();    // the presets worth sweeping
+int meshPresetAt(int i);  // the preset value at list position i
 const char *meshPresetName(int preset);
 void meshRequestNodeInfo(uint32_t node, uint8_t channel);
 bool meshSendInvite(uint32_t to, uint8_t channelIndex); // a channel's name + key, end to end encrypted
 bool meshInvitePending();                               // an invite arrived and hasn't been shown
-bool meshTakeInvite(uint32_t &from, char *name, size_t nameSize, uint8_t *psk, int &len); // ask a node for its node info (name, key)
+bool meshTakeInvite(uint32_t &from, char *name, size_t nameSize, uint8_t *psk,
+                    int &len); // ask a node for its node info (name, key)
+// a channel's name as the badge shows it: Meshtastic's, except that in MeshCore mode the default
+// channel is MeshCore's public channel and is called that
+const char *meshChannelName(int channelIndex);
 const char *meshNodeName(uint32_t node, char *buf, size_t n); // long name, short name or !hex
 // hopLimit 0: only badges in direct range hear it (not relayed); -1: the usual hop limit
 bool meshSendPrivate(uint32_t to, const uint8_t *data, size_t len, bool wantAck, int hopLimit = -1);
@@ -65,10 +69,10 @@ void meshSetLeadingShow(bool on);
 // fox hunt
 struct FoxReading {
     bool valid;
-    int32_t rssi;   // 0 if unknown (only packets this module saw carry RSSI)
+    int32_t rssi; // 0 if unknown (only packets this module saw carry RSSI)
     float snr;
-    uint32_t atMs;  // millis() of the last reading
-    int hops;       // -1 unknown, 0 = heard directly
+    uint32_t atMs; // millis() of the last reading
+    int hops;      // -1 unknown, 0 = heard directly
 };
 void meshFoxStart(uint32_t target); // also pings the target every 20 s
 void meshFoxStop();

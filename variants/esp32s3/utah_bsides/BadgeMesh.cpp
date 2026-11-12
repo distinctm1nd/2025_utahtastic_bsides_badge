@@ -6,6 +6,7 @@
 #include "BadgeHunt.h"
 #include "BadgeLeds.h"
 #include "BadgeMesh.h"
+#include "BadgeMeshCore.h"
 #include "BadgeScenes.h"
 #include "BadgeStats.h"
 #include "BadgeTime.h"
@@ -141,30 +142,53 @@ bool meshSendPrivate(uint32_t to, const uint8_t *data, size_t len, bool wantAck,
     return true;
 }
 
+const char *meshChannelName(int channelIndex)
+{
+    if (meshcoreMode()) {
+        const auto &psk = channels.getByIndex((ChannelIndex)channelIndex).settings.psk;
+        if (psk.size == 1 && psk.bytes[0] == 1)
+            return "Public";
+    }
+    return channels.getName(channelIndex);
+}
+
 bool meshSendTextDM(uint32_t to, const char *text, uint8_t channel)
 {
     if (!router || !service || !text)
         return false;
-    meshtastic_MeshPacket *p = router->allocForSending();
-    if (!p)
-        return false;
     size_t len = strlen(text);
     if (len > sizeof(meshtastic_Data_payload_t::bytes))
         len = sizeof(meshtastic_Data_payload_t::bytes);
-    p->to = to;
-    p->channel = channel;
-    p->want_ack = true;
-    p->decoded.portnum = meshtastic_PortNum_TEXT_MESSAGE_APP;
-    memcpy(p->decoded.payload.bytes, text, len);
-    p->decoded.payload.size = (pb_size_t)len;
+    if (meshcoreMode()) {
+        // the radio speaks MeshCore this run: the same message, to the same node number or channel,
+        // goes out that way (BadgeMeshCore.h); the thread below is kept exactly as for Meshtastic
+        if (!meshcoreSendText(to, text, channel)) {
+            if (screen)
+                screen->showSimpleBanner(to == NODENUM_BROADCAST
+                                             ? "Couldn't send on this channel"
+                                             : "No MeshCore contact for\nthem yet. Announcing:\ntry again in a moment",
+                                         3000);
+            return false;
+        }
+    } else {
+        meshtastic_MeshPacket *p = router->allocForSending();
+        if (!p)
+            return false;
+        p->to = to;
+        p->channel = channel;
+        p->want_ack = true;
+        p->decoded.portnum = meshtastic_PortNum_TEXT_MESSAGE_APP;
+        memcpy(p->decoded.payload.bytes, text, len);
+        p->decoded.payload.size = (pb_size_t)len;
 
-    // Remember this packet so the routing ACK can turn "Sending..." into "Message sent to #<channel>"
-    pendingSendId = p->id;
-    pendingSendDest = to;
-    pendingSendCh = channel;
-    pendingSendAt = millis();
+        // Remember this packet so the routing ACK can turn "Sending..." into "Message sent to #<channel>"
+        pendingSendId = p->id;
+        pendingSendDest = to;
+        pendingSendCh = channel;
+        pendingSendAt = millis();
 
-    service->sendToMesh(p, RX_SRC_LOCAL, true);
+        service->sendToMesh(p, RX_SRC_LOCAL, true);
+    }
 
     // sendToMesh() doesn't echo our own outgoing text into the message store (only the phone's
     // handleToRadio path does, and only for DMs), so the badge's own thread would stay empty.
@@ -443,6 +467,8 @@ static int savedPreset = -1; // the badge's own preset, saved while we listen on
 
 void meshListenPreset(int preset)
 {
+    if (meshcoreMode())
+        return; // Meshtastic's presets mean nothing to MeshCore, and retuning would take its radio
     if (savedPreset < 0)
         savedPreset = config.lora.modem_preset;
     config.lora.use_preset = true;

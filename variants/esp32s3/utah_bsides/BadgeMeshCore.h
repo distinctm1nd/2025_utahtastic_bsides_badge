@@ -19,4 +19,18 @@ void meshcoreSetMode(bool on); // saved (NVS "utah" / "meshmode") as the choice 
 void openMeshBootChoice(void (*then)());
 bool meshBootPicked(); // someone chose with a key (false: the question timed out, or was never asked)
 
+// ---- in MeshCore mode --------------------------------------------------------------------------
+// MeshCore is bridged into the data the badge's apps already use: its contacts appear as nodes
+// (numbered from their public keys), its messages arrive as Meshtastic text packets, and Meshtastic
+// channel N is MeshCore group channel N with the same key. So the apps need only these:
+bool meshcoreSendText(uint32_t to, const char *text, uint8_t channel); // to: a node number, or broadcast for the channel
+// a node made from the name on a group message, with no MeshCore contact behind it (yet): it can be
+// shown as a sender but not written to directly
+bool meshcoreNameOnly(uint32_t node);
+void meshcorePause(bool on); // true while something else (the 915 MHz scanner) borrows the radio
+// Radio: 910.525 MHz, SF7, and this bandwidth in kHz. 125 for any badge; 62.5 is MeshCore's public
+// US setting and needs the SX1262 mod (false: this radio refused, and it stays on what it had).
+float meshcoreBandwidth();
+bool meshcoreSetBandwidth(float khz);
+
 } // namespace badge

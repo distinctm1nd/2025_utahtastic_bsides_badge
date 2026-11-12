@@ -2,6 +2,8 @@
 
 #include "BadgeRfSniff.h"
 
+#include "BadgeMeshCore.h"
+
 #include "NodeDB.h"
 #include "mesh/RadioLibInterface.h"
 #include <Arduino.h>
@@ -26,6 +28,7 @@ const char *rfBorrow()
     RadioLibInterface *r = RadioLibInterface::instance;
     if (!r)
         return "No LoRa radio";
+    meshcorePause(true); // in MeshCore mode: it leaves the radio alone until rfReturn()
     savedTx = config.lora.tx_enabled;
     config.lora.tx_enabled = false;                      // Meshtastic drops what it would send
     for (int i = 0; i < 150 && !r->canSleep(false); i++) // let a packet in the air finish
@@ -47,7 +50,9 @@ void rfReturn()
         return;
     borrowed = false;
     config.lora.tx_enabled = savedTx;
-    if (RadioLibInterface::instance)
+    if (meshcoreMode())
+        meshcorePause(false); // MeshCore puts its own settings back
+    else if (RadioLibInterface::instance)
         RadioLibInterface::instance->reconfigure(); // Meshtastic's frequency, modem and receive again
 }
 

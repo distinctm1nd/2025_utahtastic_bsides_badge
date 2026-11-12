@@ -20,6 +20,7 @@
 #include "BadgeLock.h"
 #include "BadgeMenu.h"
 #include "BadgeMesh.h"
+#include "BadgeMeshCore.h"
 #include "BadgeMeshSettings.h"
 #include "BadgeStats.h"
 #include "BadgeTextEntry.h"
@@ -131,7 +132,7 @@ static void chatName(const Chat &c, char *b, size_t n)
     if (c.dm)
         meshNodeName(c.peer, b, n);
     else
-        snprintf(b, n, "#%s", channels.getName(c.ch));
+        snprintf(b, n, "#%s", meshChannelName(c.ch));
 }
 
 // How private a chat is, from its keys:
@@ -391,7 +392,7 @@ class MessagesApp : public App
                     return;
                 }
                 char g[16];
-                snprintf(g, sizeof(g), "%s", channels.getName(chat.ch));
+                snprintf(g, sizeof(g), "%s", meshChannelName(chat.ch));
                 const char *why = meshLeaveChannel(chat.ch);
                 if (why) {
                     mode = M_CHAT;
@@ -497,7 +498,7 @@ class MessagesApp : public App
                 meshRequestNodeInfo(who, chat.ch);
                 snprintf(b, sizeof(b), "No key for %s yet: asked, try in a minute", nm);
             } else if (meshSendInvite(who, chat.ch)) {
-                rememberInvited(channels.getName(chat.ch), who);
+                rememberInvited(meshChannelName(chat.ch), who);
                 snprintf(b, sizeof(b), "Invite sent to %s", nm);
             } else {
                 snprintf(b, sizeof(b), "Couldn't send the invite");
@@ -596,7 +597,7 @@ class MessagesApp : public App
     void loadMembers()
     {
         char g[16];
-        snprintf(g, sizeof(g), "%s", channels.getName(chat.ch));
+        snprintf(g, sizeof(g), "%s", meshChannelName(chat.ch));
         nMembers = loadInvited(g, members);
         const auto &msgs = messageStore.getMessages(); // and whoever has posted in it
         for (int i = (int)msgs.size() - 1; i >= 0 && nMembers < MAX_INVITED * 2; i--) {
@@ -623,7 +624,7 @@ class MessagesApp : public App
             return;
         }
         char g[16];
-        snprintf(g, sizeof(g), "%s", channels.getName(chat.ch));
+        snprintf(g, sizeof(g), "%s", meshChannelName(chat.ch));
         uint32_t kept[MAX_INVITED];
         int sent = 0, nokey = 0, nk = 0;
         for (int j = 0; j < nMembers; j++) {
@@ -795,7 +796,7 @@ class MessagesApp : public App
             return;
         for (size_t i = 0; i < nodeDB->getNumMeshNodes() && nPeople < 48; i++) {
             const meshtastic_NodeInfoLite *nd = nodeDB->getMeshNodeByIndex(i);
-            if (nd && nd->num != nodeDB->getNodeNum() && nodeInfoLiteHasUser(nd))
+            if (nd && nd->num != nodeDB->getNodeNum() && nodeInfoLiteHasUser(nd) && !meshcoreNameOnly(nd->num))
                 people[nPeople++] = nd->num;
         }
         for (int a = 1; a < nPeople; a++) // most recently heard first

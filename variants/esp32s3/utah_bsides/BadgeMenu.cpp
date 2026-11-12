@@ -17,6 +17,7 @@
 #include "BadgeLock.h"
 #include "BadgeMenu.h"
 #include "BadgeMesh.h"
+#include "BadgeMeshCore.h"
 #include "BadgeMeshSettings.h"
 #include "BadgeScenes.h"
 #include "BadgeTime.h"
@@ -44,6 +45,7 @@ enum Step {
     S_COLOUR,
     S_LEDOFF,
     S_RESET,
+    S_MCRADIO,
     S_HELP,
     S_FOX_MENU,
     S_FOX_PICK,
@@ -117,6 +119,7 @@ static Step parentOf(Step s)
     switch (s) {
     case S_SETTINGS:
     case S_HELP:
+    case S_MCRADIO:
         return S_MAIN;
     case S_GAMES:
     case S_FOX_MENU:
@@ -305,11 +308,14 @@ static void banner(const char *title, const char **items, int count, int selecte
 // ---- main menu --------------------------------------------------------------------------------
 static void showMain()
 {
-    static const char *items[] = {"Back",    "Name tag & pictures", "Lights", "Mesh settings", "Badge WiFi (phone)", "Settings",
-                                  "Key help"};
-    static const Step go[] = {S_NONE, S_NAMETAG, S_LIGHTS, S_MESHSET, S_PORTAL, S_SETTINGS, S_HELP};
-    banner("Settings & setup", items, 7, mainSel, [](int sel) -> void {
-        if (sel > 0 && sel < 7) {
+    // last, in MeshCore mode only: MeshCore's radio setting
+    static char mcLabel[40];
+    snprintf(mcLabel, sizeof(mcLabel), "MeshCore radio: %g kHz", (double)meshcoreBandwidth());
+    static const char *items[] = {
+        "Back", "Name tag & pictures", "Lights", "Mesh settings", "Badge WiFi (phone)", "Settings", "Key help", mcLabel};
+    static const Step go[] = {S_NONE, S_NAMETAG, S_LIGHTS, S_MESHSET, S_PORTAL, S_SETTINGS, S_HELP, S_MCRADIO};
+    banner("Settings & setup", items, meshcoreMode() ? 8 : 7, mainSel, [](int sel) -> void {
+        if (sel > 0 && sel < 8) {
             mainSel = sel;
             setSel = 1; // Settings opened from here starts at the top
             queue(go[sel]);
@@ -911,6 +917,24 @@ static void showReset()
     });
 }
 
+// MeshCore's radio setting: 910.525 MHz, SF7, and one of two bandwidths. Applied at once and saved.
+static void showMcRadio()
+{
+    static const char *items[] = {"Back", "Badges: 125 kHz", "US public: 62.5 kHz"};
+    banner("MeshCore radio\n125: any badge\n62.5: public mesh,\nneeds the SX1262 mod", items, 3,
+           meshcoreBandwidth() < 100 ? 2 : 1, [](int sel) -> void {
+               if (sel != 1 && sel != 2) {
+                   queue(S_MAIN);
+                   return;
+               }
+               bool ok = meshcoreSetBandwidth(sel == 2 ? 62.5f : 125.0f);
+               if (screen)
+                   screen->showSimpleBanner(ok ? (sel == 2 ? "MeshCore: 62.5 kHz" : "MeshCore: 125 kHz")
+                                               : "This badge's radio\ncan't do 62.5 kHz\n(stock LLCC68)",
+                                            3000);
+           });
+}
+
 static void showHelp()
 {
     shownTitle = "Joystick: move, centre: select\n"
@@ -1061,6 +1085,9 @@ void menuPoll()
         break;
     case S_RESET:
         showReset();
+        break;
+    case S_MCRADIO:
+        showMcRadio();
         break;
     case S_HELP:
         showHelp();
